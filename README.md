@@ -2,7 +2,7 @@
 
 Meta-extension for Claude Code that auto-generates project-specific agent teams.
 
-**Status:** Pre-MVP (v0.0.1). See [SCOPING.md](./SCOPING.md) for full design + roadmap.
+**Status:** MVP scaffolded (v0.0.1). See [SCOPING.md](./SCOPING.md) for full design + roadmap.
 
 ## What it does
 
@@ -13,7 +13,7 @@ Forges a project-specific multi-agent team — roster, team-launcher skill, obse
 - Includes a runtime dashboard at `docs/superpowers/<project>/<team>/`
 - Survives `/resume` via an explicit rehydrate protocol (tracker is load-bearing)
 
-team-forge is the wiring; the procedural toolbox (TDD, debugging, planning, brainstorming) is provided by Superpowers and the project's own skills. The forged teammates reference both.
+team-forge is the wiring; the procedural toolbox (TDD, debugging, planning, brainstorming) is provided by Superpowers and the project's own skills. Forged teammates reference both.
 
 ## The 4-phase loop
 
@@ -29,23 +29,49 @@ team-forge runs a human-in-the-loop design loop ending with concrete files commi
 - Claude Code v2.1.32 or later
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `settings.json` or environment
 
-## Install
+## Install (local development)
 
-(TODO — once MVP forges HERC end-to-end. For now: developer install from local path.)
+```
+/plugin marketplace add ~/team-forge
+/plugin install team-forge@team-forge-dev
+```
+
+Then in any Claude Code session: ask Claude to "use team-forge to design an agent team for `<project>`".
+
+## What ships in this extension
+
+- **7 skills** (`skills/`):
+  - `team-forge-brainstorming` — Phase 1 (active interrogation)
+  - `team-forge-writing-plans` — Phase 2 (milestone planning with hard-dependency interrogation)
+  - `team-forge-design` — Phase 3 (multi-agent design with reciprocal review)
+  - `team-forge-forge` — Phase 4 (deterministic file emission)
+  - `team-forge-rehydrate` — `/resume` protocol
+  - `team-forge-tracker` — tracker-role generic pattern
+  - `team-forge-monitor` — monitor-role generic pattern
+- **4 templates** (`templates/`):
+  - `design.yaml.j2` — Phase 3 schema (the contract)
+  - `agent.md.j2` — per-agent emission
+  - `team-launcher.md.j2` — `<team>-team` slash command
+  - `dashboard.html.j2` — initial dashboard render
+- **1 hook** (`hooks/session-start`) — slim availability announcement
 
 ## Roadmap
 
 - [x] v8.2 design freeze ([SCOPING.md](./SCOPING.md))
 - [x] Item 1: repo skeleton + manifests
 - [x] Item 2: `templates/design.yaml.j2`
-- [ ] Item 3: `templates/agent.md.j2` + `templates/team-launcher.md.j2`
-- [ ] Item 4: `skills/team-forge-forge/SKILL.md` (Phase 4 logic — consumes design.yaml + emits files)
-- [ ] Item 5: `skills/team-forge-rehydrate/SKILL.md` (runtime `/resume` protocol)
-- [ ] Items 6–8: tracker + monitor + dashboard.html.j2
-- [ ] Items 9–11: design + brainstorming + writing-plans skills (upstream phases)
-- [ ] First end-to-end forge test on a small generic project
+- [x] Item 3: `templates/agent.md.j2` + `templates/team-launcher.md.j2`
+- [x] Item 4: `skills/team-forge-forge/SKILL.md` (Phase 4 logic)
+- [x] Item 5: `skills/team-forge-rehydrate/SKILL.md` (runtime `/resume` protocol)
+- [x] Item 6: `skills/team-forge-tracker/SKILL.md`
+- [x] Item 7: `skills/team-forge-monitor/SKILL.md`
+- [x] Item 8: `templates/dashboard.html.j2`
+- [x] Item 9: `skills/team-forge-design/SKILL.md`
+- [x] Item 10: `skills/team-forge-brainstorming/SKILL.md`
+- [x] Item 11: `skills/team-forge-writing-plans/SKILL.md`
+- [ ] First end-to-end forge test on a small generic project (validate Phase 1 → 4 on real input)
 - [ ] v0.1: GitHub push, marketplace install path
 
 ## License
 
-MIT — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE) (Superpowers attribution).
+MIT — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE) (Superpowers + agent-teams + HERC prior-art attribution).
