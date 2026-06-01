@@ -1,0 +1,28 @@
+team-forge — a meta-extension that forges project-specific agent teams for
+Claude Code's agent-teams primitive.
+
+Copyright (c) 2026 Shirley Fu
+
+This software is released under the MIT License (see LICENSE).
+
+---
+
+ACKNOWLEDGMENTS
+
+team-forge draws design inspiration and patterns from:
+
+* Superpowers — https://github.com/obra/superpowers — MIT-licensed, by Jesse Vincent.
+  Specific patterns inherited in spirit (not as code):
+    - The 4-phase workflow framing (our adaptation: Brainstorm → Plan → Design → Forge)
+    - Skill-as-procedural-knowledge concept
+    - The brainstorming + writing-plans flow as a runtime tool used by the lead
+  team-forge does NOT vendor or fork Superpowers source; Superpowers remains an
+  optional upstream the forged teammates can additionally reference.
+
+* Claude Code's agent-teams primitive — https://code.claude.com/docs/en/agent-teams —
+  the architectural target this extension is built on. Currently experimental; gated
+  by CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1.
+
+* The combiner-research stack in wjsl_trader (HERC team, combiner-team skill,
+  combiner-peer-debate skill) — the hand-built prior art that team-forge generalizes
+  into a domain-agnostic pattern.

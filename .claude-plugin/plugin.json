@@ -1,0 +1,20 @@
+{
+  "name": "team-forge",
+  "description": "Meta-extension for Claude Code's agent-teams primitive. Auto-generates project-specific agent teams (roster + team-launcher + observability hub) from a 4-phase human-in-the-loop design loop. Forges agent definitions and skills into the target project; supports multi-session resume via an explicit rehydrate protocol.",
+  "version": "0.0.1",
+  "author": {
+    "name": "Shirley Fu",
+    "email": "shirleyfu24@gmail.com"
+  },
+  "homepage": "https://github.com/shirleyfuxw/team-forge",
+  "repository": "https://github.com/shirleyfuxw/team-forge",
+  "license": "MIT",
+  "keywords": [
+    "agent-teams",
+    "meta-extension",
+    "team-forge",
+    "multi-agent",
+    "claude-code",
+    "agent-factory"
+  ]
+}

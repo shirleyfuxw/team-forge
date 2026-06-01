@@ -1,0 +1,20 @@
+{
+  "name": "team-forge-dev",
+  "description": "Development marketplace for team-forge (private; for our repos)",
+  "owner": {
+    "name": "Shirley Fu",
+    "email": "shirleyfu24@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "team-forge",
+      "description": "Meta-extension that forges project-specific agent teams on Claude Code's agent-teams primitive",
+      "version": "0.0.1",
+      "source": "./",
+      "author": {
+        "name": "Shirley Fu",
+        "email": "shirleyfu24@gmail.com"
+      }
+    }
+  ]
+}
