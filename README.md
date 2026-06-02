@@ -2,7 +2,7 @@
 
 Meta-extension for Claude Code that auto-generates project-specific agent teams.
 
-**Status:** MVP complete + end-to-end forge test passed (v0.0.2). See [SCOPING.md](./SCOPING.md) for full design, [tests/README.md](./tests/README.md) for what was validated.
+**Status:** MVP complete + end-to-end forge test passed (v0.1.0). See [SCOPING.md](./SCOPING.md) for full design, [tests/README.md](./tests/README.md) for what was validated.
 
 ## What it does
 
