@@ -12,7 +12,7 @@ except ImportError:
     print("ERROR: pyyaml not installed. Run: pip3 install pyyaml")
     sys.exit(1)
 
-EXT_DIR = Path("/Users/shirleyfu/team-forge")
+EXT_DIR = Path("/Users/shirleyfu/8888/team-forge")
 TEMPLATES_DIR = EXT_DIR / "templates"
 # design.yaml path: first CLI arg, else the test fixture
 _DEFAULT_DESIGN = "/tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml"

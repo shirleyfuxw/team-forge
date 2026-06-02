@@ -337,7 +337,7 @@ The HERC stack as it would be forged under v8:
 
 ## Repo location
 
-Staging + dev: `/Users/shirleyfu/team-forge/` (git: `main`). Published private at `shirleyfuxw/team-forge`.
+Staging + dev: `/Users/shirleyfu/8888/team-forge/` (git: `main`). Published private at `shirleyfuxw/team-forge`.
 
 **Branches:**
 - `main` — the lean, shipped extension (skills, templates, tools, hooks, manifests).

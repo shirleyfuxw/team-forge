@@ -25,7 +25,7 @@ team-forge is the wiring; the procedural toolbox (TDD, debugging, planning, brai
 
 ```bash
 # Local development
-/plugin marketplace add ~/team-forge
+/plugin marketplace add ~/8888/team-forge
 /plugin install team-forge@team-forge-dev
 
 # Verify
@@ -160,7 +160,7 @@ The launcher detects `status.json` has prior state and invokes `team-forge:rehyd
 If you've already hand-written a `design.yaml` and just want Phase 4 emission:
 
 ```bash
-python3 ~/team-forge/tools/forge.py
+python3 ~/8888/team-forge/tools/forge.py
 # Reads /tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml by default
 # Edit the DESIGN_PATH constant at the top to point at your project's design.yaml
 ```
