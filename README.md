@@ -174,6 +174,30 @@ Both paths (agent-procedural via the forge skill OR Python script) produce ident
 - **Optional Python renderer** (`tools/forge.py`) — deterministic alternative to the agent-procedural path
 - **Slim session-start hook** + plugin manifests + tests/ documentation
 
+## Reference libraries (prior art, not installed)
+
+team-forge can mine external curated corpora during Phase-3 asset discovery — without
+installing them. The canonical example is **ECC** (github.com/affaan-m/ECC, MIT):
+~60 agents + ~250 skills.
+
+How it works:
+- `reference-libraries/ecc.yaml` pins a specific ECC commit. ECC's files are **not**
+  vendored into this repo and **never** loaded as active Claude Code skills (that would
+  overflow context + pollute the namespace).
+- When a project's `design.yaml` lists `ecc` under `reference_libraries:`, discovery
+  fetches the pinned commit on demand into `~/.cache/team-forge/ecc/<commit>/` via
+  `tools/fetch_reference.py`, domain-filters it, and proposes **adapt** candidates —
+  the forge writes project-owned versions citing what it borrowed.
+- `.github/workflows/bump-references.yml` runs weekly and opens a PR if the upstream
+  HEAD has moved past the pin. Pins advance only via merged PR — never silently.
+
+Materialize a pin manually:
+
+```bash
+python3 tools/fetch_reference.py reference-libraries/ecc.yaml
+# prints the cache path; discovery reads <path>/agents and <path>/skills
+```
+
 ## Roadmap
 
 - [x] v0.1.0: MVP feature-complete + end-to-end forge validated

@@ -1,0 +1,14 @@
+# ECC reference-library pin.
+# ECC's files are NOT vendored into this repo and NOT installed as active skills.
+# This manifest pins WHICH commit Phase-3 asset discovery may consult as prior art.
+# Discovery fetches the pinned commit into an on-demand cache (see tools/fetch_reference.py),
+# domain-filters it, and adapts patterns — it never loads ECC as Claude Code skills/agents
+# (avoids context overflow + namespace pollution).
+name: ecc
+repo: https://github.com/affaan-m/ECC.git
+default_branch: main
+pinned_commit: 64cd1ba248e77e377e76f70fc4e6434bfdddd511
+agents_dir: agents          # ~80 agent .md files
+skills_dir: skills          # ~100 skill dirs
+license: MIT                # Copyright (c) 2026 Affaan Mustafa — see NOTICE
+consumption: reference-and-adapt   # forge our own, cite the source; never vendor-copy

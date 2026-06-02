@@ -26,3 +26,17 @@ team-forge draws design inspiration and patterns from:
 * The combiner-research stack in wjsl_trader (HERC team, combiner-team skill,
   combiner-peer-debate skill) — the hand-built prior art that team-forge generalizes
   into a domain-agnostic pattern.
+
+---
+
+REFERENCE LIBRARIES (not vendored)
+
+team-forge can consult external curated agent/skill corpora as prior art during
+Phase-3 asset discovery. Their files are NOT included in this repository — only a
+pinned-commit manifest (reference-libraries/<name>.yaml) is. When a forge run
+needs one, the pinned commit is fetched on demand into a local cache and adapted
+(reference-and-adapt), never copied wholesale.
+
+* ECC — https://github.com/affaan-m/ECC — MIT License, Copyright (c) 2026 Affaan Mustafa.
+  Pinned in reference-libraries/ecc.yaml. If you materialize it (via
+  tools/fetch_reference.py), ECC's MIT terms govern that copy.

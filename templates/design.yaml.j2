@@ -133,12 +133,13 @@ constraints:
 # ART to adapt (reference-and-adapt mode) — NOT installed runtime dependencies.
 # Discovery reads the local path; it never fetches over the network during design.
 reference_libraries:
-  - name: ecc                               # e.g. the ECC harness-native operator system
-    path: <absolute-path-to-local-clone>    # e.g. ~/src/ECC
-    agents_dir: agents                       # subdir holding agent .md files (~80 in ECC)
-    skills_dir: skills                       # subdir holding skill dirs (~100 in ECC)
-    consumption: reference-and-adapt          # reference-and-adapt | vendor-copy | plugin-install
-  # Add more reference libraries as needed.
+  # By NAME — resolves to team-forge's pinned manifest reference-libraries/<name>.yaml
+  # (repo URL + pinned commit). Discovery fetches the pinned commit on demand into a
+  # local cache via tools/fetch_reference.py; never vendored, never loaded as skills.
+  # team-forge ships the `ecc` pin (consumption: reference-and-adapt).
+  - ecc
+  # Or an ad-hoc library you manage yourself (local clone you keep current):
+  # - { name: mylib, path: /abs/path/to/clone, agents_dir: agents, skills_dir: skills }
 
 # ----------------------------------------------------------------------------
 # asset_discovery — Phase 3 audit trail (skills AND agents).

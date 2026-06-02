@@ -1,0 +1,69 @@
+name: bump-reference-libraries
+
+# Weekly: check each reference-library manifest's upstream HEAD and, if the pinned
+# commit is behind, open a PR bumping the pin. Pins move only via merged PR — never
+# silently. ECC's files are never vendored; only the pinned SHA in the manifest moves.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"      # Mondays 06:00 UTC
+  workflow_dispatch: {}        # allow manual runs
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check + bump pinned commits
+        id: bump
+        run: |
+          set -euo pipefail
+          changed=()
+          for manifest in reference-libraries/*.yaml; do
+            name=$(awk '/^name:/{print $2; exit}' "$manifest")
+            repo=$(awk '/^repo:/{print $2; exit}' "$manifest")
+            branch=$(awk '/^default_branch:/{print $2; exit}' "$manifest")
+            pinned=$(awk '/^pinned_commit:/{print $2; exit}' "$manifest")
+            latest=$(git ls-remote "$repo" "refs/heads/$branch" | awk '{print $1}')
+            if [ -z "$latest" ]; then
+              echo "WARN: could not resolve $repo $branch; skipping $name"; continue
+            fi
+            if [ "$latest" != "$pinned" ]; then
+              echo "$name: $pinned -> $latest"
+              sed -i "s/^pinned_commit: .*/pinned_commit: $latest/" "$manifest"
+              changed+=("$name ${pinned:0:12}->${latest:0:12}")
+            else
+              echo "$name: up to date ($pinned)"
+            fi
+          done
+          if [ ${#changed[@]} -eq 0 ]; then
+            echo "no_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no_changes=false" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "${changed[@]}" > /tmp/bump-summary.txt
+          fi
+
+      - name: Open PR if pins moved
+        if: steps.bump.outputs.no_changes == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ts=$(date -u +%Y%m%d)
+          branch="auto/bump-reference-libraries-$ts"
+          git config user.name "team-forge-bot"
+          git config user.email "team-forge-bot@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add reference-libraries/*.yaml
+          summary=$(cat /tmp/bump-summary.txt)
+          git commit -m "chore: bump reference-library pins ($ts)" -m "$summary"
+          git push -u origin "$branch"
+          gh pr create \
+            --title "chore: weekly reference-library pin bump ($ts)" \
+            --body "Automated weekly bump of pinned reference-library commits. Pins move only via this merged PR; ECC files are not vendored — only the manifest SHA changes. Review the upstream diff before merging.\n\n$summary" \
+            --base main --head "$branch"

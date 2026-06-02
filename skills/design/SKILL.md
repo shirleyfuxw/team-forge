@@ -46,12 +46,21 @@ relevant prior art, not the whole world.
 1. `<target_repo>/.claude/skills/` + `<target_repo>/.claude/agents/` — project-local
 2. `~/.claude/skills/` + `~/.claude/agents/` — user-global
 3. Installed Claude Code plugins — read each plugin's `skills/` and `agents/`
-4. **Reference libraries** declared in `design.yaml.reference_libraries` — curated
-   external corpora cloned locally (e.g. **ECC**: ~80 agents + ~100 skills at the
-   configured clone path). Read their `agents/` and `skills/` directories.
-   Reference libraries are NOT installed dependencies — they are prior art to adapt.
-   Discovery reads a LOCAL CLONE; never fetch over the network during design
-   (keeps the design phase deterministic + offline).
+4. **Reference libraries** named in `design.yaml.reference_libraries` (e.g. `ecc`).
+   Each name resolves to a pinned manifest team-forge ships at
+   `reference-libraries/<name>.yaml` (repo URL + pinned commit). Materialize the
+   pinned commit on demand into a local cache and read its `agents/` + `skills/`:
+
+   ```
+   CACHE=$(python3 <team-forge-ext>/tools/fetch_reference.py <team-forge-ext>/reference-libraries/<name>.yaml)
+   # then read $CACHE/agents and $CACHE/skills
+   ```
+
+   Reference libraries are **never vendored** into team-forge and **never installed
+   as active skills** (that would overflow context + pollute the namespace). They are
+   prior art to adapt, fetched at a pinned commit so discovery is reproducible. ECC at
+   its pin has ~60 agents + ~250 skills — the domain filter below is what keeps that
+   from swamping the design.
 
 **Domain filter (MANDATORY):** keep only assets whose domain matches the project.
 A frontend project keeps `frontend-patterns`, `a11y-architect`, the React reviewer;
