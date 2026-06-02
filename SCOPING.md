@@ -3,7 +3,7 @@
 Drafted 2026-05-31 by Shirley + Claude (Opus 4.7).
 Status: **design phase, frozen for implementation. No more reshuffling.**
 
-**This is the freeze point.** v7 went through a critical opus review (`~/team-forge/specs/v7-review.md`) that surfaced 10 specific issues — 3 buildability blockers, 7 design-decisions-needed. All 6 of the resulting v8 decisions are locked. Items resolved in earlier versions are not re-litigated.
+**This is the freeze point.** v7 went through a critical opus review (preserved on the `design-history` branch) that surfaced 10 specific issues — 3 buildability blockers, 7 design-decisions-needed. All 6 of the resulting v8 decisions are locked. Items resolved in earlier versions are not re-litigated.
 
 **The 6 frozen decisions:**
 
@@ -40,7 +40,7 @@ Hand-writing agent definitions + launcher skills for every project (HERC + Dynam
 
 team-forge targets agent-teams. We accept its experimental status + limitations and design around them.
 
-**Verified limitations (from `~/team-forge/specs/agent-teams-memory-model.md`):**
+**Verified limitations (from `docs/agent-teams-primitive-notes.md`):**
 - No per-teammate memory out of the box
 - No shared team-memory namespace
 - Teammates evaporate on `/resume`
@@ -96,7 +96,7 @@ Phases 1, 2, 3 each end with a human gate. Phase 4 is autogen.
 
 The Phase 3 output is one file: `<project>/.claude/team-forge/<team>/design.yaml`. Heavily commented for human review; machine-parseable for Phase 4.
 
-Schema (sketch — full version in `~/team-forge/specs/phase3-design.template.yaml`, to be written next):
+Schema (sketch — full version is the shipped `templates/design.yaml.j2`):
 
 ```yaml
 project:
@@ -337,71 +337,32 @@ The HERC stack as it would be forged under v8:
 
 ## Repo location
 
-Staging: `/Users/shirleyfu/team-forge/`. Target: GitHub repo `shirleyfuxw/team-forge` (private).
+Staging + dev: `/Users/shirleyfu/team-forge/` (git: `main`). Published private at `shirleyfuxw/team-forge`.
 
-Current contents:
-- `SCOPING.md` ← this file (v8 frozen)
-- `specs/agent-teams-memory-model.md` — verification reference
-- `specs/v7-review.md` — critical review that drove v8 decisions
-- `specs/phase3-design.slim.yaml` — earlier slim YAML (now becomes the basis for `phase3-design.template.yaml`)
-- `specs/phase3-design.herc.md` — markdown design doc (now historical; v8 uses YAML only)
-- `specs/phase3-design.yaml` — v4-era 600-line declarative (historical reference)
-- `specs/workflow-integration.md`, `specs/workflow-vs-agent-dispatch.md`, `specs/dynamic-per-milestone-workflow.md` — Workflow-related research (now historical; v8 drops Workflow as runtime)
-- `specs/example-workflows/*.js` — historical
-- `docs/playgrounds/team-forge-overview.html` — interactive concept explainer (needs v8 pass)
-- `docs/playgrounds/team-forge-dashboard.html` — dashboard mockup (mostly superseded; monitor agent now owns dashboard generation)
+**Branches:**
+- `main` — the lean, shipped extension (skills, templates, tools, hooks, manifests).
+- `design-history` — preserves the full design-process trail (8 SCOPING iterations of research: workflow-integration analysis, the v7 critical review, the slim/markdown/declarative design-doc drafts, example workflow `.js`, and the two concept/dashboard playground HTMLs). Browsable but not shipped.
+
+Verified-facts reference kept in `main`: `docs/agent-teams-primitive-notes.md` (the agent-teams primitive's real memory + lifecycle behavior).
 
 ## Open decisions (post-v8 freeze)
 
-Implementation-level questions only. No more architectural reshuffling:
+Implementation-level only. No architectural reshuffling.
 
-1. **Phase 3 design.yaml template** — write `~/team-forge/specs/phase3-design.template.yaml` with annotated schema. Next concrete deliverable.
-2. **HERC re-forged under v8** — produce a clean `design.yaml` for HERC. Replaces the markdown design doc.
-3. **Skill-discovery prompt** — what exactly do the Phase 3 design agents look at when proposing per-teammate loadouts?
-4. **Rehydrate protocol concrete spec** — exact bash/skill content for the team-launcher's rehydrate logic.
-5. **Tracker + monitor agent prompts** — what do they actually do step-by-step?
-6. **Repo skeleton** — generate the team-forge extension repo structure (plugin.json, marketplace.json, skills/, agents/, templates/).
-7. **First forge test** — pick a small non-HERC project, run all 4 phases end-to-end, validate.
-
-## Cumulative resolved (through v8)
-
-- ~~Launch-context blocker~~ (v4)
-- ~~Signal-marker mechanism~~ (v4)
-- ~~Comms protocol primitive~~ (v4)
-- ~~Workflow as team-level orchestration~~ (v5)
-- ~~Hook contract spec~~ (v6)
-- ~~Prescriptive Superpowers loadout defaults~~ (v6)
-- ~~Domain template catalog~~ (v6)
-- ~~design.yaml schema as source of truth~~ (v6 — **reversed in v8: YAML IS the contract**)
-- ~~Branch from Superpowers~~ (v7 reversal — bundled in extension instead)
-- ~~`tools_allowed` per teammate~~ (v7)
-- **v8 resolved:**
-  - ~~Multi-session resume model~~ → rehydrate protocol on agent-teams
-  - ~~Phase 3 → 4 contract ambiguity~~ → YAML only
-  - ~~Workflow emission ownership~~ → drop runtime primitive entirely
-  - ~~Bundle scope~~ → keep bundled (v8) → **v8.1 correction: extension stays GENERIC; domain agents/launchers belong to the project**
-  - ~~Tracker/monitor collapse~~ → keep separate (5 roles)
-  - ~~Phase 2.5 reviewer~~ → drop (Phase 3 multi-agent review handles it)
-- **v8.1 resolved:**
-  - ~~"Shared agents" ambiguity~~ → `shared_across_teams: true` = shared across forged teams in the SAME project's `.claude/`, NOT shipped by the extension. Domain-specific files (combiner-*, ui-*, ml-*, etc.) are forged into the project at Phase 4 from templates.
-- **v8.2 resolved:**
-  - ~~Where the audit trail / KB lives~~ → split: `.claude/team-forge/<team>/` for runtime structured state (design.yaml, manifest, tracker, dashboard); `docs/superpowers/<project>/<team>/` for human-readable narrative artifacts (brainstorm, plan, walkthroughs, conclusions). Follows Superpowers' KB convention.
+1. **Run the forge skill via Claude itself** (vs `tools/forge.py`) on a real project — confirm the agent-procedural path matches the deterministic renderer.
+2. **Larger-team forge test** (10+ agents, real domain) — the greeter fixture is minimal.
+3. **Idempotent regeneration** — forge currently refuses if non-shared files exist; post-MVP it should diff against the prior manifest and update in place.
+4. **CI** — run `tools/forge.py` against the `tests/` fixture on every push.
 
 ## Status
 
-**v8.1 is the freeze point.** The architectural design is done. v8.1 is a focused correction (extension scope), not a re-litigation.
+**v0.1.0 — MVP feature-complete, end-to-end forge validated, then put on a 4.8 diet.**
 
-- ✅ All 6 reviewer-flagged decisions resolved
-- ✅ Memory model corrected per verification
-- ✅ HERC use case (multi-session research) accounted for via rehydrate protocol
-- ✅ YAML contract eliminates Phase 4 parsing ambiguity
-- ✅ Workflow scope locked (meta-tool only, not runtime)
-- ✅ Extension scope locked (generic only — v8.1 correction)
-- ✅ "Shared agents" semantics clarified (v8.1)
-- ⏸ phase3-design.template.yaml — next concrete deliverable
-- ⏸ HERC re-forged design.yaml
-- ⏸ Repo skeleton
-- ⏸ First forge test
-- ⏸ Agent authoring
+Shipped on `main`:
+- ✅ 7 skills (4 phase + rehydrate + tracker + monitor); each phase skill has a context-isolated `references/review.md`
+- ✅ 4 logic-free `{{VAR}}` templates
+- ✅ `tools/forge.py` — deterministic renderer (accepts a design.yaml path arg)
+- ✅ End-to-end forge validated on the 6-agent greeter fixture (`tests/`)
+- ✅ 4.8 diet: `forge` skill defers to `forge.py` (277→103 lines); review checklists trimmed to non-guessable / hard-abort checks; playgrounds + research specs moved to the `design-history` branch
 
-Next move: write `phase3-design.template.yaml`. After that: `phase3-design.herc.v8.yaml` as worked example. Then repo skeleton.
+The irreducible convention layer (design.yaml schema, the rehydrate protocol, 5-role coverage, single-writer authority, tracker/monitor patterns) is what remains in `main`. Everything a capable model can derive on its own was cut.

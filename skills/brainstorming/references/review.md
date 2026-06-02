@@ -1,35 +1,26 @@
 # Brainstorming output review
 
-**Purpose:** evaluate a `brainstorm-<session-id>.md` file produced by Phase 1. Designed for use either by the brainstorming skill itself OR by a separately-dispatched review subagent that only needs the criteria.
+Evaluate a `brainstorm-<session-id>.md` from Phase 1. Loadable standalone by a review subagent.
 
-## Inputs
+## The checks that matter
 
-- Path to the brainstorm markdown file
-- Optional: the user's original goal statement (for verbatim-capture check)
-
-## Criteria
+Only two things a capable model won't get right on its own — both are team-forge convention, not general writing quality:
 
 | # | Check | Pass condition |
 |---|---|---|
-| 1 | Goal captured verbatim | The user's one-paragraph goal appears in the doc word-for-word. Paraphrasing fails. |
-| 2 | All 5 interrogation areas covered | Each of "Other agents needed", "Verification posture", "Tracking expectations", "Completion criteria", "Token budget" has either a real answer or an explicit `<question-id>: declined` line. |
-| 3 | Milestones sketched (not detailed) | Section contains 2–5 high-level milestones with verifiable outputs + go/no-go gates. Sub-task lists fail. |
-| 4 | Uncertainties captured | At least one open question listed, OR an explicit "no uncertainties surfaced" note. |
-| 5 | File path correct | The file lives at `docs/superpowers/<project>/<team>/brainstorms/brainstorm-<session-id>.md` where `<session-id>` is an ISO date or a meaningful slug (e.g. `phase1-initial`, `pivot-1`). |
+| 1 | All 5 interrogation areas present | Each of "Other agents needed", "Verification posture", "Tracking expectations", "Completion criteria", "Token budget" has a real answer or an explicit `declined` line. (The *specific five* are the convention — easy to silently drop one.) |
+| 2 | File at the canonical path | `docs/superpowers/<project>/<team>/brainstorms/brainstorm-<session-id>.md`, `<session-id>` an ISO date or a meaningful slug. |
 
-## Reporting format
+Everything else (goal captured clearly, milestones sketched not over-detailed, uncertainties noted) a competent model does naturally — don't checklist it.
+
+## Reporting
 
 ```
 Brainstorm review:
-- [✓ or ✗] Goal captured verbatim
-- [✓ or ✗] All 5 interrogation areas covered
-- [✓ or ✗] Milestones sketched (not detailed)
-- [✓ or ✗] Uncertainties captured
-- [✓ or ✗] File path correct
+- [✓/✗] All 5 interrogation areas present  (name any missing)
+- [✓/✗] File at canonical path
 ```
-
-For each ✗: name the specific gap (which section is missing, which question wasn't answered).
 
 ## Hard-abort triggers
 
-None. Brainstorming review surfaces gaps but does not block — the user decides whether to revise, accept-with-gaps, or abort.
+None. Surface gaps; the user decides revise / accept / abort.

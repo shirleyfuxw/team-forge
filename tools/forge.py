@@ -14,7 +14,14 @@ except ImportError:
 
 EXT_DIR = Path("/Users/shirleyfu/team-forge")
 TEMPLATES_DIR = EXT_DIR / "templates"
-DESIGN_PATH = Path("/tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml")
+# design.yaml path: first CLI arg, else the test fixture
+_DEFAULT_DESIGN = "/tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml"
+DESIGN_PATH = Path(sys.argv[1] if len(sys.argv) > 1 else _DEFAULT_DESIGN)
+if not DESIGN_PATH.exists():
+    print(f"ERROR: design.yaml not found at {DESIGN_PATH}")
+    print("Usage: python3 forge.py <path-to-design.yaml>")
+    sys.exit(1)
+_NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 # ───────── Per-role text banks (mirrors forge SKILL.md) ─────────
 
@@ -105,7 +112,7 @@ def initial_status_json(design):
         'team_plan_history': [],
         'events': [],
         'forge_metadata': {
-            'forged_at_iso': '2026-06-01T18:36:00Z',  # fixed for reproducibility
+            'forged_at_iso': _NOW,
             'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
             'forge_version': '0.0.1',
         }
@@ -150,7 +157,7 @@ def render_dashboard(design):
         'current_cohort_id': '—',
         'token_spend_cumulative_k': '0',
         'overall_status': 'initial',
-        'last_update_iso': '2026-06-01T18:36:00Z',
+        'last_update_iso': _NOW,
         'PANELS_HTML': "\n      ".join(panels_html),
         'EVENTS_HTML': events_html,
     })
@@ -247,7 +254,7 @@ manifest = {
     "team": team,
     "forge_version": "0.0.1",
     "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-    "forged_at_iso": "2026-06-01T18:36:00Z",
+    "forged_at_iso": _NOW,
     "generated_files": generated,
     "shared_agents_used": [],
 }
