@@ -1,12 +1,12 @@
 ---
-name: team-forge-forge
+name: team-forge:forge
 description: |
   Use when emitting agent files + launcher skill + observability scaffold from a
   completed design.yaml. This is Phase 4 of the team-forge loop. Invoke after
   Phase 3 (Design) produces design.yaml and the human approves.
 ---
 
-# team-forge-forge — Phase 4 (emission)
+# team-forge:forge — Phase 4 (emission)
 
 This skill emits a fully-configured agent team from a completed `design.yaml`.
 Phase 3 produces the design; this skill (Phase 4) writes the actual files into

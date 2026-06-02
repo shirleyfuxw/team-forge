@@ -1,5 +1,5 @@
 ---
-name: team-forge-writing-plans
+name: team-forge:writing-plans
 description: |
   Use when starting Phase 2 of the team-forge loop (after brainstorming produces
   a brief), OR when the lead needs to revise the team-plan because the project
@@ -8,7 +8,7 @@ description: |
   size. Writes a team-plan-v<n>.md to the KB.
 ---
 
-# team-forge-writing-plans — Phase 2 (or runtime plan revision)
+# team-forge:writing-plans — Phase 2 (or runtime plan revision)
 
 The agent-team-aware variant of writing-plans. It produces a project-level plan
 that names milestones with their hard dependencies + interfaces + expected team

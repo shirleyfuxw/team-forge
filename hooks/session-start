@@ -9,13 +9,13 @@ set -euo pipefail
 message='team-forge extension is installed.
 
 Available skills:
-  - team-forge-brainstorming    (Phase 1 — agent-team-aware brainstorming with active interrogation)
-  - team-forge-writing-plans    (Phase 2 — high-level milestone planning with hard-dependency interrogation)
-  - team-forge-design           (Phase 3 — multi-agent design pattern producing design.yaml)
-  - team-forge-forge            (Phase 4 — emit agent .md files + launcher skill + dashboard from design.yaml)
-  - team-forge-rehydrate        (/resume protocol — lead reads tracker + KB, respawns teammates)
-  - team-forge-tracker          (tracker-role pattern for forged teams)
-  - team-forge-monitor          (monitor-role pattern for forged teams)
+  - team-forge:brainstorming    (Phase 1 — agent-team-aware brainstorming with active interrogation)
+  - team-forge:writing-plans    (Phase 2 — high-level milestone planning with hard-dependency interrogation)
+  - team-forge:design           (Phase 3 — multi-agent design pattern producing design.yaml)
+  - team-forge:forge            (Phase 4 — emit agent .md files + launcher skill + dashboard from design.yaml)
+  - team-forge:rehydrate        (/resume protocol — lead reads tracker + KB, respawns teammates)
+  - team-forge:tracker          (tracker-role pattern for forged teams)
+  - team-forge:monitor          (monitor-role pattern for forged teams)
 
 To forge a new project team: ask Claude to "use team-forge to design an agent team for <project>".
 To launch an already-forged team: invoke /<team>-team (e.g. /herc-team).

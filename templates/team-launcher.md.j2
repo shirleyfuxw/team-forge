@@ -59,7 +59,7 @@ Read `.claude/team-forge/{{ team }}/tracker/status.json`.
 
 ## Step 3b — rehydrate
 
-Invoke `team-forge-rehydrate` skill. It will:
+Invoke `team-forge:rehydrate` skill. It will:
 
 1. Read tracker/status.json — recover team state
 2. Read current brainstorm + current team-plan (paths from status.json)
@@ -70,8 +70,8 @@ Invoke `team-forge-rehydrate` skill. It will:
 ## Step 4 — coordinate ongoing work
 
 Use as needed:
-- `team-forge-brainstorming` — develop/revise project understanding
-- `team-forge-writing-plans` — plan/replan delegation
+- `team-forge:brainstorming` — develop/revise project understanding
+- `team-forge:writing-plans` — plan/replan delegation
 
 For domain work, reference the team's discovered skills (see design.yaml's `skill_discovery_results`).
 

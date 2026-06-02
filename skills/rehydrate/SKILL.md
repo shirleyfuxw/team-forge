@@ -1,12 +1,12 @@
 ---
-name: team-forge-rehydrate
+name: team-forge:rehydrate
 description: |
   Use when the lead is being re-launched on /resume and needs to restore the agent
   team from durable state. Reads tracker, brainstorm, team-plan, artifacts, then
   respawns all teammates with full context. Invoked by the team-launcher skill.
 ---
 
-# team-forge-rehydrate — runtime /resume protocol
+# team-forge:rehydrate — runtime /resume protocol
 
 When the lead session is `/resume`'d (or a fresh session adopts the lead role for
 an already-forged team), agent-team teammates are GONE — they evaporated when the

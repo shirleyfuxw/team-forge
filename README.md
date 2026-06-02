@@ -41,13 +41,13 @@ Then in any Claude Code session: ask Claude to "use team-forge to design an agen
 ## What ships in this extension
 
 - **7 skills** (`skills/`):
-  - `team-forge-brainstorming` — Phase 1 (active interrogation)
-  - `team-forge-writing-plans` — Phase 2 (milestone planning with hard-dependency interrogation)
-  - `team-forge-design` — Phase 3 (multi-agent design with reciprocal review)
-  - `team-forge-forge` — Phase 4 (deterministic file emission)
-  - `team-forge-rehydrate` — `/resume` protocol
-  - `team-forge-tracker` — tracker-role generic pattern
-  - `team-forge-monitor` — monitor-role generic pattern
+  - `team-forge:brainstorming` — Phase 1 (active interrogation)
+  - `team-forge:writing-plans` — Phase 2 (milestone planning with hard-dependency interrogation)
+  - `team-forge:design` — Phase 3 (multi-agent design with reciprocal review)
+  - `team-forge:forge` — Phase 4 (deterministic file emission)
+  - `team-forge:rehydrate` — `/resume` protocol
+  - `team-forge:tracker` — tracker-role generic pattern
+  - `team-forge:monitor` — monitor-role generic pattern
 - **4 templates** (`templates/`):
   - `design.yaml.j2` — Phase 3 schema (the contract)
   - `agent.md.j2` — per-agent emission
@@ -61,14 +61,14 @@ Then in any Claude Code session: ask Claude to "use team-forge to design an agen
 - [x] Item 1: repo skeleton + manifests
 - [x] Item 2: `templates/design.yaml.j2`
 - [x] Item 3: `templates/agent.md.j2` + `templates/team-launcher.md.j2`
-- [x] Item 4: `skills/team-forge-forge/SKILL.md` (Phase 4 logic)
-- [x] Item 5: `skills/team-forge-rehydrate/SKILL.md` (runtime `/resume` protocol)
-- [x] Item 6: `skills/team-forge-tracker/SKILL.md`
-- [x] Item 7: `skills/team-forge-monitor/SKILL.md`
+- [x] Item 4: `skills/team-forge:forge/SKILL.md` (Phase 4 logic)
+- [x] Item 5: `skills/team-forge:rehydrate/SKILL.md` (runtime `/resume` protocol)
+- [x] Item 6: `skills/team-forge:tracker/SKILL.md`
+- [x] Item 7: `skills/team-forge:monitor/SKILL.md`
 - [x] Item 8: `templates/dashboard.html.j2`
-- [x] Item 9: `skills/team-forge-design/SKILL.md`
-- [x] Item 10: `skills/team-forge-brainstorming/SKILL.md`
-- [x] Item 11: `skills/team-forge-writing-plans/SKILL.md`
+- [x] Item 9: `skills/team-forge:design/SKILL.md`
+- [x] Item 10: `skills/team-forge:brainstorming/SKILL.md`
+- [x] Item 11: `skills/team-forge:writing-plans/SKILL.md`
 - [ ] First end-to-end forge test on a small generic project (validate Phase 1 → 4 on real input)
 - [ ] v0.1: GitHub push, marketplace install path
 

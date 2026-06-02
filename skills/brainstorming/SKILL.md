@@ -1,5 +1,5 @@
 ---
-name: team-forge-brainstorming
+name: team-forge:brainstorming
 description: |
   Use when starting Phase 1 of the team-forge loop OR when the lead needs to develop
   / revise the project's working understanding. Agent-team-aware brainstorming with
@@ -7,7 +7,7 @@ description: |
   completion criteria, and budget. Writes a brainstorm-<session-id>.md to the KB.
 ---
 
-# team-forge-brainstorming — Phase 1 (or runtime brainstorm revision)
+# team-forge:brainstorming — Phase 1 (or runtime brainstorm revision)
 
 This skill is the agent-team-aware variant of brainstorming. It's NOT a generic
 "understand the goal" — it's specifically about developing the working understanding

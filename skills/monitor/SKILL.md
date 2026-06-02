@@ -1,12 +1,12 @@
 ---
-name: team-forge-monitor
+name: team-forge:monitor
 description: |
   Use when you are a monitor-role teammate in a forged team. You read the tracker's
   status.json + the narrative KB, and rewrite the user-facing dashboard.html per the
   team's tracking.dashboard_panels spec. You are the single-writer for the dashboard.
 ---
 
-# team-forge-monitor — monitor-role generic pattern
+# team-forge:monitor — monitor-role generic pattern
 
 This skill is for monitor-role teammates. The monitor is the team's user-facing
 presentation layer. It reads structured state from tracker + narrative artifacts

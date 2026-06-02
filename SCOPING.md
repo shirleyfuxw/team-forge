@@ -255,13 +255,13 @@ Monitor's dashboard surfaces both current pointers + history. README.md at the t
 team-forge/                                       ← OUR extension repo (generic only)
   .claude-plugin/{plugin.json, marketplace.json}
   skills/                                         ← agent-team-aware patterns
-    team-forge-brainstorming/SKILL.md             ← Phase 1 (active interrogation variant)
-    team-forge-writing-plans/SKILL.md             ← Phase 2 (with hard-dependency interrogation)
-    team-forge-design/SKILL.md                    ← Phase 3 pattern for forge-design-agents
-    team-forge-forge/SKILL.md                     ← Phase 4 emission pattern
-    team-forge-tracker/SKILL.md                   ← tracker-role generic pattern
-    team-forge-monitor/SKILL.md                   ← monitor-role generic pattern
-    team-forge-rehydrate/SKILL.md                 ← /resume rehydrate protocol for lead
+    team-forge:brainstorming/SKILL.md             ← Phase 1 (active interrogation variant)
+    team-forge:writing-plans/SKILL.md             ← Phase 2 (with hard-dependency interrogation)
+    team-forge:design/SKILL.md                    ← Phase 3 pattern for forge-design-agents
+    team-forge:forge/SKILL.md                     ← Phase 4 emission pattern
+    team-forge:tracker/SKILL.md                   ← tracker-role generic pattern
+    team-forge:monitor/SKILL.md                   ← monitor-role generic pattern
+    team-forge:rehydrate/SKILL.md                 ← /resume rehydrate protocol for lead
   templates/                                      ← Phase 4 emits from these
     design.yaml.j2                                ← Phase 3 schema skeleton
     agent.md.j2                                   ← per-agent emission template
@@ -274,7 +274,7 @@ team-forge/                                       ← OUR extension repo (generi
 
 **No domain agents in the extension.** No `combiner-skeptic.md`, no `combiner-librarian.md`, no `combiner-team/SKILL.md`, no `combiner-peer-debate/SKILL.md`. Those are FORGED into the target project at Phase 4 (using templates the extension ships) and live in `<target_repo>/.claude/agents/` and `<target_repo>/.claude/skills/`.
 
-Forged teammates' `skills:` references look like `team-forge-brainstorming` for generic patterns and `<team>-<domain-skill>` for project-local skills. **The dependency contract:** every forged team requires team-forge installed in the target repo. The team-launcher skill checks at startup and fails loudly if missing.
+Forged teammates' `skills:` references look like `team-forge:brainstorming` for generic patterns and `<team>-<domain-skill>` for project-local skills. **The dependency contract:** every forged team requires team-forge installed in the target repo. The team-launcher skill checks at startup and fails loudly if missing.
 
 **"Shared across teams" — clarified:** when a roster entry has `shared_across_teams: true` in design.yaml, it means "shared across forged teams in the SAME project's `.claude/`." Example: HERC forges `combiner-skeptic.md` into `wjsl_trader/.claude/agents/`. Dynamic IC (also in wjsl_trader) later gets forged and detects the file exists — it reuses it instead of overwriting. NOT shared at the team-forge extension level.
 

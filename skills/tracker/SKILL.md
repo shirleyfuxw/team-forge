@@ -1,12 +1,12 @@
 ---
-name: team-forge-tracker
+name: team-forge:tracker
 description: |
   Use when you are a tracker-role teammate in a forged team. You aggregate project
   state per the team's tracking.state_shape spec into status.json. You are the
   single-writer for that file. Tracker is load-bearing for /resume rehydrate.
 ---
 
-# team-forge-tracker — tracker-role generic pattern
+# team-forge:tracker — tracker-role generic pattern
 
 This skill is for tracker-role teammates. The tracker is the team's structured
 state aggregator. It listens to verifier verdicts + lead plan-outputs, normalizes
