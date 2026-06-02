@@ -2,7 +2,7 @@
 
 Meta-extension for Claude Code that auto-generates project-specific agent teams.
 
-**Status:** MVP complete + end-to-end forge test passed (v0.1.0). See [SCOPING.md](./SCOPING.md) for full design, [tests/README.md](./tests/README.md) for what was validated.
+**Status:** v0.1.0 — MVP feature-complete + end-to-end forge validated. See [SCOPING.md](./SCOPING.md) for full design, [tests/README.md](./tests/README.md) for what was validated.
 
 ## What it does
 
@@ -15,50 +15,172 @@ Forges a project-specific multi-agent team — roster, team-launcher skill, obse
 
 team-forge is the wiring; the procedural toolbox (TDD, debugging, planning, brainstorming) is provided by Superpowers and the project's own skills.
 
-## The 4-phase loop
-
-1. **Brainstorm** (`team-forge:brainstorming`) — agent-team-aware interrogation
-2. **Plan** (`team-forge:writing-plans`) — high-level milestones with hard dependencies + interfaces
-3. **Design** (`team-forge:design`) — multiple forge-design-agents produce `design.yaml` (the Phase 4 contract). Skill discovery searches `<project>/.claude/skills/` + `~/.claude/skills/` + installed plugins.
-4. **Forge** (`team-forge:forge`) — emits agent `.md` files, team-launcher skill, design.yaml + manifest, initial tracker `status.json` + dashboard `dashboard.html`, KB scaffolds under `docs/superpowers/<project>/<team>/`.
-
 ## Requires
 
 - Claude Code v2.1.32 or later
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `settings.json` or environment
 - For optional deterministic forging: `python3` + `pyyaml`
 
-## Install (local development)
+## Install
 
-```
+```bash
+# Local development
 /plugin marketplace add ~/team-forge
 /plugin install team-forge@team-forge-dev
+
+# Verify
+/plugin list
+# should show team-forge@team-forge-dev
 ```
 
-Then in any Claude Code session: ask Claude to "use team-forge to design an agent team for `<project>`".
+## End-to-end usage example
+
+Below is a complete walkthrough of forging a new team for a hypothetical project. You'll run through 4 phases interactively with Claude as the lead.
+
+### Step 0 — Set up the target repo
+
+```bash
+# Your project, on a feature branch (so .claude/ writes don't hit hook protection)
+cd ~/my-cli-project
+git checkout -b feature/forge-team
+
+# Make sure the experimental flag is set
+echo 'export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### Step 1 — Brainstorm (Phase 1)
+
+In a Claude Code session:
+
+```
+Use team-forge:brainstorming to start designing an agent team for this project. The project is a Python CLI that wraps the GitHub API for batch repo operations.
+```
+
+Claude will interrogate you:
+- *Goal?* → "Batch update settings across 30 repos via CLI"
+- *Other agents needed?* → "Maybe a rate-limit-watcher to back off when GitHub returns 429"
+- *Verification?* → "Smoke test against a single test repo before fanning out"
+- *Tracking?* → "Repos processed, rate-limit headroom, error count"
+- *Completion criteria?* → "100% of target repos updated OR clean failure report"
+- *Token budget?* → "Soft 50k per cohort"
+
+Claude writes `docs/superpowers/my-cli-project/<team>/brainstorms/brainstorm-phase1-initial.md` and runs the **self-review checklist** (5 criteria). Surfaces any gaps. Asks you to approve.
+
+### Step 2 — Plan (Phase 2)
+
+```
+Now use team-forge:writing-plans to draft the team plan.
+```
+
+Claude refines milestones interactively:
+- *m1-discover*: Output = list of target repos + their current settings. Go/no-go = "list is non-empty and signature-verified"
+- *m2-batch-update*: Output = updated repos + audit log. Go/no-go = "all repos updated OR documented failures"
+
+Each milestone gets: hard_dependencies, interface_to_next, expected_team_size, next_phase_check, iteration shape.
+
+Writes `team-plans/team-plan-v1.md`. **Self-review** (9 criteria including cyclic-dependency check) before asking approval.
+
+### Step 3 — Design (Phase 3)
+
+```
+Now use team-forge:design to produce the design.yaml.
+```
+
+Claude dispatches 3 forge-design-agents in parallel (roster-correctness lens, comms+coverage lens, domain-fit lens), reconciles their outputs, runs skill discovery on `~/my-cli-project/.claude/skills/`, `~/.claude/skills/`, and installed plugins. Produces `design.yaml` covering:
+
+- 6-agent roster (orchestrator + work + verify + advise + tracker + monitor)
+- `tracking.state_shape` (repos_processed, rate_limit_remaining, errors_count, etc.)
+- `tracking.dashboard_panels` (milestone_timeline + roster + rate_limit_gauge + error_log)
+- Constraints (GitHub token env var, rate-limit handling, etc.)
+
+**Self-review** (10 criteria) before asking you to approve.
+
+### Step 4 — Forge (Phase 4)
+
+```
+Now use team-forge:forge to emit the team files.
+```
+
+Claude validates the design, detects whether the target_repo is on a hook-protected branch (Step 0 of the forge skill — aborts cleanly if so), and emits:
+
+```
+~/my-cli-project/
+  .claude/
+    agents/
+      <team>-orchestrator.md
+      <team>-fetcher.md
+      <team>-updater.md
+      <team>-rate-watcher.md
+      <team>-tracker.md
+      <team>-monitor.md
+    skills/<team>-team/SKILL.md
+    team-forge/<team>/
+      design.yaml
+      manifest.json
+      tracker/status.json
+      playground/dashboard.html
+      playground/dashboard-data.json
+  docs/superpowers/my-cli-project/<team>/
+    brainstorms/ (with the brainstorm from Step 1)
+    team-plans/ (with the plan from Step 2)
+    artifacts/<milestone-id>/ (empty)
+    runtime/<milestone-id>/ (empty)
+    README.md
+```
+
+**Self-review** (10 criteria including manifest ↔ filesystem reconciliation) before reporting success.
+
+### Step 5 — Launch the team
+
+```
+/<team>-team
+```
+
+The main session adopts the lead role, detects this is a fresh launch (status.json has empty state), reads the brainstorm + team-plan, spawns all teammates per `rehydrate.respawn_order`, updates status.json to milestone 1, and tells you the team is ready.
+
+Open the dashboard to watch progress:
+
+```bash
+open ~/my-cli-project/.claude/team-forge/<team>/playground/dashboard.html
+```
+
+### Step 6 — Resume in a later session
+
+After `/clear` or `/resume`:
+
+```
+/<team>-team
+```
+
+The launcher detects `status.json` has prior state and invokes `team-forge:rehydrate`. The lead reads tracker + KB, respawns all teammates with their prior context, logs a `rehydrate` event, triggers the monitor to refresh the dashboard, and resumes work.
+
+### Alternative: deterministic Python renderer
+
+If you've already hand-written a `design.yaml` and just want Phase 4 emission:
+
+```bash
+python3 ~/team-forge/tools/forge.py
+# Reads /tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml by default
+# Edit the DESIGN_PATH constant at the top to point at your project's design.yaml
+```
+
+Both paths (agent-procedural via the forge skill OR Python script) produce identical output — the templates are logic-free.
 
 ## What ships in this extension
 
-- **7 skills** (`skills/<name>/SKILL.md`):
-  - `brainstorming`, `writing-plans`, `design`, `forge` — the 4 phases
-  - `rehydrate` — `/resume` protocol
-  - `tracker`, `monitor` — runtime role patterns
-- **4 templates** (`templates/`):
-  - `design.yaml.j2` — schema reference for Phase 3 (logic-free)
-  - `agent.md.j2` — per-agent emission (logic-free `{{VAR}}` + placeholder blocks)
-  - `team-launcher.md.j2` — `<team>-team` slash command
-  - `dashboard.html.j2` — initial dashboard render
-- **1 hook** (`hooks/session-start`) — slim availability announcement
-- **1 optional renderer** (`tools/forge.py`) — Python script that runs the forge skill procedure deterministically against a design.yaml
-- **1 test fixture** (`tests/`) — end-to-end forge test run on a throwaway "greeter" team; documents what was validated pre-v0.1
+- **7 skills** (`skills/<name>/SKILL.md`): brainstorming, writing-plans, design, forge (Phase 1–4) plus rehydrate, tracker, monitor (runtime). Each phase skill has an explicit **self-review checklist** before user approval.
+- **4 templates** (`templates/`): design.yaml schema reference, agent.md (with role-specific placeholder blocks), team-launcher.md, dashboard.html — all logic-free `{{VAR}}` substitution
+- **Optional Python renderer** (`tools/forge.py`) — deterministic alternative to the agent-procedural path
+- **Slim session-start hook** + plugin manifests + tests/ documentation
 
 ## Roadmap
 
-- [x] v8.2 design freeze ([SCOPING.md](./SCOPING.md))
-- [x] Items 1–11: repo skeleton + manifests + 7 skills + 4 templates
-- [x] Advisor end-to-end review — addressed all 3 blockers + 4 medium items
-- [x] First end-to-end forge test on `/tmp/test-team-forge-greeter/` (6-agent team, 10 files generated cleanly)
-- [ ] v0.1: GitHub push, marketplace install path
+- [x] v0.1.0: MVP feature-complete + end-to-end forge validated
+- [ ] Run the forge skill via Claude (vs the Python renderer) on a real project
+- [ ] Larger-team forge test (10+ agents, real domain like HERC)
+- [ ] Idempotent regeneration on subsequent forge runs
+- [ ] CI: `python3 tools/forge.py` against `tests/` fixtures on every push
 
 ## License
 

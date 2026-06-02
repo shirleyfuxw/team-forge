@@ -258,3 +258,43 @@ Two equivalent paths:
 
 Both paths produce byte-identical output (the templates are logic-free; the only
 variation is who computes the substitutions).
+
+## Self-review before reporting success
+
+After Step 9 (writing manifest.json) and before Step 10 (reporting to user),
+run this output review. The forge has written N files; verify they're all
+sound before declaring success.
+
+### Criteria
+
+| # | Check | What it means |
+|---|---|---|
+| 1 | All manifest files exist on disk | For every entry in `manifest.json.generated_files`, the file at `path` actually exists |
+| 2 | Agent .md frontmatter valid | Every emitted agent .md starts with `---` and has `name:` + `description:` + `model:` fields |
+| 3 | Agent names match expected pattern | Non-shared: `<team>-<roster-name>.md`; shared: `<roster-name>.md` (no prefix) |
+| 4 | Team-launcher skill exists | `<target>/.claude/skills/<team>-team/SKILL.md` was written with non-empty body |
+| 5 | tracker/status.json is valid JSON | Parses cleanly; has all `tracking.state_shape` fields + `forge_metadata` block |
+| 6 | dashboard.html non-empty + has expected panels | File exists, > 1k bytes, contains each panel ID from `tracking.dashboard_panels` somewhere in the HTML |
+| 7 | KB scaffold exists | `docs/superpowers/<basename>/<team>/` has `brainstorms/`, `team-plans/`, `artifacts/<id>/` per milestone, `runtime/<id>/` per milestone, `README.md` |
+| 8 | manifest.json design_hash matches | sha256 of design.yaml equals `manifest.json.design_hash` |
+| 9 | No orphan agents in target_repo | Any pre-existing `<target>/.claude/agents/<team>-*.md` files that aren't in the manifest get flagged (could be stale or shared-from-another-team) |
+| 10 | Roster ↔ manifest 1:1 | One agent_md entry in manifest per roster entry; no extras, no missing |
+
+### Reporting
+
+```
+Forge output review:
+- [✓ or ✗] All manifest files exist on disk
+- [✓ or ✗] Agent .md frontmatter valid (N files checked)
+- [✓ or ✗] Agent names match prefix/shared rule
+- [✓ or ✗] Team-launcher skill written
+- [✓ or ✗] tracker/status.json parses as JSON
+- [✓ or ✗] dashboard.html contains expected panels
+- [✓ or ✗] KB scaffold complete
+- [✓ or ✗] manifest.json design_hash matches
+- [✓ or ✗] No orphan agents
+- [✓ or ✗] Roster ↔ manifest 1:1
+```
+
+If any ✗ surfaces, **do not report success**. Tell the user what was generated
+vs what failed, suggest deleting the partial output and re-running, and stop.

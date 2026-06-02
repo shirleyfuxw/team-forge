@@ -156,3 +156,34 @@ approve to move to Phase 2 (planning).
 
 - **User declines to answer one of the 5 interrogation questions** → record `<question-id>: declined` and proceed. Note in the doc that the field is undeclared.
 - **User wants to revise mid-flight** → revise the in-progress file before saving; never partial-save and resume — the brainstorm is atomic per session.
+
+## Self-review before user approval
+
+After Step 5 (writing the file) and before Step 7 (confirming with the user),
+run this explicit review checklist. **Surface any failures to the user** as
+part of the confirmation message — don't auto-pass.
+
+### Criteria
+
+| # | Check | What it means |
+|---|---|---|
+| 1 | Goal captured verbatim | The user's one-paragraph goal is in the doc word-for-word from Step 1, not paraphrased |
+| 2 | All 5 interrogation areas covered | Other agents needed · Verification posture · Tracking expectations · Completion criteria · Token budget — each has either a real answer or an explicit `<question-id>: declined` line |
+| 3 | Milestones sketched (not detailed) | 2–5 high-level milestones with verifiable outputs + go/no-go gates. NOT a sub-task list. |
+| 4 | Uncertainties captured | At least one open question listed (or an explicit "no uncertainties surfaced" note from the user) |
+| 5 | File path correct | The file lives at `docs/superpowers/<project>/<team>/brainstorms/brainstorm-<session-id>.md` with `<session-id>` either an ISO date or a meaningful slug (e.g. `phase1-initial`, `pivot-1`) |
+
+### Reporting
+
+Tell the user:
+
+```
+Brainstorm review:
+- [✓ or ✗] Goal captured verbatim
+- [✓ or ✗] All 5 interrogation areas covered
+- [✓ or ✗] Milestones sketched (not detailed)
+- [✓ or ✗] Uncertainties captured
+- [✓ or ✗] File path correct
+```
+
+If anything is ✗, name the gap explicitly. Then ask: approve, revise, or abort.

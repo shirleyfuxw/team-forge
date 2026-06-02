@@ -157,3 +157,41 @@ Ask if they approve to move to Phase 3 (Design).
 - **Cyclic dependencies declared** → push back to user; refuse to write the plan with cycles
 - **Vague verifiable outputs** → push for concrete; "works well" is unacceptable
 - **User wants to skip ahead to Phase 3 without naming dependencies** → tell them dependencies are mandatory; offer to mark all as `[]` only if they explicitly say so
+
+## Self-review before user approval
+
+After Step 5 (writing the file) and before Step 7 (confirming with the user),
+run this checklist. Surface failures explicitly.
+
+### Criteria
+
+| # | Check | What it means |
+|---|---|---|
+| 1 | All milestones high-level | No detail sub-tasks; each milestone is a verifiable unit with a go/no-go |
+| 2 | Hard dependencies declared | Every milestone has `hard_dependencies: [...]` (empty list is OK; missing field is not) |
+| 3 | No cyclic dependencies | Run a topo sort on the dependency graph; cycles → fail |
+| 4 | Interface_to_next described | Every milestone (except last) has 2–3 sentences describing its handoff |
+| 5 | Iteration shape per milestone | Each milestone marked `one-shot` or `iterative` (with rough iteration count for iterative) |
+| 6 | Expected team size declared | Each milestone has an integer estimate |
+| 7 | Next-phase check declared | Each milestone has a human go/no-go criterion for the gate to the next milestone |
+| 8 | Cross-milestone notes present | Section on parallel-runnable milestones + critical path + token budget allocation |
+| 9 | Carry-overs from brainstorm tracked | Any brainstorm uncertainties not resolved here are explicitly listed |
+
+### Reporting
+
+```
+Team-plan review:
+- [✓ or ✗] All milestones high-level
+- [✓ or ✗] Hard dependencies declared
+- [✓ or ✗] No cyclic dependencies
+- [✓ or ✗] Interface_to_next described for each milestone
+- [✓ or ✗] Iteration shape per milestone
+- [✓ or ✗] Expected team size declared
+- [✓ or ✗] Next-phase check declared
+- [✓ or ✗] Cross-milestone notes section present
+- [✓ or ✗] Brainstorm carry-overs tracked
+```
+
+If ✗ on dependencies or interface_to_next, the design phase will fail downstream
+— treat those as blockers. Cyclic dependencies are an automatic abort: tell the
+user one milestone needs re-scoping or merging.
