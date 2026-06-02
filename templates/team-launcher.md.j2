@@ -1,15 +1,15 @@
 ---
-name: {{ team }}-team
+name: {{team}}-team
 description: |
-  Use to launch the {{ team }} agent team for {{ project_display_name }}. Adopts the
+  Use to launch the {{team}} agent team for {{project_display_name}}. Adopts the
   lead role, rehydrates from durable state if a prior session exists, otherwise
   bootstraps from design.yaml. Targets Claude Code's agent-teams primitive (experimental).
 ---
 
-# {{ team }}-team — launcher
+# {{team}}-team — launcher
 
-This skill is the entry point for the {{ team }} agent team. The main session
-adopts the **lead role** ({{ orchestrator_name }}) and either bootstraps a fresh
+This skill is the entry point for the {{team}} agent team. The main session
+adopts the **lead role** ({{orchestrator_name}}) and either bootstraps a fresh
 team session or rehydrates an existing one.
 
 ## Prerequisites
@@ -18,37 +18,38 @@ Before proceeding:
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set
 - Claude Code v2.1.32+
 - team-forge extension is installed
-- This project is the correct target_repo: `{{ target_repo }}`
+- This project is the correct target_repo: `{{target_repo}}`
+- The target_repo is on a branch that allows writes to `.claude/` (NOT a hook-protected main branch — if it is, tell the user to create a worktree/branch first)
 
 If any fails, **stop and tell the user**.
 
 ## Step 1 — adopt the lead role
 
-You are now `{{ orchestrator_name }}`, the lead for **{{ team }}**.
+You are now `{{orchestrator_name}}`, the lead for **{{team}}**.
 
-- Project: {{ project_display_name }}
-- Repo: `{{ target_repo }}`
-- Domain: {{ domain }}
+- Project: {{project_display_name}}
+- Repo: `{{target_repo}}`
+- Domain: {{domain}}
 
 You manage the team task list, dispatch teammates, arbitrate verdicts, decide
 milestone progression with the user.
 
 ## Step 2 — detect bootstrap vs rehydrate
 
-Read `.claude/team-forge/{{ team }}/tracker/status.json`.
+Read `.claude/team-forge/{{team}}/tracker/status.json`.
 
 - If missing OR `cohort_count == 0` AND `current_milestone == null` → **Bootstrap** (Step 3a)
 - Otherwise → **Rehydrate** (Step 3b)
 
 ## Step 3a — bootstrap
 
-1. Read `.claude/team-forge/{{ team }}/design.yaml`
-2. Read initial brainstorm at `docs/superpowers/{{ project_basename }}/{{ team }}/brainstorms/<the-one-file>.md`
-3. Read initial team-plan at `docs/superpowers/{{ project_basename }}/{{ team }}/team-plans/team-plan-v1.md`
+1. Read `.claude/team-forge/{{team}}/design.yaml`
+2. Read initial brainstorm at `docs/superpowers/{{project_basename}}/{{team}}/brainstorms/<the-one-file>.md`
+3. Read initial team-plan at `docs/superpowers/{{project_basename}}/{{team}}/team-plans/team-plan-v1.md`
 4. Spawn all roster teammates per `design.yaml.rehydrate.respawn_order`. Each spawn prompt includes:
    - Role: one of work/verify/advise/tracker/monitor
-   - Team name: `{{ team }}`
-   - Project name: `{{ project_name }}`
+   - Team name: `{{team}}`
+   - Project name: `{{project_name}}`
    - Initial task brief or context pointer
 5. Update tracker `status.json`:
    - `current_milestone` ← first milestone id
@@ -75,19 +76,17 @@ Use as needed:
 
 For domain work, reference the team's discovered skills (see design.yaml's `skill_discovery_results`).
 
-Manage `~/.claude/tasks/{{ team }}/`. Dispatch via mailbox. Arbitrate verdicts.
+Manage `~/.claude/tasks/{{team}}/`. Dispatch via mailbox. Arbitrate verdicts.
 Make milestone decisions with the user (do not auto-advance).
 
 ## Memory authority
 
-You are the single-writer for `docs/superpowers/{{ project_basename }}/{{ team }}/{brainstorms,team-plans,artifacts,runtime}/`.
+You are the single-writer for `docs/superpowers/{{project_basename}}/{{team}}/{brainstorms,team-plans,artifacts,runtime}/`.
 Tracker writes status.json. Monitor writes dashboard.html.
 
 ## Domain-specific constraints
 
-{% for c in constraints %}
-- {{ c }}
-{% endfor %}
+{{CONSTRAINTS_BULLET_LIST}}
 
 ## Cleanup
 

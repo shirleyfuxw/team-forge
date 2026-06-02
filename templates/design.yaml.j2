@@ -1,164 +1,154 @@
 # team-forge / Phase 3 — design.yaml
 # ============================================================================
 #
-# This is the contract between Phase 3 (Design) and Phase 4 (Forge).
-# Phase 3 produces this file (multiple forge-design-agents in parallel; human
-# approves). Phase 4 reads it and emits:
+# This file is the contract between Phase 3 (Design) and Phase 4 (Forge).
+# Phase 3's forge-design-agents PRODUCE this file (in parallel; human approves).
+# Phase 4 (team-forge:forge) READS it and emits .md files, launcher skill,
+# tracker initial state, dashboard initial render, and KB scaffolds.
 #
-#   <target_repo>/
-#     .claude/
-#       agents/<team>-*.md                 (one per roster entry)
-#       skills/<team>-team/SKILL.md        (custom team-launcher prompt)
-#       team-forge/<team>/
-#         design.yaml                      (copy of this file — the source of truth)
-#         manifest.json                    (generated files + design-doc hash)
-#         tracker/status.json              (initial empty state per `tracking.state_shape`)
-#         playground/dashboard.html        (initial rendered per `tracking.dashboard_panels`)
-#     docs/
-#       superpowers/<project.name>/<team>/
-#         brainstorms/brainstorm-<phase-1-session>.md
-#         team-plans/team-plan-v1.md
-#         artifacts/<milestone-id>/       (empty dirs)
-#         README.md                        (entry point for human reviewers)
+# This is NOT a Jinja2 template. It is the SCHEMA REFERENCE for what Phase 3
+# must produce. Forge-design-agents write the actual design.yaml from scratch
+# following this schema. Comments document each field's purpose, type, and
+# enum values.
 #
-# Universal validation rules the Phase 3 design-agents MUST satisfy:
+# Universal validation Phase 3 MUST satisfy:
 #   ROLE COVERAGE      — at least one teammate per role: work, verify, advise,
 #                        tracker, monitor. Combined roles allowed via
-#                        `combined_roles: [...]` on a teammate for small teams.
+#                        `combined_roles: [...]` on a teammate.
 #   COMMS CLOSURE      — every roster reference in `tracking.state_shape[].source`
-#                        and constraints must exist in `roster`.
+#                        and `constraints[]` must exist in `roster` or be "lead".
 #   SHARED-AGENT NAMING — entries with `shared_across_teams: true` keep unprefixed
-#                        names; all others get prefixed `<team>-<name>` at Forge.
-#
-# Notes on Jinja2 placeholders:
-#   {{ value }}        — substituted at template render
-#   {% for x in xs %}  — loop emission of repeated structures
-#   Comments survive into the rendered output and are valuable as inline docs.
+#                        names; non-shared get prefixed `<team>-<name>` at Forge.
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# project — identity + the 1-paragraph brief (Phase 1 output).
+# project — identity + the 1-paragraph brief (from Phase 1 brainstorm).
 # ----------------------------------------------------------------------------
 project:
-  name: {{ project.name }}                              # slug; team prefix for non-shared agents
-  display_name: {{ project.display_name | tojson }}
-  target_repo: {{ project.target_repo | tojson }}       # absolute path
-  domain: {{ project.domain }}                          # quant-research | frontend | ml-research |
-                                                        # backend-api | data-pipeline | custom
+  name: <slug>                              # team prefix; lowercase + hyphens; required
+  display_name: "<human-friendly name>"     # required
+  target_repo: "/absolute/path/to/repo"     # required; absolute path
+  target_repo_basename: <basename>          # REQUIRED; derived as basename(target_repo).
+                                            # forge-design-agents MUST compute and write this
+                                            # explicitly (do not rely on a renderer to derive it).
+  domain: <enum>                            # quant-research | frontend | ml-research |
+                                            # backend-api | data-pipeline | custom
   brief: |
-    {{ project.brief | indent(4) }}
+    <one-paragraph brief — verbatim from brainstorm if possible>
 
 # ----------------------------------------------------------------------------
 # milestones — Phase 2 output. High-level only (no detail task lists).
 # ----------------------------------------------------------------------------
 # 2–5 milestones. Each has a verifiable output + an explicit human go/no-go gate.
-# `hard_dependencies` declares ordering. `interface_to_next` describes the
-# narrative handoff to the next milestone (what state must exist before next
-# milestone can begin).
 milestones:
-{% for m in milestones %}
-  - id: {{ m.id }}
-    name: {{ m.name | tojson }}
-    output: {{ m.output | tojson }}
-    go_no_go: {{ m.go_no_go | tojson }}
-    expected_team_size: {{ m.expected_team_size }}       # Phase 2 prediction
-    next_phase_check: {{ m.next_phase_check | tojson }}
-    hard_dependencies: {{ m.hard_dependencies | tojson }}
+  - id: <slug>
+    name: "<human-friendly>"
+    output: "<verifiable artifact description>"
+    go_no_go: "<explicit human-decidable criterion>"
+    expected_team_size: <int>                # Phase 2 prediction
+    next_phase_check: "<criterion>"
+    hard_dependencies: [<other-milestone-id>, ...]   # may be []
     interface_to_next: |
-      {{ m.interface_to_next | indent(6) }}
-{% endfor %}
+      <prose: what this milestone hands off to the next>
 
 # ----------------------------------------------------------------------------
 # roster — concrete teammate definitions.
 # ----------------------------------------------------------------------------
 # Required per entry: name, role (or combined_roles), purpose, skills.
-# Optional: shared_across_teams (default false).
-# `shared_across_teams: true` means: shared across forged teams in this project's
-# .claude/agents/. NOT shipped by the team-forge extension. Forged once on the
-# first team's Phase 4; reused unmodified on sibling teams' Phase 4s.
+# Optional: shared_across_teams (default false), combined_roles, model.
 roster:
-{% for t in roster %}
-  - name: {{ t.name }}
-    role: {{ t.role }}                                  # work | verify | advise | tracker | monitor
-{% if t.combined_roles %}
-    combined_roles: {{ t.combined_roles | tojson }}     # for one-shot/small teams that fold roles into one teammate
-{% endif %}
+  - name: <slug>                            # filename without .md
+    role: <enum>                            # work | verify | advise | tracker | monitor | orchestrator
+    # combined_roles: [<role>, <role>]      # OPTIONAL — for one-shot/small teams
     purpose: |
-      {{ t.purpose | indent(6) }}
-{% if t.shared_across_teams %}
-    shared_across_teams: true
-{% endif %}
-    skills: {{ t.skills | tojson }}                     # discovered + approved at Phase 3
-                                                        # (see skill_discovery_results below for full audit)
-{% endfor %}
+      <prose paragraph describing what this teammate owns>
+    # shared_across_teams: true             # OPTIONAL — if reused across project's teams
+    skills:                                 # SUGGESTED loadout — see "Skill loadouts" note below
+      - <skill-name>
+      - team-forge:<bare-name>
+      - <plugin>:<skill>
+    model: <enum>                           # OPTIONAL — opus | sonnet | haiku ; default sonnet
+
+# Skill loadouts note: Per Claude Code's agent-teams primitive, teammates load
+# ALL project + user skills regardless of frontmatter declaration. The `skills:`
+# field is advisory documentation of intent, not runtime enforcement.
 
 # ----------------------------------------------------------------------------
-# rehydrate — what the lead reads on /resume to respawn the team.
+# rehydrate — what the lead reads on /resume.
 # ----------------------------------------------------------------------------
-# Paths are derived from convention; this block documents the read set, not a
-# runtime contract. The team-launcher skill template encodes the convention;
-# teammates derive their read paths from team name + role at spawn time.
+# Paths use universal team-forge layout — these are derivation rules, not
+# runtime contract. The team-launcher skill body encodes the convention.
 rehydrate:
   durable_state:
-    - .claude/team-forge/{{ project.name }}/tracker/status.json                                    # source of truth — points to current brainstorm + team-plan
-    - docs/superpowers/{{ project.target_repo_basename }}/{{ project.name }}/brainstorms/<current>.md   # from status.json.current_brainstorm
-    - docs/superpowers/{{ project.target_repo_basename }}/{{ project.name }}/team-plans/<current>.md    # from status.json.current_team_plan
-    - docs/superpowers/{{ project.target_repo_basename }}/{{ project.name }}/artifacts/<milestone-id>/*.md
-    - docs/superpowers/{{ project.target_repo_basename }}/{{ project.name }}/runtime/<milestone-id>/*.md   # optional; iterative milestones only
-  respawn_order: {{ rehydrate.respawn_order | tojson }}
-  # Plus the agent-teams shared task list at ~/.claude/tasks/{{ project.name }}/ — native, lead-managed.
+    - .claude/team-forge/<team>/tracker/status.json
+    - docs/superpowers/<target_repo_basename>/<team>/brainstorms/<current>.md
+    - docs/superpowers/<target_repo_basename>/<team>/team-plans/<current>.md
+    - docs/superpowers/<target_repo_basename>/<team>/artifacts/<milestone-id>/*.md
+    - docs/superpowers/<target_repo_basename>/<team>/runtime/<milestone-id>/*.md   # optional
+  respawn_order: [tracker, <other-roles-in-order>, monitor]
+                                            # tracker MUST be first (rehydrate source of truth)
+                                            # monitor MUST be last (depends on others being up)
 
 # ----------------------------------------------------------------------------
 # tracking — per-project end-to-end tracking spec.
 # ----------------------------------------------------------------------------
-# Tracker agent reads this at runtime to know what to aggregate into
-# tracker/status.json. Monitor agent reads `dashboard_panels` to know what to
-# render in playground/dashboard.html. Phase 4 emits the initial empty
-# status.json from `state_shape` + the initial rendered dashboard.html from
-# `dashboard_panels`.
+# Tracker agent reads this at runtime. Monitor agent reads dashboard_panels.
+# Phase 4 emits initial empty status.json from state_shape + initial rendered
+# dashboard.html from dashboard_panels.
 tracking:
-  state_shape:                                          # fields in tracker/status.json
-{% for s in tracking.state_shape %}
-    - id: {{ s.id }}
-      type: {{ s.type }}                                # string | int | float | bool | list | object
-      source: {{ s.source }}                            # which-agent-reports-it (must exist in roster, or "lead")
-      description: {{ s.description | tojson }}
-{% endfor %}
-  events_to_log:                                        # tracker appends to status.json.events[]
-{% for e in tracking.events_to_log %}
-    - {{ e }}
-{% endfor %}
-  dashboard_panels:                                     # monitor renders these in dashboard.html
-{% for p in tracking.dashboard_panels %}
-    - {{ p }}
-{% endfor %}
+  state_shape:                              # fields in tracker/status.json
+    - id: <field-name>
+      type: <enum>                          # string | int | float | bool | list | object
+      source: <agent-name | "lead">         # who reports it — must exist in roster or be "lead"
+      description: "<one-line>"
+  events_to_log:                            # enum of allowed kinds appended to status.json.events[]
+    - milestone_started
+    - milestone_completed
+    - cohort_started                        # optional — for iterative milestones
+    - cohort_completed
+    - verifier_verdict
+    - agent_blocked
+    - brainstorm_revised
+    - team_plan_revised
+    - rehydrate
+    - <domain-specific>
+  dashboard_panels:                         # monitor renders these in dashboard.html
+    - milestone_timeline
+    - team_roster_and_status
+    - current_pointers                      # current brainstorm + team-plan
+    - recent_events
+    - <domain-specific>
 
 # ----------------------------------------------------------------------------
 # constraints — project-specific facts the forge agent can't infer.
 # ----------------------------------------------------------------------------
-# Free-form bullets. Used by Phase 4 to populate the team-launcher skill's
-# prompt and the per-agent prompts.
 constraints:
-{% for c in constraints %}
-  - {{ c | tojson }}
-{% endfor %}
+  - "<free-form constraint sentence>"
+  - "<another>"
 
 # ----------------------------------------------------------------------------
-# skill_discovery_results — Phase 3 forge-design-agents audit trail.
+# skill_discovery_results — Phase 3 audit trail.
 # ----------------------------------------------------------------------------
-# Logged for human review + future reference. Phase 4 reads
-# `proposed_loadouts_per_teammate` to write each agent's frontmatter `skills:`.
-# `discovered_skills` documents what was visible at Phase 3 — useful when the
-# environment changes later and we want to know what was available when forged.
+# Logged for human review + future reference.
 skill_discovery_results:
   discovered_skills:
-    project_local: {{ skill_discovery.project_local | tojson }}
-    user_global: {{ skill_discovery.user_global | tojson }}
-    plugins:
-{% for plugin_name, skills in skill_discovery.plugins.items() %}
-      {{ plugin_name }}: {{ skills | tojson }}
-{% endfor %}
-  proposed_loadouts_per_teammate:                       # the actual skill assignments
-{% for teammate_name, skill_list in skill_discovery.proposed_loadouts_per_teammate.items() %}
-    {{ teammate_name }}: {{ skill_list | tojson }}
-{% endfor %}
+    project_local:                          # from <target_repo>/.claude/skills/
+      - <skill-name>
+    user_global:                            # from ~/.claude/skills/
+      - <skill-name>
+    plugins:                                # from installed plugins
+      team-forge:
+        - brainstorming
+        - design
+        - forge
+        - rehydrate
+        - tracker
+        - monitor
+        - writing-plans
+      # superpowers:
+      #   - brainstorming
+      #   - writing-plans
+      #   - ...
+
+  proposed_loadouts_per_teammate:           # the proposed skills per teammate
+    <teammate-name>: [<skill>, <skill>]

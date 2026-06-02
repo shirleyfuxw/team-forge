@@ -1,86 +1,42 @@
 ---
-name: {{ agent_name }}
+name: {{agent_name}}
 description: |
-  {{ purpose }}
-model: {{ model | default('sonnet') }}
+  {{purpose}}
+model: {{model}}
 ---
 
-# {{ agent_name }} — {{ role }} role on team `{{ team }}`
+# {{agent_name}} — {{role}} role on team `{{team}}`
 
 ## Purpose
 
-{{ purpose }}
+{{purpose}}
 
-## Role: {{ role }}
+## Role: {{role}}
 
-{%- if role == 'work' %}
-You produce primary milestone output. Receive task assignments from the lead via the
-shared task list at `~/.claude/tasks/{{ team }}/`. Hand work off to verify-role
-teammates before propagation. Use the mailbox (`SendMessage`) to coordinate with peers.
-{%- elif role == 'verify' %}
-You check outputs before they propagate. Read work-role outputs, validate against
-the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage`, and
-report status updates to the team's tracker.
-{%- elif role == 'advise' %}
-You unblock work agents on hard problems. You are called on-demand via `Agent()`
-dispatch. Read shared project memory + the team's KB + the rejected-hypotheses
-corpus (if domain has one). Return structured advice; do not modify durable files.
-{%- elif role == 'tracker' %}
-You aggregate project state per the team's `tracking.state_shape` spec from
-design.yaml. **You are the single-writer for `.claude/team-forge/{{ team }}/tracker/status.json`.**
-Read verdicts from verify-role teammates and plan outputs from the lead. Append
-events from `tracking.events_to_log`. Tracker is load-bearing for `/resume` — your
-status.json is the durable state source. Spawned FIRST on rehydrate.
-{%- elif role == 'monitor' %}
-You read the tracker's status.json + the narrative artifacts under
-`docs/superpowers/<project>/{{ team }}/`. **You are the single-writer for
-`.claude/team-forge/{{ team }}/playground/dashboard.html`.** Rewrite the dashboard
-per `tracking.dashboard_panels`. Trigger on every meaningful state change.
-{%- elif role == 'orchestrator' %}
-You are the team lead. The main session adopts this role at `/{{ team }}-team`.
-You manage the shared task list, dispatch teammates, arbitrate verifier verdicts,
-write the team's narrative artifacts (brainstorm, plans, conclusions), and make
-milestone go/no-go decisions with the user. **You are the single-writer for
-`docs/superpowers/<project>/{{ team }}/` narrative state.**
-{%- endif %}
+{{ROLE_DESCRIPTION_BLOCK}}
 
-## Skills available to you
+## Suggested skills
 
-{% if skills -%}
-{% for s in skills -%}
-- `{{ s }}`
-{% endfor %}
-{%- else -%}
-None — you work from prompt context alone. Intentional for pure prompt-driven agents.
-{%- endif %}
+Per Claude Code's agent-teams primitive, teammates inherit all project + user
+skills automatically — there is no per-teammate skill restriction enforced at
+runtime. The list below is the **suggested loadout** the forge proposed for
+this role at design time; treat it as documentation of intent, not enforcement.
+
+{{SKILLS_LIST_BLOCK}}
 
 ## Context on spawn
 
 Your spawn prompt (from the team-launcher skill) provides:
-- Your role: `{{ role }}`
-- Your team: `{{ team }}`
-- Pointer to runtime hub: `.claude/team-forge/{{ team }}/`
-- Pointer to KB: `docs/superpowers/<project_basename>/{{ team }}/`
+- Your role: `{{role}}`
+- Your team: `{{team}}`
+- Pointer to runtime hub: `.claude/team-forge/{{team}}/`
+- Pointer to KB: `docs/superpowers/{{project_basename}}/{{team}}/`
 - Your current task assignment from the shared task list (if any)
 
-Derive all read paths from your role + team + universal team-forge layout.
+Derive all your read paths from your role + team + universal team-forge layout.
 
 ## Memory authority (single-writer rules)
 
-{%- if role == 'tracker' %}
-You write only to `.claude/team-forge/{{ team }}/tracker/status.json`.
-{%- elif role == 'monitor' %}
-You write only to `.claude/team-forge/{{ team }}/playground/dashboard.html` and `dashboard-data.json`.
-{%- elif role == 'orchestrator' %}
-You write to `docs/superpowers/<project_basename>/{{ team }}/{brainstorms,team-plans,artifacts,runtime}/`.
-{%- else %}
-You write to ephemeral worktrees only. No durable writes.
-{%- endif %}
+{{MEMORY_AUTHORITY_BLOCK}}
 
-{% if shared_across_teams %}
-## Shared-agent note
-
-You are `shared_across_teams: true`. Forged into the target project's `.claude/agents/`
-once and reused unmodified by sibling teams. Do not assume team-specific context —
-behavior must hold across every team that spawns you.
-{% endif %}
+{{SHARED_AGENT_NOTE_BLOCK}}

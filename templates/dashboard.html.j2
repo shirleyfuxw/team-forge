@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>{{ team }} — {{ project_display_name }} · team-forge dashboard</title>
+<title>{{team}} — {{project_display_name}} · team-forge dashboard</title>
 <style>
 :root {
   --ivory: #FAF9F5; --slate: #141413; --clay: #D97757; --oat: #E3DACC;
@@ -50,6 +50,8 @@ h1 { font-family: var(--serif); font-size: 32px; font-weight: 500; color: var(--
 .milestone-label { font-family: var(--mono); font-size: 11px; color: var(--gray-500); padding-top: 4px; }
 .milestone-body .ms-name { font-family: var(--serif); font-size: 15px; color: var(--slate); margin-bottom: 4px; }
 .milestone-body .ms-desc { font-size: 12.5px; color: var(--gray-500); }
+.event-row { padding: 8px 0; border-bottom: 1px solid var(--gray-150); }
+.event-meta { font-family: var(--mono); font-size: 10px; color: var(--gray-500); }
 .empty-state { text-align: center; padding: 40px 20px; color: var(--gray-500); font-size: 14px; font-style: italic; }
 .footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--gray-300); font-family: var(--mono); font-size: 11px; color: var(--gray-500); display: flex; justify-content: space-between; }
 @media (max-width: 900px) { .stat-strip { grid-template-columns: 1fr 1fr; } .main-grid { grid-template-columns: 1fr; } }
@@ -57,82 +59,26 @@ h1 { font-family: var(--serif); font-size: 32px; font-weight: 500; color: var(--
 </head>
 <body>
 <div class="page">
-  <div class="eyebrow">team-forge dashboard · {{ project_basename }}</div>
-  <h1>{{ team }} — {{ project_display_name }}</h1>
-  <div class="subtitle">Domain: <code style="font-family:var(--mono);background:var(--gray-150);padding:1px 6px;border-radius:4px">{{ domain }}</code> · monitor agent writes this file</div>
+  <div class="eyebrow">team-forge dashboard · {{project_basename}}</div>
+  <h1>{{team}} — {{project_display_name}}</h1>
+  <div class="subtitle">Domain: <code style="font-family:var(--mono);background:var(--gray-150);padding:1px 6px;border-radius:4px">{{domain}}</code> · monitor agent writes this file</div>
 
   <div class="stat-strip">
-    <div class="stat-cell"><div class="stat-label">Milestone</div><div class="stat-value accent">{{ current_milestone | default('—') }}</div></div>
-    <div class="stat-cell"><div class="stat-label">Cohort</div><div class="stat-value">{{ current_cohort_id | default('—') }}</div></div>
-    <div class="stat-cell"><div class="stat-label">Token spend</div><div class="stat-value">{{ token_spend_cumulative_k | default(0) }}k</div></div>
-    <div class="stat-cell"><div class="stat-label">Status</div><div class="stat-value"><span class="pill {{ overall_status | default('initial') }}">{{ overall_status | default('initial') }}</span></div></div>
+    <div class="stat-cell"><div class="stat-label">Milestone</div><div class="stat-value accent">{{current_milestone}}</div></div>
+    <div class="stat-cell"><div class="stat-label">Cohort</div><div class="stat-value">{{current_cohort_id}}</div></div>
+    <div class="stat-cell"><div class="stat-label">Token spend</div><div class="stat-value">{{token_spend_cumulative_k}}k</div></div>
+    <div class="stat-cell"><div class="stat-label">Status</div><div class="stat-value"><span class="pill {{overall_status}}">{{overall_status}}</span></div></div>
   </div>
 
   <div class="main-grid">
     <div class="left-col">
-      {% for panel in dashboard_panels %}
-      {%- if panel == 'milestone_timeline' %}
-      <div class="panel">
-        <div class="panel-title">Milestone timeline</div>
-        <div class="panel-intro">Project milestones with status pills.</div>
-        <div class="timeline">
-          {% for m in milestones %}
-          <div class="milestone-row">
-            <div class="milestone-label">{{ m.id }}</div>
-            <div class="milestone-body">
-              <div class="ms-name">{{ m.name }} <span class="pill {{ m.status | default('pending') }}">{{ m.status | default('pending') }}</span></div>
-              <div class="ms-desc">{{ m.output }}</div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {%- elif panel == 'team_roster_and_status' %}
-      <div class="panel">
-        <div class="panel-title">Team roster</div>
-        <div class="panel-intro">{{ roster | length }} teammates spanning all role types.</div>
-        <table class="roster-table">
-          {% for t in roster %}
-          <tr>
-            <td class="agent-name">{{ t.name }}</td>
-            <td><span class="role-tag {{ t.role }}">{{ t.role }}</span></td>
-            <td><span class="pill {{ t.status | default('idle') }}">{{ t.status | default('idle') }}</span></td>
-          </tr>
-          {% endfor %}
-        </table>
-      </div>
-      {%- elif panel == 'current_pointers' %}
-      <div class="panel">
-        <div class="panel-title">Current pointers</div>
-        <div style="font-size: 13px; line-height: 1.7;">
-          <div><span style="color:var(--gray-500)">Brainstorm:</span> <code style="font-family:var(--mono);font-size:12px">{{ current_brainstorm | default('—') }}</code></div>
-          <div><span style="color:var(--gray-500)">Team plan:</span> <code style="font-family:var(--mono);font-size:12px">{{ current_team_plan | default('—') }}</code></div>
-        </div>
-      </div>
-      {%- else %}
-      <div class="panel">
-        <div class="panel-title">{{ panel | replace('_', ' ') | title }}</div>
-        <div class="empty-state">Awaiting data. Monitor populates this from tracker events.</div>
-      </div>
-      {%- endif %}
-      {% endfor %}
+      {{PANELS_HTML}}
     </div>
 
     <div class="right-col">
       <div class="panel">
         <div class="panel-title">Recent events</div>
-        {% if events %}
-        <div style="font-size: 12px; max-height: 480px; overflow-y: auto;">
-          {% for e in events | reverse %}
-          <div style="padding: 8px 0; border-bottom: 1px solid var(--gray-150);">
-            <div style="font-family:var(--mono);font-size:10px;color:var(--gray-500)">{{ e.ts }} · {{ e.actor }}</div>
-            <div style="margin-top:2px"><strong>{{ e.kind }}</strong> — {{ e.summary }}</div>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state">No events yet. The team is just starting.</div>
-        {% endif %}
+        {{EVENTS_HTML}}
       </div>
       <div class="panel">
         <div class="panel-title">Quick links</div>
@@ -149,7 +95,7 @@ h1 { font-family: var(--serif); font-size: 32px; font-weight: 500; color: var(--
 
   <div class="footer">
     <div>Generated by team-forge `team-forge:monitor` skill · single-writer</div>
-    <div>Last update: {{ last_update_iso | default('—') }}</div>
+    <div>Last update: {{last_update_iso}}</div>
   </div>
 </div>
 </body>
