@@ -151,42 +151,19 @@ If the user rejects:
 - Not autonomous. The user gates Step 6.
 - Not Phase 2 in disguise. We don't re-decompose milestones here; we trust the team-plan.
 
-## Self-review before user approval
 
-After Step 5 (composing design.yaml) and before Step 6 (presenting to user),
-run this checklist. Multi-agent reciprocal review (Lens 1+2+3 from Steps 2–4)
-already happened; this is the final integrity check before human approval.
+## Output review
 
-### Criteria
+The review checklist for this phase lives at `references/review.md` — extracted from this skill so a separately-dispatched **review subagent** can load just the criteria without the full procedural skill body (context isolation).
 
-| # | Check | What it means |
-|---|---|---|
-| 1 | Schema validation | design.yaml parses as YAML and has all required top-level sections (`project`, `milestones`, `roster`, `rehydrate`, `tracking`, `constraints`, `skill_discovery_results`) |
-| 2 | Required project fields | `project.name`, `target_repo`, `target_repo_basename`, `display_name`, `domain`, `brief` all non-empty |
-| 3 | Role coverage | At least one teammate covers each role (work, verify, advise, tracker, monitor) — directly or via `combined_roles` |
-| 4 | Orchestrator present | Exactly one roster entry with `role: orchestrator` |
-| 5 | Comms closure | Every `tracking.state_shape[].source` is either `"lead"` or a name that exists in `roster` |
-| 6 | tracking.events_to_log enumerated | Non-empty list; includes at minimum `milestone_started`, `milestone_completed`, `rehydrate` |
-| 7 | tracking.dashboard_panels backed by data | Every panel ID either has corresponding fields in `state_shape` or is a generic panel team-forge knows how to render |
-| 8 | Skill loadouts proposed for every teammate | `skill_discovery_results.proposed_loadouts_per_teammate` has an entry per teammate (empty list `[]` is OK for pure prompt-driven agents like skeptic/librarian) |
-| 9 | Constraints non-empty | At least one project-specific constraint declared (anything domain-specific that the forge agent couldn't infer) |
-| 10 | Lens disagreements resolved | If Lenses 1+2+3 flagged conflicts in Step 4 synthesis, every conflict is either resolved in the final design or explicitly surfaced as an open question for the user |
+**Two equivalent ways to run the review:**
 
-### Reporting
+1. **Inline (lighter, lead does it)** — read `references/review.md` yourself, run the checklist against the file(s) you just produced, surface ✓/✗ results to the user before the approval ask.
 
-```
-Design review:
-- [✓ or ✗] Schema parses + all sections present
-- [✓ or ✗] Required project fields non-empty
-- [✓ or ✗] Role coverage (all 5 roles + orchestrator)
-- [✓ or ✗] Comms closure (all sources resolve)
-- [✓ or ✗] tracking.events_to_log enumerated
-- [✓ or ✗] tracking.dashboard_panels backed by data
-- [✓ or ✗] Skill loadouts proposed per teammate
-- [✓ or ✗] Constraints non-empty
-- [✓ or ✗] Lens disagreements resolved
-```
+2. **Subagent (more isolated, fresh context)** — dispatch a subagent with the prompt:
+   > "Review the output at `<path-to-output-file>` against the criteria in `references/review.md` of the team-forge `<this-skill-name>` skill. Report the checklist as a ✓/✗ list, then name any specific gaps for each ✗."
+   The subagent reads only the criteria file + the output — no other team-forge context required.
 
-A ✗ on schema, role coverage, or comms closure is a hard abort — Phase 4
-(forge) will reject the design. Re-dispatch the 3 design agents with the
-gaps as additional context.
+Either path produces the same checklist output. The subagent path is preferable when the lead's context window is large enough that adding the review work would crowd it, or when a colder/independent verdict is wanted.
+
+After the review (regardless of path), surface results to the user and ask: approve, revise, or abort. **Do not auto-pass on a hard-abort trigger** (those are documented in `references/review.md` per phase).

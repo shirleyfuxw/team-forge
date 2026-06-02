@@ -157,33 +157,19 @@ approve to move to Phase 2 (planning).
 - **User declines to answer one of the 5 interrogation questions** → record `<question-id>: declined` and proceed. Note in the doc that the field is undeclared.
 - **User wants to revise mid-flight** → revise the in-progress file before saving; never partial-save and resume — the brainstorm is atomic per session.
 
-## Self-review before user approval
 
-After Step 5 (writing the file) and before Step 7 (confirming with the user),
-run this explicit review checklist. **Surface any failures to the user** as
-part of the confirmation message — don't auto-pass.
+## Output review
 
-### Criteria
+The review checklist for this phase lives at `references/review.md` — extracted from this skill so a separately-dispatched **review subagent** can load just the criteria without the full procedural skill body (context isolation).
 
-| # | Check | What it means |
-|---|---|---|
-| 1 | Goal captured verbatim | The user's one-paragraph goal is in the doc word-for-word from Step 1, not paraphrased |
-| 2 | All 5 interrogation areas covered | Other agents needed · Verification posture · Tracking expectations · Completion criteria · Token budget — each has either a real answer or an explicit `<question-id>: declined` line |
-| 3 | Milestones sketched (not detailed) | 2–5 high-level milestones with verifiable outputs + go/no-go gates. NOT a sub-task list. |
-| 4 | Uncertainties captured | At least one open question listed (or an explicit "no uncertainties surfaced" note from the user) |
-| 5 | File path correct | The file lives at `docs/superpowers/<project>/<team>/brainstorms/brainstorm-<session-id>.md` with `<session-id>` either an ISO date or a meaningful slug (e.g. `phase1-initial`, `pivot-1`) |
+**Two equivalent ways to run the review:**
 
-### Reporting
+1. **Inline (lighter, lead does it)** — read `references/review.md` yourself, run the checklist against the file(s) you just produced, surface ✓/✗ results to the user before the approval ask.
 
-Tell the user:
+2. **Subagent (more isolated, fresh context)** — dispatch a subagent with the prompt:
+   > "Review the output at `<path-to-output-file>` against the criteria in `references/review.md` of the team-forge `<this-skill-name>` skill. Report the checklist as a ✓/✗ list, then name any specific gaps for each ✗."
+   The subagent reads only the criteria file + the output — no other team-forge context required.
 
-```
-Brainstorm review:
-- [✓ or ✗] Goal captured verbatim
-- [✓ or ✗] All 5 interrogation areas covered
-- [✓ or ✗] Milestones sketched (not detailed)
-- [✓ or ✗] Uncertainties captured
-- [✓ or ✗] File path correct
-```
+Either path produces the same checklist output. The subagent path is preferable when the lead's context window is large enough that adding the review work would crowd it, or when a colder/independent verdict is wanted.
 
-If anything is ✗, name the gap explicitly. Then ask: approve, revise, or abort.
+After the review (regardless of path), surface results to the user and ask: approve, revise, or abort. **Do not auto-pass on a hard-abort trigger** (those are documented in `references/review.md` per phase).

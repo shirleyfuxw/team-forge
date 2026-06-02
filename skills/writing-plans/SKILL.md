@@ -158,40 +158,19 @@ Ask if they approve to move to Phase 3 (Design).
 - **Vague verifiable outputs** → push for concrete; "works well" is unacceptable
 - **User wants to skip ahead to Phase 3 without naming dependencies** → tell them dependencies are mandatory; offer to mark all as `[]` only if they explicitly say so
 
-## Self-review before user approval
 
-After Step 5 (writing the file) and before Step 7 (confirming with the user),
-run this checklist. Surface failures explicitly.
+## Output review
 
-### Criteria
+The review checklist for this phase lives at `references/review.md` — extracted from this skill so a separately-dispatched **review subagent** can load just the criteria without the full procedural skill body (context isolation).
 
-| # | Check | What it means |
-|---|---|---|
-| 1 | All milestones high-level | No detail sub-tasks; each milestone is a verifiable unit with a go/no-go |
-| 2 | Hard dependencies declared | Every milestone has `hard_dependencies: [...]` (empty list is OK; missing field is not) |
-| 3 | No cyclic dependencies | Run a topo sort on the dependency graph; cycles → fail |
-| 4 | Interface_to_next described | Every milestone (except last) has 2–3 sentences describing its handoff |
-| 5 | Iteration shape per milestone | Each milestone marked `one-shot` or `iterative` (with rough iteration count for iterative) |
-| 6 | Expected team size declared | Each milestone has an integer estimate |
-| 7 | Next-phase check declared | Each milestone has a human go/no-go criterion for the gate to the next milestone |
-| 8 | Cross-milestone notes present | Section on parallel-runnable milestones + critical path + token budget allocation |
-| 9 | Carry-overs from brainstorm tracked | Any brainstorm uncertainties not resolved here are explicitly listed |
+**Two equivalent ways to run the review:**
 
-### Reporting
+1. **Inline (lighter, lead does it)** — read `references/review.md` yourself, run the checklist against the file(s) you just produced, surface ✓/✗ results to the user before the approval ask.
 
-```
-Team-plan review:
-- [✓ or ✗] All milestones high-level
-- [✓ or ✗] Hard dependencies declared
-- [✓ or ✗] No cyclic dependencies
-- [✓ or ✗] Interface_to_next described for each milestone
-- [✓ or ✗] Iteration shape per milestone
-- [✓ or ✗] Expected team size declared
-- [✓ or ✗] Next-phase check declared
-- [✓ or ✗] Cross-milestone notes section present
-- [✓ or ✗] Brainstorm carry-overs tracked
-```
+2. **Subagent (more isolated, fresh context)** — dispatch a subagent with the prompt:
+   > "Review the output at `<path-to-output-file>` against the criteria in `references/review.md` of the team-forge `<this-skill-name>` skill. Report the checklist as a ✓/✗ list, then name any specific gaps for each ✗."
+   The subagent reads only the criteria file + the output — no other team-forge context required.
 
-If ✗ on dependencies or interface_to_next, the design phase will fail downstream
-— treat those as blockers. Cyclic dependencies are an automatic abort: tell the
-user one milestone needs re-scoping or merging.
+Either path produces the same checklist output. The subagent path is preferable when the lead's context window is large enough that adding the review work would crowd it, or when a colder/independent verdict is wanted.
+
+After the review (regardless of path), surface results to the user and ask: approve, revise, or abort. **Do not auto-pass on a hard-abort trigger** (those are documented in `references/review.md` per phase).
