@@ -20,6 +20,8 @@ Status: **design phase, frozen for implementation. No more reshuffling.**
 
 ## What team-forge is
 
+> Interactive overview: [`docs/playgrounds/team-forge-overview.html`](./docs/playgrounds/team-forge-overview.html) — a clickable explorer of the 4-phase forge, the 5 role types, and the forged output layout described below.
+
 A meta-extension that **auto-generates project-specific agent teams** for Claude Code's agent-teams primitive. Feed it a project context. It runs a human-in-the-loop 4-phase design loop ending with concrete files committed to the target project: agent definitions, a team-launcher skill, and the team's durable hub directory.
 
 team-forge is also a **generic shared resources hub** — it bundles only the *generic* pieces reusable across every project domain:

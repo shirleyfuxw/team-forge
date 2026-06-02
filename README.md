@@ -4,6 +4,8 @@ Meta-extension for Claude Code that auto-generates project-specific agent teams.
 
 **Status:** v0.1.0 — MVP feature-complete + end-to-end forge validated. See [SCOPING.md](./SCOPING.md) for full design, [tests/README.md](./tests/README.md) for what was validated.
 
+> **New here?** Open the interactive overview — [`docs/playgrounds/team-forge-overview.html`](./docs/playgrounds/team-forge-overview.html) — for a clickable walkthrough of what team-forge builds for the team: the 4-phase forge, the 5 role types, and the files it commits into your project.
+
 ## What it does
 
 Forges a project-specific multi-agent team — roster, team-launcher skill, observability hub — for any project domain. Each forged team:
