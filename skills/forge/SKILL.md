@@ -60,7 +60,7 @@ Read `.claude/team-forge/<team>/design.yaml` and verify:
 1. **Required project fields** non-empty: `name`, `target_repo`, `target_repo_basename`, `brief`
 2. **Role coverage**: every role (work, verify, advise, tracker, monitor) covered by at least one roster entry (via `role` or `combined_roles`)
 3. **Comms closure**: every `tracking.state_shape[].source` is either `"lead"` or a name in `roster`
-4. **Milestones**: 2–5 entries, each with non-empty `output` and `go_no_go`
+4. **Milestones**: 1–5 entries (1 is acceptable for genuinely one-shot projects), each with non-empty `output` and `go_no_go`
 5. **Orchestrator present**: exactly one roster entry has `role: orchestrator`
 
 If validation fails, abort and tell the user.
@@ -243,3 +243,18 @@ Tell the user:
 
 - Not an idempotent regen — that's post-MVP and requires reading the prior manifest
 - Not a Jinja2-aware renderer — templates are `{{VAR}}` substitution + named placeholder blocks; no loops or conditionals are interpreted from the template
+
+## Optional: deterministic Python renderer
+
+team-forge ships an optional Python renderer at `tools/forge.py` (relative to
+the extension root). It implements this skill's procedure deterministically
+against the same logic-free templates. Requires `pyyaml`.
+
+Two equivalent paths:
+- **Agent-procedural** (this skill body): follow the steps above; the agent
+  performs `{{VAR}}` substitution + fills placeholder blocks from the text banks.
+- **Renderer-invoked**: shell out to `python3 <team-forge-extension>/tools/forge.py`
+  passing the target design.yaml path. Faster + deterministic for repeated runs.
+
+Both paths produce byte-identical output (the templates are logic-free; the only
+variation is who computes the substitutions).
