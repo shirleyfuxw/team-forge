@@ -87,7 +87,7 @@ Writes `team-plans/team-plan-v1.md`. **Self-review** (9 criteria including cycli
 Now use team-forge:design to produce the design.yaml.
 ```
 
-Claude dispatches 3 forge-design-agents in parallel (roster-correctness lens, comms+coverage lens, domain-fit lens), reconciles their outputs, runs skill discovery on `~/my-cli-project/.claude/skills/`, `~/.claude/skills/`, and installed plugins. Produces `design.yaml` covering:
+Claude dispatches 3 forge-design-agents in parallel (roster-correctness lens, comms+coverage lens, domain-fit lens), reconciles their outputs, and runs **asset discovery** — skills + agents across project, user-global, installed plugins, and any configured reference libraries (e.g. ECC), domain-filtered to this project — proposing reuse/adapt candidates. Produces `design.yaml` covering:
 
 - 6-agent roster (orchestrator + work + verify + advise + tracker + monitor)
 - `tracking.state_shape` (repos_processed, rate_limit_remaining, errors_count, etc.)

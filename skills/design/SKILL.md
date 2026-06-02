@@ -35,16 +35,46 @@ before the human approval gate.
 The lead invokes this skill, then orchestrates 3 design-agents in parallel. Each
 agent gets the brainstorm + team-plan, but a different lens.
 
-### Step 1 — Pre-design: skill discovery
+### Step 1 — Pre-design: asset discovery (skills + agents), purpose-filtered
 
-Before dispatching design-agents, the lead searches the codebase for available skills:
+Before dispatching design-agents, the lead searches for reusable assets — both
+**skills AND agents** — across four sources, then filters by the project's
+domain/purpose (from the Phase-1 brainstorm) so the design agents see only
+relevant prior art, not the whole world.
 
-1. `<target_repo>/.claude/skills/` — project-local skills
-2. `~/.claude/skills/` — user-global skills
-3. Installed Claude Code plugins (specifically `team-forge` and any others). Read each plugin's `skills/` directory.
+**Sources:**
+1. `<target_repo>/.claude/skills/` + `<target_repo>/.claude/agents/` — project-local
+2. `~/.claude/skills/` + `~/.claude/agents/` — user-global
+3. Installed Claude Code plugins — read each plugin's `skills/` and `agents/`
+4. **Reference libraries** declared in `design.yaml.reference_libraries` — curated
+   external corpora cloned locally (e.g. **ECC**: ~80 agents + ~100 skills at the
+   configured clone path). Read their `agents/` and `skills/` directories.
+   Reference libraries are NOT installed dependencies — they are prior art to adapt.
+   Discovery reads a LOCAL CLONE; never fetch over the network during design
+   (keeps the design phase deterministic + offline).
 
-Catalog the discovered skills as a list (name, description from frontmatter). Pass
-this catalog to all 3 design-agents.
+**Domain filter (MANDATORY):** keep only assets whose domain matches the project.
+A frontend project keeps `frontend-patterns`, `a11y-architect`, the React reviewer;
+it drops the golang / swift / healthcare entries. Without this filter a large
+reference library (ECC has ~180 assets) swamps the design. Filter BEFORE passing
+the catalog to the design agents.
+
+**Produce four buckets:**
+- **reuse** — installed agents/skills usable as-is. For agents marked
+  `shared_across_teams` (or domain-agnostic + already in the target's
+  `.claude/agents/`): reference, don't re-emit. **Reuse policy is strict** — only
+  propose reuse when the asset is shared/domain-agnostic AND domain-matches. A
+  combiner-specific librarian is NOT offered to a frontend team.
+- **adapt** — reference-library assets (e.g. ECC agents/skills) whose pattern is
+  worth borrowing. **Default consumption mode is reference-and-adapt:** the forge
+  writes our own project-owned version citing what it adapted — NOT a verbatim
+  vendor-copy (avoids licensing entanglement + staleness).
+- **collision-list** — every existing agent/skill name in the target, so the forge
+  never emits a clashing filename.
+- **pattern-reference** — agents/teams (ours or ECC's) whose role structure informs
+  the roster design.
+
+Pass the filtered catalog + buckets to all 3 design-agents.
 
 ### Step 2 — Dispatch 3 design-agents in parallel
 
@@ -59,7 +89,7 @@ design pass independently. They DO NOT see each other's output until Step 4.
 > there gaps where a role can't be filled because no skill exists for it? Flag
 > aggressively."
 
-Returns: roster proposal + gaps list.
+Returns: roster proposal + gaps list. **Before inventing any teammate, check the reuse + adapt + pattern-reference buckets** — prefer reusing an existing shared agent, or adapting a reference-library agent (e.g. an ECC reviewer/architect), over a blank-page invention. Flag each roster entry as `reuse` / `adapt` / `new`.
 
 #### Lens 2: comms + coverage
 

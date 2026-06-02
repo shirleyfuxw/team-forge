@@ -127,28 +127,54 @@ constraints:
   - "<another>"
 
 # ----------------------------------------------------------------------------
-# skill_discovery_results — Phase 3 audit trail.
+# reference_libraries — external curated corpora to mine during asset discovery.
 # ----------------------------------------------------------------------------
-# Logged for human review + future reference.
-skill_discovery_results:
-  discovered_skills:
-    project_local:                          # from <target_repo>/.claude/skills/
-      - <skill-name>
-    user_global:                            # from ~/.claude/skills/
-      - <skill-name>
-    plugins:                                # from installed plugins
-      team-forge:
-        - brainstorming
-        - design
-        - forge
-        - rehydrate
-        - tracker
-        - monitor
-        - writing-plans
-      # superpowers:
-      #   - brainstorming
-      #   - writing-plans
-      #   - ...
+# OPTIONAL. Local clones of agent/skill libraries the design phase reads as PRIOR
+# ART to adapt (reference-and-adapt mode) — NOT installed runtime dependencies.
+# Discovery reads the local path; it never fetches over the network during design.
+reference_libraries:
+  - name: ecc                               # e.g. the ECC harness-native operator system
+    path: <absolute-path-to-local-clone>    # e.g. ~/src/ECC
+    agents_dir: agents                       # subdir holding agent .md files (~80 in ECC)
+    skills_dir: skills                       # subdir holding skill dirs (~100 in ECC)
+    consumption: reference-and-adapt          # reference-and-adapt | vendor-copy | plugin-install
+  # Add more reference libraries as needed.
 
-  proposed_loadouts_per_teammate:           # the proposed skills per teammate
+# ----------------------------------------------------------------------------
+# asset_discovery — Phase 3 audit trail (skills AND agents).
+# ----------------------------------------------------------------------------
+# Logged for human review + future reference. Domain-filtered against project.domain.
+asset_discovery:
+  domain_filter: <project.domain>            # what the catalog was filtered to
+
+  discovered_skills:
+    project_local: [<skill-name>]            # <target_repo>/.claude/skills/
+    user_global:   [<skill-name>]            # ~/.claude/skills/
+    plugins:
+      team-forge: [brainstorming, design, forge, rehydrate, tracker, monitor, writing-plans]
+      # superpowers: [...]
+    reference_libraries:                     # domain-matched skills from reference libs
+      ecc: [<skill-name>]                    # e.g. frontend-patterns, e2e-testing
+
+  discovered_agents:
+    project_local: [<agent-name>]            # <target_repo>/.claude/agents/
+    user_global:   [<agent-name>]            # ~/.claude/agents/
+    plugins:       {}                        # plugin agents by plugin name
+    reference_libraries:                     # domain-matched agents from reference libs
+      ecc: [<agent-name>]                    # e.g. code-reviewer, architect, tdd-guide
+
+  # The four buckets the design agents act on:
+  reuse_candidates:                          # installed, shared/domain-agnostic, domain-match → reference, don't re-emit
+    - name: <agent-or-skill>
+      source: <project_local | user_global | plugin>
+      why: "<shared_across_teams + domain match>"
+  adapt_candidates:                          # reference-library prior art → forge our own, cite the source
+    - name: <ecc-agent-or-skill>
+      source: ecc
+      adapt_into: <new-roster-entry-name>
+      borrowed: "<what pattern we took>"
+  collision_list: [<existing-agent-or-skill-name>, ...]   # never emit a clashing name
+  pattern_references: [<agent-or-team>, ...]               # role structures that informed the roster
+
+  proposed_loadouts_per_teammate:            # final skills per teammate (also written into roster[].skills)
     <teammate-name>: [<skill>, <skill>]
