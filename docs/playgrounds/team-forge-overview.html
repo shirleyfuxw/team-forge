@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>team-forge — what we build for the team</title>
+<style>
+:root {
+  --ivory:    #FAF9F5;
+  --slate:    #141413;
+  --clay:     #D97757;
+  --oat:      #E3DACC;
+  --olive:    #788C5D;
+  --rust:     #B04A3F;
+  --gray-150: #F0EEE6;
+  --gray-300: #D1CFC5;
+  --gray-500: #87867F;
+  --gray-700: #3D3D3A;
+  --white:    #FFFFFF;
+  --serif: ui-serif, Georgia, 'Times New Roman', serif;
+  --sans:  system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono:  ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--sans);
+  background: var(--ivory);
+  color: var(--gray-700);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+.page { display: flex; gap: 0; max-width: 1180px; margin: 0 auto; }
+
+/* ---- nav ---- */
+nav {
+  width: 215px; flex-shrink: 0;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  padding: 44px 22px 60px 0;
+  border-right: 1.5px solid var(--gray-300);
+}
+nav .brand { font-family: var(--serif); font-size: 19px; font-weight: 500; color: var(--slate); margin-bottom: 2px; }
+nav .brand .v { font-family: var(--mono); font-size: 11px; color: var(--clay); }
+nav .tagline { font-size: 12px; color: var(--gray-500); margin-bottom: 26px; line-height: 1.4; }
+nav .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-500); margin-bottom: 8px; }
+nav a { display: block; color: var(--gray-700); text-decoration: none; padding: 4px 0 4px 12px; font-size: 14px; border-left: 2px solid var(--gray-300); transition: all .15s; }
+nav a:hover, nav a.active { color: var(--clay); border-color: var(--clay); }
+nav a.l2 { padding-left: 24px; color: var(--gray-500); font-size: 12.5px; }
+nav .files { margin-top: 26px; }
+nav .files code { display: block; font-family: var(--mono); font-size: 11.5px; color: var(--gray-700); padding: 2px 0; }
+
+/* ---- main ---- */
+main { flex: 1; padding: 44px 44px 180px; min-width: 0; }
+.eyebrow { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-500); margin-bottom: 10px; }
+h1 { font-family: var(--serif); font-size: 37px; font-weight: 500; color: var(--slate); line-height: 1.15; margin-bottom: 14px; }
+h1 { flex-wrap: wrap; }
+h1 code { font-family: var(--mono); font-size: 0.55em; background: var(--gray-150); border: 1px solid var(--gray-300); border-radius: 7px; padding: 2px 8px; color: var(--clay); vertical-align: middle; white-space: nowrap; }
+.lede { font-size: 15.5px; color: var(--gray-700); max-width: 640px; margin-bottom: 8px; }
+h2 { font-family: var(--serif); font-size: 25px; font-weight: 500; color: var(--slate); margin: 56px 0 6px; display: flex; align-items: baseline; gap: 12px; }
+h2 .num { font-family: var(--mono); font-size: 12px; background: var(--oat); color: var(--slate); padding: 3px 9px; border-radius: 8px; }
+.sec-intro { font-size: 14px; color: var(--gray-500); max-width: 680px; margin-bottom: 18px; }
+h3 { font-family: var(--serif); font-size: 18px; font-weight: 500; color: var(--slate); margin: 26px 0 8px; }
+
+/* ---- summary strip ---- */
+.summary { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin: 30px 0 8px; }
+.cell { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 12px; padding: 16px 18px; }
+.cell .k { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-500); margin-bottom: 6px; }
+.cell .v { font-size: 22px; font-family: var(--serif); color: var(--slate); }
+.cell .v small { font-size: 13px; color: var(--gray-500); font-family: var(--sans); }
+
+/* ---- tldr ---- */
+.tldr { background: var(--white); border: 1.5px solid var(--gray-300); border-left: 4px solid var(--clay); border-radius: 10px; padding: 18px 20px; margin: 26px 0; cursor: pointer; transition: border-color .15s; }
+.tldr:hover { border-left-color: var(--rust); }
+.tldr b { color: var(--slate); }
+.tldr .hint { display: block; margin-top: 8px; font-size: 12px; color: var(--gray-500); font-style: italic; }
+
+/* ---- diagram ---- */
+.diagram-panel { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 14px; padding: 22px; margin: 22px 0; overflow-x: auto; }
+.flow text { font-family: var(--mono); }
+.phase-box { cursor: pointer; }
+.phase-box rect { transition: fill .15s, stroke .15s; }
+.phase-box:hover rect { fill: #FDF3EE; stroke: var(--clay); }
+.caption { font-size: 12.5px; color: var(--gray-500); margin-top: 10px; }
+
+/* ---- phase cards ---- */
+.phases { display: flex; flex-direction: column; gap: 14px; margin: 18px 0; }
+.phase { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 12px; padding: 16px 20px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.phase:hover { border-color: var(--clay); box-shadow: 0 2px 10px rgba(217,119,87,.08); }
+.phase .ph-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.phase .ph-num { width: 26px; height: 26px; flex-shrink: 0; background: var(--oat); color: var(--slate); border-radius: 50%; font-family: var(--mono); font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.phase .ph-title { font-weight: 600; color: var(--slate); font-size: 15px; }
+.phase .ph-driver { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--gray-500); background: var(--gray-150); padding: 3px 8px; border-radius: 6px; }
+.phase .ph-gate { margin-left: 6px; font-family: var(--mono); font-size: 10px; padding: 3px 7px; border-radius: 6px; }
+.gate-human { background: #E4E9DC; color: #4B5C39; }
+.gate-auto { background: #F3D9CC; color: #8A3B1E; }
+.phase .ph-out { font-size: 13.5px; color: var(--gray-700); padding-left: 38px; }
+.phase .ph-out b { color: var(--slate); }
+
+/* ---- role cards ---- */
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 14px; margin: 18px 0; }
+.role { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 12px; padding: 16px 18px; cursor: pointer; transition: border-color .15s; }
+.role:hover { border-color: var(--clay); }
+.role .r-name { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; margin-bottom: 8px; display: inline-block; padding: 3px 9px; border-radius: 6px; }
+.r-work   { background: #EDE7F0; color: #5B4B7A; }
+.r-verify { background: #E4E9DC; color: #4B5C39; }
+.r-advise { background: #FDF3EE; color: #8A3B1E; }
+.r-tracker{ background: var(--oat); color: var(--slate); }
+.r-monitor{ background: #DCE6EA; color: #3A5560; }
+.role .r-does { font-size: 13.5px; color: var(--gray-700); margin-bottom: 8px; }
+.role .r-life { font-family: var(--mono); font-size: 11px; color: var(--gray-500); }
+.role .r-life .dur { color: var(--olive); }
+.cov-note { background: var(--gray-150); border: 1.5px solid var(--gray-300); border-radius: 10px; padding: 12px 16px; font-size: 13.5px; margin-top: 6px; }
+.cov-note b { color: var(--slate); }
+
+/* ---- tree ---- */
+.tree { background: var(--slate); border-radius: 12px; padding: 18px 22px; overflow-x: auto; margin: 18px 0; }
+.tree pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: #E8E6DE; }
+.tree .dir { color: #C9B98A; }
+.tree .cm { color: #87867F; }
+.tree .hot { color: #D97757; }
+.tree .ok { color: #788C5D; }
+
+/* ---- ships grid ---- */
+.ships { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: 14px; margin: 18px 0; }
+.ship { background: var(--white); border: 1.5px solid var(--gray-300); border-radius: 12px; padding: 16px 18px; }
+.ship .s-k { font-family: var(--serif); font-size: 16px; color: var(--slate); margin-bottom: 4px; }
+.ship .s-k .cnt { font-family: var(--mono); font-size: 12px; color: var(--clay); }
+.ship .s-d { font-size: 13px; color: var(--gray-500); }
+
+/* ---- callout ---- */
+.callout { background: var(--white); border: 1.5px solid var(--gray-300); border-left: 4px solid var(--olive); border-radius: 10px; padding: 14px 18px; margin: 14px 0; cursor: pointer; }
+.callout:hover { border-left-color: var(--clay); }
+.callout .qt { font-weight: 600; font-size: 14.5px; color: var(--slate); margin-bottom: 4px; }
+.callout .qd { font-size: 13.5px; color: var(--gray-500); }
+
+/* ---- prompt footer ---- */
+.prompt-footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--ivory); border-top: 1.5px solid var(--gray-300); padding: 14px 32px; display: flex; gap: 16px; align-items: flex-start; z-index: 20; }
+.prompt-footer .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; color: var(--gray-500); white-space: nowrap; padding-top: 4px; }
+.prompt-footer .text { flex: 1; font-size: 13.5px; color: var(--gray-700); line-height: 1.5; }
+.prompt-footer .text.empty { font-style: italic; color: var(--gray-500); }
+.copy-btn { background: var(--clay); color: var(--white); border: none; border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.copy-btn:hover { background: var(--rust); }
+@media (max-width: 720px) {
+  nav { display: none; }
+  main { padding: 32px 22px 180px; }
+  .summary { grid-template-columns: repeat(2,1fr); }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <nav>
+    <div class="brand">team-forge <span class="v">v0.1.0</span></div>
+    <div class="tagline">What our extension builds for the team.</div>
+    <div class="label">On this page</div>
+    <a href="#what" class="navlink">What it builds</a>
+    <a href="#tldr" class="navlink">TL;DR</a>
+    <a href="#flow" class="navlink">The 4-phase forge</a>
+    <a href="#flow" class="navlink l2">1 · Brainstorm</a>
+    <a href="#flow" class="navlink l2">2 · Plan</a>
+    <a href="#flow" class="navlink l2">3 · Design</a>
+    <a href="#flow" class="navlink l2">4 · Forge</a>
+    <a href="#roles" class="navlink">5 role types</a>
+    <a href="#output" class="navlink">Forged output</a>
+    <a href="#ships" class="navlink">What ships</a>
+    <a href="#rehydrate" class="navlink">Rehydrate &amp; refs</a>
+    <div class="files">
+      <div class="label">Source</div>
+      <code>README.md</code>
+      <code>SCOPING.md</code>
+      <code>skills/*/SKILL.md</code>
+      <code>templates/*.j2</code>
+    </div>
+  </nav>
+
+  <main>
+    <div class="eyebrow">team-forge · meta-extension for Claude Code</div>
+    <h1>What we build for the team <code>team-forge</code></h1>
+    <p class="lede">team-forge is the wiring that auto-generates a project-specific multi-agent team — roster, launcher skill, and a live dashboard — for any repo we own. Forge once per project; the team survives <code style="font-size:.85em">/resume</code>.</p>
+
+    <div class="summary" id="what">
+      <div class="cell"><div class="k">Forge phases</div><div class="v">4 <small>fixed</small></div></div>
+      <div class="cell"><div class="k">Role coverage</div><div class="v">5 <small>roles</small></div></div>
+      <div class="cell"><div class="k">Shipped skills</div><div class="v">7</div></div>
+      <div class="cell"><div class="k">Templates</div><div class="v">4 <small>logic-free</small></div></div>
+    </div>
+
+    <div class="tldr" id="tldr" onclick="select('tldr')">
+      <b>TL;DR</b> — Feed team-forge a project context. It runs a human-in-the-loop 4-phase design loop (brainstorm → plan → design → forge) and commits concrete files into the target repo's <code style="font-size:.85em">.claude/</code>: agent definitions, a <code style="font-size:.85em">/&lt;team&gt;-team</code> launcher skill, and a durable hub with a tracker + an HTML dashboard. The extension ships only the <i>generic</i> wiring; the domain-specific agents are forged into <i>your</i> project, owned by you.
+      <span class="hint">Click any card, phase, role, or callout to generate a focused prompt ↓</span>
+    </div>
+
+    <h2 id="flow"><span class="num">01</span> The 4-phase forge</h2>
+    <p class="sec-intro">A fixed pipeline. Phases 1–3 each end at a human approval gate; Phase 4 is autogen — it reads one annotated <code>design.yaml</code> and emits the whole team.</p>
+
+    <div class="diagram-panel">
+      <svg class="flow" viewBox="0 0 860 150" width="860" height="150" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#87867F"/>
+          </marker>
+        </defs>
+        <g class="phase-box" onclick="select('phase-1')">
+          <rect x="8" y="44" width="180" height="62" rx="10" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"/>
+          <text x="98" y="70" font-size="13" fill="#141413" text-anchor="middle" font-weight="600">1 · Brainstorm</text>
+          <text x="98" y="89" font-size="10.5" fill="#87867F" text-anchor="middle">project brief</text>
+        </g>
+        <line x1="190" y1="75" x2="226" y2="75" stroke="#87867F" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <g class="phase-box" onclick="select('phase-2')">
+          <rect x="228" y="44" width="180" height="62" rx="10" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"/>
+          <text x="318" y="70" font-size="13" fill="#141413" text-anchor="middle" font-weight="600">2 · Plan</text>
+          <text x="318" y="89" font-size="10.5" fill="#87867F" text-anchor="middle">milestones</text>
+        </g>
+        <line x1="410" y1="75" x2="446" y2="75" stroke="#87867F" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <g class="phase-box" onclick="select('phase-3')">
+          <rect x="448" y="44" width="180" height="62" rx="10" fill="#F0EEE6" stroke="#D1CFC5" stroke-width="1.5"/>
+          <text x="538" y="70" font-size="13" fill="#141413" text-anchor="middle" font-weight="600">3 · Design</text>
+          <text x="538" y="89" font-size="10.5" fill="#87867F" text-anchor="middle">design.yaml</text>
+        </g>
+        <line x1="630" y1="75" x2="666" y2="75" stroke="#87867F" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <g class="phase-box" onclick="select('phase-4')">
+          <rect x="668" y="44" width="184" height="62" rx="10" fill="#141413" stroke="#141413" stroke-width="1.5"/>
+          <text x="760" y="70" font-size="13" fill="#FAF9F5" text-anchor="middle" font-weight="600">4 · Forge</text>
+          <text x="760" y="89" font-size="10.5" fill="#C9B98A" text-anchor="middle">emits team files</text>
+        </g>
+        <text x="98" y="28" font-size="10" fill="#4B5C39" text-anchor="middle">▲ human gate</text>
+        <text x="318" y="28" font-size="10" fill="#4B5C39" text-anchor="middle">▲ human gate</text>
+        <text x="538" y="28" font-size="10" fill="#4B5C39" text-anchor="middle">▲ human gate</text>
+        <text x="760" y="28" font-size="10" fill="#8A3B1E" text-anchor="middle">▲ autogen</text>
+      </svg>
+      <p class="caption">Each phase output is the next phase's input. The contract handed into Phase 4 is a single annotated <code>design.yaml</code>.</p>
+    </div>
+
+    <div class="phases">
+      <div class="phase" onclick="select('phase-1')">
+        <div class="ph-head"><span class="ph-num">1</span><span class="ph-title">Brainstorm</span><span class="ph-driver">human + brainstormer</span><span class="ph-gate gate-human">human gate</span></div>
+        <div class="ph-out">Elicits the brief: <b>other agents needed? what verification? what tracking? completion criteria? token budget?</b> Ends with a 5-criterion self-review.</div>
+      </div>
+      <div class="phase" onclick="select('phase-2')">
+        <div class="ph-head"><span class="ph-num">2</span><span class="ph-title">Plan</span><span class="ph-driver">human + planner</span><span class="ph-gate gate-human">human gate</span></div>
+        <div class="ph-out">High-level <b>milestones</b>, each with hard dependencies, expected team size, a next-phase check, and the input/interface contract to the next milestone.</div>
+      </div>
+      <div class="phase" onclick="select('phase-3')">
+        <div class="ph-head"><span class="ph-num">3</span><span class="ph-title">Design</span><span class="ph-driver">parallel forge-design-agents</span><span class="ph-gate gate-human">human gate</span></div>
+        <div class="ph-out">Multiple agents review reciprocally (roster · comms+coverage · domain-fit), then reconcile into one annotated <b>design.yaml</b>: roster, asset discovery across plugins + reference libraries, comms patterns, rehydrate state.</div>
+      </div>
+      <div class="phase" onclick="select('phase-4')">
+        <div class="ph-head"><span class="ph-num">4</span><span class="ph-title">Forge</span><span class="ph-driver">AI auto</span><span class="ph-gate gate-auto">autogen</span></div>
+        <div class="ph-out">Reads <code>design.yaml</code> → emits agent <code>.md</code> files, the team-launcher skill, the hub (manifest, tracker, runtime, artifacts) and the <b>initial rendered dashboard.html</b>.</div>
+      </div>
+    </div>
+
+    <h2 id="roles"><span class="num">02</span> Five role types — coverage is enforced</h2>
+    <p class="sec-intro">Every forged roster must cover all five roles, or it's rejected at Phase 3. The tracker and monitor are load-bearing: their durable files are how a team survives <code>/resume</code>.</p>
+    <div class="roles">
+      <div class="role" onclick="select('role-work')">
+        <span class="r-name r-work">Work</span>
+        <div class="r-does">Does the domain task. Mailbox to other workers + verifiers; receives assignments from lead.</div>
+        <div class="r-life">ephemeral · rehydrated on resume</div>
+      </div>
+      <div class="role" onclick="select('role-verify')">
+        <span class="r-name r-verify">Verify</span>
+        <div class="r-does">Checks outputs before they propagate. Reports verdicts to lead; status to tracker.</div>
+        <div class="r-life">ephemeral · rehydrated</div>
+      </div>
+      <div class="role" onclick="select('role-advise')">
+        <span class="r-name r-advise">Advise</span>
+        <div class="r-does">Unblocks work agents on hard problems. On-demand callable; reads memory + corpus.</div>
+        <div class="r-life">ephemeral · rehydrated</div>
+      </div>
+      <div class="role" onclick="select('role-tracker')">
+        <span class="r-name r-tracker">Tracker</span>
+        <div class="r-does">Aggregates state per the <code>tracking:</code> spec. Maintains <code>status.json</code> + appends events.</div>
+        <div class="r-life">ephemeral agent · <span class="dur">durable status.json</span></div>
+      </div>
+      <div class="role" onclick="select('role-monitor')">
+        <span class="r-name r-monitor">Monitor</span>
+        <div class="r-does">Reads tracker + artifacts; rewrites <code>dashboard.html</code> per the dashboard-panels spec.</div>
+        <div class="r-life">ephemeral · <span class="dur">durable dashboard.html</span></div>
+      </div>
+    </div>
+    <div class="cov-note" onclick="select('coverage')" style="cursor:pointer">
+      <b>Role coverage rule (hard):</b> coverage is per-team-as-a-whole, not per-teammate. For one-shot domains, a single teammate may carry combined roles (e.g. <code>combined_roles: [tracker, monitor]</code>) — documented in design.yaml.
+    </div>
+
+    <h2 id="output"><span class="num">03</span> What lands in your project</h2>
+    <p class="sec-intro">Phase 4 commits into the target repo. The extension owns none of this — the forged team belongs to your project's <code>.claude/</code>.</p>
+    <div class="tree" onclick="select('output')" style="cursor:pointer">
+<pre><span class="cm"># in your project repo</span>
+<span class="dir">.claude/</span>
+  <span class="dir">agents/</span>
+    &lt;team&gt;-fetcher.md  &lt;team&gt;-updater.md   <span class="cm"># work</span>
+    &lt;team&gt;-rate-watcher.md                <span class="cm"># verify / advise</span>
+    &lt;team&gt;-tracker.md  &lt;team&gt;-monitor.md   <span class="cm"># tracker / monitor</span>
+  <span class="dir">skills/</span>&lt;team&gt;-team/SKILL.md            <span class="hot"># /&lt;team&gt;-team launcher</span>
+  <span class="dir">team-forge/</span>&lt;team&gt;<span class="dir">/</span>
+    design.yaml  manifest.json
+    tracker/status.json                  <span class="ok"># durable · rehydrate source</span>
+    playground/dashboard.html            <span class="ok"># durable · live team page</span>
+    playground/dashboard-data.json
+    runtime/  artifacts/
+<span class="dir">docs/superpowers/</span>&lt;project&gt;<span class="dir">/</span>&lt;team&gt;<span class="dir">/</span>     <span class="cm"># brainstorms + plans KB</span></pre>
+    </div>
+
+    <h2 id="ships"><span class="num">04</span> What ships in the extension</h2>
+    <p class="sec-intro">Only the generic, reusable wiring — installed once, used across every repo we own. Domain-specific agents are <i>not</i> shipped; they're forged per project.</p>
+    <div class="ships">
+      <div class="ship"><div class="s-k">Skills <span class="cnt">×7</span></div><div class="s-d">brainstorming · writing-plans · design · forge (phases 1–4) + rehydrate · tracker · monitor (runtime). Each phase skill self-reviews before the human gate.</div></div>
+      <div class="ship"><div class="s-k">Templates <span class="cnt">×4</span></div><div class="s-d">design.yaml · agent.md · team-launcher.md · dashboard.html — all logic-free <code>{{VAR}}</code> substitution.</div></div>
+      <div class="ship"><div class="s-k">Python renderer</div><div class="s-d"><code>tools/forge.py</code> — deterministic alternative to the agent path. Both produce identical output.</div></div>
+      <div class="ship"><div class="s-k">Hook + manifests</div><div class="s-d">Slim session-start hook, plugin manifests, and <code>tests/</code> validation docs.</div></div>
+    </div>
+
+    <h2 id="rehydrate"><span class="num">05</span> Surviving resume &amp; mining prior art</h2>
+    <p class="sec-intro">team-forge bets on the experimental agent-teams primitive and designs around its limits — chiefly, that teammates evaporate on <code>/resume</code>.</p>
+    <div class="callout" onclick="select('rehydrate')">
+      <div class="qt">Rehydrate protocol — load-bearing</div>
+      <div class="qd">On <code>/&lt;team&gt;-team</code> (fresh or after resume), the main session adopts the lead role, reads <code>tracker/status.json</code> + the current milestone's brainstorm/plan/artifacts, and respawns every teammate from disk. Single-writer rule keeps the durable hub race-free.</div>
+    </div>
+    <div class="callout" onclick="select('refs')">
+      <div class="qt">Reference libraries — prior art, not installed</div>
+      <div class="qd">During Phase-3 asset discovery, team-forge can mine external curated corpora (e.g. <b>ECC</b>: ~60 agents + ~250 skills) <i>without</i> vendoring or loading them as active skills. A pinned commit is fetched on demand, domain-filtered, and proposed as <b>adapt</b> candidates; a weekly workflow PRs pin bumps.</div>
+    </div>
+  </main>
+</div>
+
+<div class="prompt-footer">
+  <span class="label">Prompt</span>
+  <span class="text empty" id="prompt-text">Click any card, phase, role, or callout to generate a focused prompt about that part of team-forge.</span>
+  <button class="copy-btn" onclick="copyPrompt()">Copy</button>
+</div>
+
+<script>
+const prompts = {
+  tldr: `Give me a 2-sentence pitch for team-forge I can put at the top of the README — what it builds for a team and why hand-writing agent rosters per project is the problem it removes.`,
+  'phase-1': `Use team-forge:brainstorming to start Phase 1 for my project: <describe your project in one line — domain, language, what it does>. Interrogate me on the five points — other agents needed? what verification? what tracking? completion criteria? token budget? — then write the Phase-1 brainstorm and run the 5-criterion self-review before asking me to approve.`,
+  'phase-2': `Explain Phase 2 (Plan) of team-forge. Show the milestone schema — hard_dependencies, expected_team_size, next_phase_check, interface_to_next — and why the inter-milestone interface contract matters.`,
+  'phase-3': `Explain Phase 3 (Design). How do the parallel forge-design-agents (roster / comms+coverage / domain-fit lenses) reconcile into one design.yaml, and what does asset discovery across plugins + reference libraries produce?`,
+  'phase-4': `Explain Phase 4 (Forge). Given a design.yaml, what files does it emit into the project's .claude/, and how is the initial dashboard.html rendered at forge time?`,
+  'role-work': `Explain the Work role in a forged team — what it owns, who it talks to via the mailbox, and how it gets rehydrated on /resume.`,
+  'role-verify': `Explain the Verify role — when it runs in the pipeline, how verdicts flow to the lead, and what status it reports to the tracker.`,
+  'role-advise': `Explain the Advise role — how work agents call it on-demand to get unblocked, and what memory/corpus it reads.`,
+  'role-tracker': `Explain the Tracker role and why status.json is the durable rehydrate source of truth. What is the state_shape + events[] structure?`,
+  'role-monitor': `Explain the Monitor role — how it reads the tracker and rewrites dashboard.html per the dashboard_panels spec, and why dashboard.html is durable.`,
+  coverage: `Explain the hard role-coverage rule in team-forge: why all 5 roles must be covered per-team-as-a-whole, and how combined_roles works for one-shot project domains.`,
+  output: `Walk me through the full set of files team-forge commits into a target project's .claude/ at Phase 4, and which ones are durable vs ephemeral.`,
+  ships: `List what the team-forge extension actually ships (generic wiring) vs what it forges into each project (domain-specific), and why that split exists.`,
+  rehydrate: `Explain the team-forge rehydrate protocol step by step, and the single-writer rule that keeps the durable hub free of race conditions.`,
+  refs: `Explain how team-forge mines reference libraries like ECC during Phase-3 discovery without installing them — the pinned-commit fetch, domain filtering, adapt candidates, and the weekly pin-bump workflow.`,
+};
+const promptEl = document.getElementById('prompt-text');
+function select(id) {
+  if (!prompts[id]) return;
+  promptEl.textContent = prompts[id];
+  promptEl.classList.remove('empty');
+}
+function copyPrompt() {
+  if (promptEl.classList.contains('empty')) return;
+  navigator.clipboard.writeText(promptEl.textContent).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+// scroll-spy for nav
+const links = [...document.querySelectorAll('nav a.navlink')];
+const ids = ['what','tldr','flow','roles','output','ships','rehydrate'];
+const secs = ids.map(i => document.getElementById(i)).filter(Boolean);
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + id && !l.classList.contains('l2')));
+    }
+  });
+}, { rootMargin: '-10% 0px -80% 0px' });
+secs.forEach(s => io.observe(s));
+</script>
+</body>
+</html>
