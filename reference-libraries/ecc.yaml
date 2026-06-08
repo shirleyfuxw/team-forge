@@ -7,7 +7,7 @@
 name: ecc
 repo: https://github.com/affaan-m/ECC.git
 default_branch: main
-pinned_commit: 64cd1ba248e77e377e76f70fc4e6434bfdddd511
+pinned_commit: 90dfd9505dc860714cf3cc8216ad7bbb96d93365
 agents_dir: agents          # ~80 agent .md files
 skills_dir: skills          # ~100 skill dirs
 license: MIT                # Copyright (c) 2026 Affaan Mustafa — see NOTICE
