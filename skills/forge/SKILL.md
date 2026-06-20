@@ -63,6 +63,29 @@ If Python or `pyyaml` is unavailable, the same procedure can be followed by hand
 against the templates — but prefer the renderer; it is the source of truth for
 the emission logic and the per-role text banks.
 
+## Workflow archetype (`archetype: workflow`)
+
+`forge.py` **auto-detects** `archetype: workflow` at the top of design.yaml and takes the
+workflow emission path — you run the exact same command (Step 1), no flag. What differs:
+
+- **Validation** — instead of 5-role coverage, it checks: a valid `shape`
+  (`sequential-gated` | `parallel-drain`), a `gates` vocabulary, a `worker` profile, a
+  `ledger.state_shape`, and either (sequential-gated) an **acyclic task DAG** with every
+  task's `gate_set ⊆ gates` and `dispatch ∈ {inline, worker}`, or (parallel-drain) a `queue` block.
+- **Emitted files** (no 5-agent roster):
+  - `.claude/agents/<team>-worker.md` + `<team>-advisor.md` — the shared-default dispatch profiles.
+  - `.claude/skills/<team>-workflow/SKILL.md` — the lead-loop launcher (`/<team>-workflow`):
+    sequential-gated gets the task/gate loop; parallel-drain gets the triage→`pipeline()` drain loop.
+  - `.claude/team-forge/<team>/TASKS.yaml` — the live runtime work list (tasks/queue + gates).
+  - `tracker/status.json` — **thin** ledger seeded from `ledger.state_shape` (current_plan→null, etc.).
+  - `playground/gen_dashboard.py` + the `dashboard.html` it renders — the render step, **no monitor agent**.
+  - `design.yaml` copy + KB README + manifest.
+- **Launcher** is `/<team>-workflow` (not `/<team>-team`); there is **no roster to spawn** —
+  the lead drives the loop and dispatches the worker profile only at fan-out points.
+
+Worked references: `tests/fixtures/workflow-tidy/` (sequential-gated) and `workflow-drain/`
+(parallel-drain + recurring). Step 0 (hook check), Step 2 (review), Step 3 (report) are identical.
+
 ## Step 2 — Review the output
 
 Run the forge output review (`references/review.md`) — either inline or via a

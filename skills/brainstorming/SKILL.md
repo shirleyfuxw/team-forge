@@ -30,6 +30,29 @@ where `<session-id>` is an ISO timestamp or a slug like `phase1-initial` or `piv
 
 ## Procedure
 
+### Step 0 — Triage the archetype (team vs workflow)
+
+Before anything else, decide which forge archetype fits — it changes what Phases 2–4 produce.
+Ask the **work-shape** question (the real distinguisher is *not* "is it parallel"):
+
+> "As the work proceeds, do the agents each hold distinct, evolving context they defend
+> across rounds (a research debate, competing approaches) — or is it a stream of tasks/items
+> that get done, gated, and handed off, where each unit of work starts fresh?"
+
+- **Fresh each unit / sequential or fan-out / gate-driven** → **`workflow`** archetype
+  (refactor, migration, ticket-drain, bug-batch). Then pick `shape`:
+  - **sequential-gated** — one deep task at a time (a refactor).
+  - **parallel-drain** — many independent items triaged + drained in waves (a queue).
+  - And the **`recurring`** modifier if it's cron-scheduled/unattended (no terminal "done").
+- **Distinct persistent peer-context, sustained collaboration** → **`team`** archetype
+  (research cohorts, design debate, exploration).
+
+Record `archetype` (+ `shape`/`recurring` for workflow) at the top of the brainstorm doc.
+**If `workflow`:** the rest of this skill still elicits goal + verification + completion +
+budget, but Step 3 sketches a **task list + gate vocabulary** (not milestones + a roster),
+and you additionally elicit the **integration branch** and what "done" means per task. Phases
+2–4 then produce `tasks`/`gates`/`worker`/`ledger`, not `roster`/`tracking`.
+
 ### Step 1 — Establish the goal
 
 Ask the user:
@@ -61,13 +84,21 @@ For each question: ask, listen, capture, follow up if vague. Don't paraphrase th
 user's answer back as if it's a refinement — capture verbatim plus ANY follow-up
 questions you genuinely had.
 
-### Step 3 — Sketch the milestone shape
+### Step 3 — Sketch the work shape
 
+**`team` archetype:**
 > "Let's sketch milestones at a HIGH LEVEL — not a task list. 2 to 5 milestones that
 > together get you to your completion criteria. Each milestone should have a
 > verifiable output and an explicit human go/no-go gate. Want to draft these together?"
 
-Co-write them with the user. Push back if a milestone is too vague or too granular.
+**`workflow` archetype:** sketch a **task list** instead (the proto-`TASKS.yaml`) — ordered
+units of work, each with a verifiable output and a `depends_on`. Then sketch the **gate
+vocabulary** by reading the repo's verification surface (test suites, CI, build targets,
+invariants — W5: gates are codebase-derived, not a fixed list); flag any gate with **no
+backing capability** as a skill to produce (e.g. a pre/post parity harness). This is a
+sketch — expect it to be re-cut as implementation reveals the true shape (W7).
+
+Co-write with the user. Push back if a unit is too vague or too granular.
 
 ### Step 4 — Identify uncertainties
 

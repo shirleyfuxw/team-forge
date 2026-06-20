@@ -1,0 +1,94 @@
+# team-forge / workflow-archetype fixture — sequential-gated (the combiner-infra shape, minimized)
+# Validates the `archetype: workflow` fork of forge.py end-to-end on a tiny refactor.
+# Sibling of the greeter fixture (which validated the team archetype).
+# ============================================================================
+
+archetype: workflow
+shape: sequential-gated          # one task at a time, gated; no `recurring:` block (one-shot, attended)
+
+project:
+  name: tidy
+  display_name: "Tidy — extract shared string utils"
+  target_repo: "/tmp/test-team-forge-tidy"
+  target_repo_basename: test-team-forge-tidy
+  domain: refactor
+  integration_branch: refactor/tidy-shared-utils    # off base; never auto-merged
+  brief: |
+    Behavior-preserving refactor: three modules each hand-roll the same
+    slugify + truncate string helpers. Extract them into one shared util,
+    redirect callers, delete the dups — proving no output changed.
+
+# --- shape: sequential-gated → an AUTHORED task list (the proto-TASKS.yaml) ---
+tasks:
+  - id: t1-extract
+    name: "Extract the shared string utils"
+    output: "utils/strings.py with slugify + truncate; unit-tested"
+    depends_on: []
+    blast_radius: low
+    gate_set: [import_check, unit]
+    dispatch: inline                 # lead does it inline (worker dormant)
+    interface_to_next: |
+      One importable slugify/truncate API, behavior identical to the three originals.
+  - id: t2-redirect
+    name: "Redirect the three callers"
+    output: "modules a/b/c import the shared util; their local copies deleted"
+    depends_on: [t1-extract]
+    blast_radius: medium
+    gate_set: [import_check, unit, parity]
+    dispatch: inline
+    interface_to_next: |
+      All callers on the shared util; parity proven against pre-refactor output.
+  - id: t3-dedup-check
+    name: "Prove no dup remains"
+    output: "grep gate: zero remaining inline slugify/truncate defs"
+    depends_on: [t2-redirect]
+    blast_radius: low
+    gate_set: [import_check, grep_no_dup]
+    dispatch: inline
+    interface_to_next: |
+      End state — a single source of truth for the string helpers.
+
+# --- gate vocabulary: DISCOVERED from this repo's verification surface, not shipped (W5) ---
+gates:
+  import_check: "python -c 'import tidy' && pytest --collect-only -q"
+  unit:        "pytest tests/test_strings.py -q"
+  parity:      "python tests/parity_strings.py   # pre/post output max_diff == 0"
+  grep_no_dup: "! grep -rn 'def slugify' modules/  # zero inline defs remain"
+  # gate_set per task scaled to blast_radius:
+  #   low    → [import_check, unit] or [import_check, grep_no_dup]
+  #   medium → + parity
+
+# --- the single shared-default coding profile; dispatched only at fan-out points (W4) ---
+worker:
+  model: sonnet
+  isolation: worktree
+  procedure: design-before-code -> TDD(red-green-refactor) -> run gate_set
+  skills: [code-refactor, simplify]        # ← project overlay; procedure is the shared default
+  escalation: advisor
+
+advisor:
+  model: opus
+  procedure: codebase-context retrieval + prior-history; unblock 2+ module questions
+  skills: [knowledge-retrieval]
+
+# no `fan_out:` — sequential + attended; every task dispatch is `inline`
+
+# --- the ledger the LEAD writes to status.json (no tracker agent); plan is versioned (W7) ---
+# state_shape declares the SHAPE only; values are runtime (forge seeds defaults into status.json).
+ledger:
+  state_shape:
+    - {id: current_plan, type: string}     # runtime: path to the active plan version (lead-written; W7). Forge seeds null.
+    - {id: plan_history, type: list}        # runtime: prior plan versions [{path, why}]. Forge seeds [].
+    - {id: current_task, type: string}
+    - {id: tasks, type: list}              # per-task {id, status, gate_status, commit}
+    - {id: integration_branch, type: object}
+    - {id: gate_results, type: list}
+    - {id: budget, type: object}
+    - {id: blocked, type: list}
+  events: [task_started, task_gated, task_completed, replanned, fan_out_started, blocked]
+  dashboard_panels: [task_timeline, gate_matrix, integration_branch_status, recent_events]
+
+constraints:
+  - "Behavior-preserving: t2 must prove parity (max_diff == 0) vs pre-refactor output — a refactor that moves output is a failed refactor."
+  - "Single integration branch refactor/tidy-shared-utils; never auto-merge; one human review at the end."
+  - "design-before-code: each task opens with a DRY/SOLID pass; a design that re-introduces a copy is rejected."

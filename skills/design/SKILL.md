@@ -32,8 +32,58 @@ before the human approval gate.
 
 ## Procedure
 
+> **Archetype branch.** If Phase 1 set `archetype: workflow`, run **"Workflow archetype —
+> Phase 3 branch"** below instead of the roster lenses. It produces a `design.yaml` with
+> `archetype: workflow` blocks (`shape` / `recurring?` / `tasks`-or-`queue` / `gates` /
+> `worker` / `advisor` / `ledger`), **not** `roster` / `rehydrate` / `tracking`.
+
 The lead invokes this skill, then orchestrates 3 design-agents in parallel. Each
 agent gets the brainstorm + team-plan, but a different lens.
+
+---
+
+## Workflow archetype — Phase 3 branch
+
+### W-Step 1 — asset discovery + gate-vocabulary discovery
+
+Run the same asset discovery (skills + agents across the 4 sources, domain-filtered).
+**Additionally — the workflow centerpiece — discover the GATE VOCABULARY from the codebase's
+verification surface** (W5): read the repo's test suites, CI config, build targets (Makefile),
+and invariants; for each, name a gate (command + criterion). A gate that needs a backing
+capability the repo lacks (e.g. a pre/post-refactor parity harness) is a **skill gap** — the
+forge will *produce* that skill (via `skill-creator`) so a gate can call it. **Skills are the
+product** (WORKFLOW-SCOPING.md): the gap-filling skills are the highest-value output, not the agents.
+
+### W-Step 2 — dispatch 3 design-agents (workflow lenses)
+
+- **Lens 1 — task/gate correctness:** from the team-plan task list, propose the `tasks` block
+  (id, output, depends_on, blast_radius, `gate_set ⊆ gates`, dispatch `inline|worker`); verify
+  the DAG is **acyclic** and each `gate_set` matches its `blast_radius`. *(Parallel-drain:
+  propose the `queue` block — eligibility, triage predicate, wave_size, routes — instead.)*
+- **Lens 2 — gate vocabulary + skill gaps:** finalize `gates` from the codebase surface; list
+  the skill gaps to produce; confirm every blast-radius tier has a covering gate.
+- **Lens 3 — profile + fan-out + ledger fit:** propose the `worker` + `advisor` profiles
+  (default procedure + project skill overlay), the `ledger` (state_shape — incl. the
+  `current_plan`/`plan_history` runtime fields — events, dashboard_panels), the `fan_out`
+  points (where the lead bursts via the Workflow tool), and (parallel-drain) the `recurring` block.
+
+### W-Step 3 — synthesize + compose the workflow design.yaml
+
+Reconcile the lenses and compose `design.yaml` with `archetype: workflow` + the workflow
+blocks. Worked schema references: `tests/fixtures/workflow-tidy/design.yaml` (sequential-gated)
+and `tests/fixtures/workflow-drain/design.yaml` (parallel-drain + recurring). **Invariant:**
+`ledger.state_shape` declares *shape only* — `current_plan`/`plan_history` are runtime fields
+the forge seeds `null`/`[]`, never contract literals.
+
+### W-Step 4 — present + skill-gap plan
+
+Show the user the **task DAG**, the **gate vocabulary**, and **the skills to be produced** (the
+gaps). On approval: produce the gap skills (`skill-creator`, human-reviewed before load-bearing),
+then go to Phase 4 — `team-forge:forge` auto-detects `archetype: workflow`.
+
+---
+
+## Team archetype — Phase 3 (the roster lenses)
 
 ### Step 1 — Pre-design: asset discovery (skills + agents), purpose-filtered
 

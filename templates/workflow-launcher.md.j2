@@ -1,0 +1,92 @@
+---
+name: {{team}}-workflow
+description: |
+  Use to drive the {{team}} workflow for {{project_display_name}}. Adopts the lead
+  role and runs the task/gate loop off TASKS.yaml + status.json. Sequential-gated /
+  parallel-drain coding work — NOT a standing agent team.
+---
+
+# {{team}}-workflow — lead-loop launcher
+
+You are the **lead** for the `{{team}}` workflow. There is no standing roster to spawn:
+you drive a task/gate loop directly, dispatching a subagent only at fan-out points.
+
+- Project: {{project_display_name}}
+- Repo: `{{target_repo}}`
+- Domain: {{domain}}
+- Integration branch: `{{integration_branch}}` (off base; **never** auto-merged)
+
+## Prerequisites
+
+- This project is the correct target_repo: `{{target_repo}}`
+- You are on a branch that allows writes to `.claude/` (not a hook-protected main).
+- `python3` available (for `gen_dashboard.py`).
+
+If any fails, **stop and tell the user**.
+
+## Step 1 — load the ledger (this IS resume; no rehydrate)
+
+Read `.claude/team-forge/{{team}}/TASKS.yaml` and `.claude/team-forge/{{team}}/tracker/status.json`.
+
+- **Fresh start** (`current_task == null`, all tasks `pending`): read the brainstorm +
+  team-plan under `docs/superpowers/{{project_basename}}/{{team}}/`, write the plan path to
+  `status.json.current_plan`, set `current_task` to the first task with satisfied
+  `depends_on`, then enter the loop.
+- **Resume**: find the first task whose `status != done`; resume there (re-run its
+  `gate_set` if it was mid-flight). No teammates to respawn — the two files are the whole state.
+
+Re-render the dashboard: `python3 .claude/team-forge/{{team}}/playground/gen_dashboard.py`.
+
+## Step 2 — the task/gate loop
+
+For each task (in `depends_on` order), **do the work inline by default**:
+
+1. **design-before-code** — a short DRY/SOLID pass. Reject a design that re-introduces a
+   copy. For a non-trivial task, write it to `artifacts/<task-id>/design-<n>.md`.
+2. **implement** — inline, in one followable diff. **Dispatch a subagent ONLY when** the task
+   is (a) part of a parallel fan-out, (b) large + self-contained (keep it out of your
+   context), or (c) needs an independent perspective. Then dispatch the **worker** profile
+   (`{{team}}-worker`, own worktree); escalate hard 2+-module questions to **advisor**
+   (`{{team}}-advisor`, on-demand call). Otherwise stay inline.
+3. **gate** — run the task's `gate_set` (defined in `TASKS.yaml.gates`, scaled to
+   `blast_radius`). **Never advance on red** — fix in place and re-gate.
+4. **commit** on `{{integration_branch}}`. The commit log is the story.
+5. **update the ledger** — set the task `status: done` + `gate_status` + `commit` in
+   `status.json` (keep it a THIN index), append a `task_completed` event, re-run
+   `gen_dashboard.py`.
+6. **loop** to the next task whose `depends_on` are all `done`.
+
+## Step 3 — fan-out (bounded bursts, via the Workflow tool)
+
+When a step needs real parallelism or independent verification, call the **Workflow tool**
+for a bounded burst that instantiates the worker/verifier profile N-way — then collapse
+back to this loop:
+- **parallel build** — N independent tasks/items at once (e.g. a per-module migration).
+- **verification fan-out** — M facet-maps + K adversarial verdicts → synthesize a
+  certification doc under `artifacts/<task-id>/`.
+
+agent-teams is **not** used. Fan-out is the Workflow tool; the steady state is this lead loop.
+
+## Step 4 — re-plan (design is a living artifact — W7)
+
+When a gate result or an implementation discovery invalidates the plan:
+1. Write a new plan version `team-plans/team-plan-v<n>.md` with a one-line **why**.
+2. Re-cut **only the not-yet-done** tasks + their gates in `TASKS.yaml`; preserve gated/committed work.
+3. Update `status.json`: `current_plan` ← new path, append the old to `plan_history`, log a `replanned` event.
+4. Review the re-cut (design-before-code, at the plan level) before resuming.
+
+A refactor that never pivots probably wasn't understood — expect to re-plan.
+
+## Memory authority (single-writer)
+
+You own `status.json` (kept thin) + `runtime/` + `artifacts/` + `team-plans/`. A dispatched
+worker writes only its worktree. `gen_dashboard.py` renders `dashboard.html` mechanically.
+
+## Domain constraints
+
+{{CONSTRAINTS_BULLET_LIST}}
+
+## Cleanup
+
+When all tasks are `done` (or the user stops): final ledger update + dashboard render, then
+hand the whole `{{integration_branch}}` to human review. **Never self-merge.**
