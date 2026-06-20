@@ -1,0 +1,76 @@
+# team-forge / workflow-archetype fixture — parallel-drain + recurring (the ticket-drainer shape, minimized)
+# Validates the `shape: parallel-drain` + `recurring:` paths of forge_workflow.
+# ============================================================================
+
+archetype: workflow
+shape: parallel-drain            # many independent items, triaged + drained in waves
+
+recurring:                       # the cron schedule is the OUTER loop; no terminal "done"
+  schedule: "weekly off-hours via /schedule"
+  cycle_box: "90 min wall-clock OR 200k tokens"
+  unattended: true               # ⇒ per-item verify gates are MANDATORY; plan-gate items park
+  carry_over_state: status.json  # in_review items frozen at the box resume next cycle
+
+project:
+  name: drain
+  display_name: "Issue-Queue Drainer"
+  target_repo: "/tmp/test-team-forge-drain"
+  target_repo_basename: test-team-forge-drain
+  domain: ticket-drain
+  integration_branch: debugging
+  brief: |
+    Recurring unattended drainer of the bug/refactor/chore issue queue. Each cycle:
+    triage the eligible queue, route (full-drain vs plan-gate), drain the full-drain
+    subset in waves of <=4 worktrees through the gate stack to PR-ready, report, exit.
+
+# --- parallel-drain → a queue DISCOVERED at runtime (no authored task list) ---
+queue:
+  eligibility: "gh issue list --state open --search 'label:bug,refactor,chore' minus wontfix/duplicate/assigned"
+  triage: "classify type (bug/refactor/chore); detect alpha_touch + leak_surface; route full-drain (simple) vs plan-gate (risky); set per-item blast_radius + gate_set"
+  wave_size: 4                   # max concurrent dispatches per wave (via the Workflow tool's pipeline())
+  routes: [full-drain, plan-gate]
+
+gates:
+  import_check: "python -c 'import <pkg>' && pytest --collect-only -q"
+  unit_scoped:  "pytest <touched paths> -q"
+  leak:         "test_*_future_leak.py green pre AND post (alpha/leak-surface items)"
+  review:       "code-review agent returns Approve in-context"
+  test_lint:    "make test + make lint green at PR-ready (serialized lane)"
+
+worker:
+  model: sonnet
+  isolation: worktree
+  procedure: route→(bug:bug-fix-loop | refactor:code-refactor+simplify | chore:direct-edit) → run gate_set → PR
+  skills: [bug-fix-loop, code-refactor, simplify, git-worktree-workflow]
+  escalation: advisor
+
+advisor:
+  model: opus
+  procedure: codebase-context + prior-history; unblock hard 2+ module routing/scope questions
+  skills: [knowledge-retrieval]
+
+ledger:
+  state_shape:
+    - {id: current_plan, type: string}
+    - {id: plan_history, type: list}
+    - {id: current_cycle_id, type: string}
+    - {id: cycle_box_deadline, type: string}
+    - {id: cycle_box_hit, type: bool}
+    - {id: tickets, type: list}            # per-item {issue, type, route, blast_radius, stage, pr_url, gate_status}
+    - {id: queue_eligible, type: int}
+    - {id: queue_full_drain, type: int}
+    - {id: queue_plan_gate, type: int}
+    - {id: queue_in_flight, type: int}
+    - {id: queue_pr_ready, type: int}
+    - {id: queue_blocked, type: int}
+    - {id: integration_branch, type: object}
+    - {id: budget, type: object}
+    - {id: blocked, type: list}
+  events: [cycle_started, ticket_triaged, ticket_routed, ticket_dispatched, ticket_gated, ticket_pr_ready, ticket_blocked, cycle_box_hit, cycle_completed, replanned]
+  dashboard_panels: [queue_state, ticket_table, integration_branch_status, recent_events]
+
+constraints:
+  - "Unattended: plan-gate items HOLD awaiting human approval (auto-approve nothing); only the full-drain subset drains."
+  - "Box is a DISPATCH gate, not a SIGKILL: no new wave past the box; an in-flight item finishes its current iteration and carries as in_review."
+  - "Never self-merge; all PRs target the integration branch; one human review."
+  - "Rotate the ledger per cycle: live status.json holds the current cycle; archive prior cycles under runtime/<cycle-id>/."

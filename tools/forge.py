@@ -162,6 +162,233 @@ def render_dashboard(design):
         'EVENTS_HTML': events_html,
     })
 
+# ───────── Workflow archetype (the second fork) ─────────
+
+def render_workflow_profile(entry, profile_role, team, project_basename):
+    """Render templates/workflow/profile.md.j2 for the worker or advisor default profile."""
+    agent_name = f"{team}-{profile_role}"
+    skills = entry.get('skills', [])
+    skills_block = "\n".join(f"- `{s}`" for s in skills) if skills else "*None proposed — inherits project + user skills at runtime.*"
+    if profile_role == 'worker':
+        purpose = "Shared-default coding profile. One dispatch per task in its own worktree — design-before-code, TDD, run the gate set."
+        dispatch_note = ("One dispatch per task, in your own git worktree. Dispatched ONLY at fan-out points: "
+                         "(a) parallel build, (b) a large self-contained task kept out of the lead's context, or "
+                         "(c) independent-perspective verification. On the sequential spine the lead works inline — you stay dormant.")
+        memory_note = "You write only to your ephemeral worktree. The lead owns status.json + artifacts."
+    else:  # advisor
+        purpose = "Shared-default advisor profile. On-demand call to unblock the lead on hard 2+ module questions."
+        dispatch_note = "An on-demand call (not a standing teammate). The lead calls you to unblock a hard 2+ module question; you return advice and stop."
+        memory_note = "Read-only. Return structured advice; make no durable writes."
+    tmpl = (TEMPLATES_DIR / "workflow" / "profile.md.j2").read_text()
+    return substitute_simple(tmpl, {
+        'agent_name': agent_name,
+        'purpose': purpose,
+        'model': entry.get('model', 'sonnet'),
+        'profile_role': profile_role,
+        'team': team,
+        'project_basename': project_basename,
+        'procedure': str(entry.get('procedure', '')).rstrip(),
+        'SKILLS_LIST_BLOCK': skills_block,
+        'DISPATCH_NOTE': dispatch_note,
+        'MEMORY_NOTE': memory_note,
+    }), agent_name + ".md"
+
+
+def render_workflow_launcher(design):
+    tmpl = (TEMPLATES_DIR / "workflow-launcher.md.j2").read_text()
+    project = design['project']
+    constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
+    return substitute_simple(tmpl, {
+        'team': project['name'],
+        'project_display_name': project['display_name'],
+        'project_name': project['name'],
+        'project_basename': project['target_repo_basename'],
+        'target_repo': project['target_repo'],
+        'domain': project['domain'],
+        'integration_branch': project.get('integration_branch', '(unset)'),
+        'CONSTRAINTS_BULLET_LIST': constraints_block,
+    })
+
+
+def render_workflow_drain_launcher(design):
+    tmpl = (TEMPLATES_DIR / "workflow-drain-launcher.md.j2").read_text()
+    project = design['project']
+    constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
+    rec = design.get('recurring')
+    if rec:
+        recurring_note = (f"**Recurring / unattended.** Schedule: {rec.get('schedule', '—')}. "
+                          f"Cycle box: {rec.get('cycle_box', '—')}. Unattended: {rec.get('unattended', False)} "
+                          f"(plan-gate items park for human approval; per-item verify gates mandatory). "
+                          f"Carry-over via {rec.get('carry_over_state', 'status.json')}. "
+                          f"The schedule is the OUTER loop — this skill runs ONE cycle and exits.")
+    else:
+        recurring_note = "One-shot (not recurring): drains the queue once, then exits."
+    return substitute_simple(tmpl, {
+        'team': project['name'],
+        'project_display_name': project['display_name'],
+        'project_name': project['name'],
+        'project_basename': project['target_repo_basename'],
+        'target_repo': project['target_repo'],
+        'domain': project['domain'],
+        'integration_branch': project.get('integration_branch', '(unset)'),
+        'WAVE_SIZE': str(design.get('queue', {}).get('wave_size', 4)),
+        'RECURRING_NOTE': recurring_note,
+        'CONSTRAINTS_BULLET_LIST': constraints_block,
+    })
+
+
+def render_gen_dashboard(design):
+    tmpl = (TEMPLATES_DIR / "gen_dashboard.py.j2").read_text()
+    project = design['project']
+    return substitute_simple(tmpl, {
+        'team': project['name'],
+        'project_display_name': project['display_name'],
+        'DASHBOARD_PANELS_JSON': json.dumps(design['ledger']['dashboard_panels']),
+    })
+
+
+def initial_status_json_workflow(design):
+    state = {}
+    for s in design['ledger']['state_shape']:
+        state[s['id']] = {'string': None, 'int': 0, 'float': 0.0, 'bool': False, 'list': [], 'object': {}}[s['type']]
+    tasks = design.get('tasks', [])
+    if tasks:
+        state['tasks'] = [{'id': t['id'], 'status': 'pending', 'gate_status': None, 'commit': None} for t in tasks]
+        state['current_task'] = tasks[0]['id']
+    state['integration_branch'] = {'name': design['project'].get('integration_branch'), 'head_sha': None, 'pr_url': None}
+    state['events'] = []
+    state['forge_metadata'] = {
+        'forged_at_iso': _NOW,
+        'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
+        'forge_version': '0.0.1', 'archetype': 'workflow', 'shape': design.get('shape'),
+    }
+    return state
+
+
+def validate_workflow(design):
+    assert design.get('shape') in ('sequential-gated', 'parallel-drain'), f"bad/missing shape: {design.get('shape')}"
+    assert design.get('gates'), "no gates block"
+    assert 'worker' in design, "no worker profile"
+    assert design.get('ledger', {}).get('state_shape'), "no ledger.state_shape"
+    gate_names = set(design['gates'].keys())
+    if design['shape'] == 'sequential-gated':
+        tasks = design.get('tasks')
+        assert tasks, "sequential-gated needs a tasks list"
+        ids = [t['id'] for t in tasks]
+        assert len(ids) == len(set(ids)), "duplicate task ids"
+        idset = set(ids)
+        for t in tasks:
+            assert t.get('dispatch', 'inline') in ('inline', 'worker'), f"{t['id']}: bad dispatch"
+            for g in t.get('gate_set', []):
+                assert g in gate_names, f"{t['id']}: gate '{g}' not in gates vocabulary"
+            for dep in t.get('depends_on', []):
+                assert dep in idset, f"{t['id']}: depends_on '{dep}' is not a task"
+        indeg = {i: 0 for i in ids}
+        adj = {i: [] for i in ids}
+        for t in tasks:
+            for dep in t.get('depends_on', []):
+                adj[dep].append(t['id']); indeg[t['id']] += 1
+        q = [i for i in ids if indeg[i] == 0]; seen = 0
+        while q:
+            n = q.pop(); seen += 1
+            for m in adj[n]:
+                indeg[m] -= 1
+                if indeg[m] == 0: q.append(m)
+        assert seen == len(ids), "task DAG has a cycle"
+    else:
+        assert design.get('queue'), "parallel-drain needs a queue block"
+    detail = (f"{len(design['tasks'])} tasks, DAG acyclic" if design['shape'] == 'sequential-gated'
+              else f"queue (wave {design.get('queue', {}).get('wave_size', '?')})")
+    print(f"✓ Validation (workflow/{design['shape']}): {len(gate_names)} gates, {detail}")
+
+
+def forge_workflow(design):
+    import subprocess
+    project = design['project']
+    team = project['name']
+    target_repo = Path(project['target_repo'])
+    basename = project['target_repo_basename']
+
+    validate_workflow(design)
+
+    agents_dir = target_repo / ".claude/agents"
+    skill_dir = target_repo / f".claude/skills/{team}-workflow"
+    hub_dir = target_repo / f".claude/team-forge/{team}"
+    kb_dir = target_repo / f"docs/superpowers/{basename}/{team}"
+    evals_dir = target_repo / f"agent_evals/{team}"
+    for d in [agents_dir, skill_dir, hub_dir / "tracker", hub_dir / "playground",
+              kb_dir / "brainstorms", kb_dir / "team-plans", evals_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+    for t in design.get('tasks', []):
+        (kb_dir / "artifacts" / t['id']).mkdir(parents=True, exist_ok=True)
+        (kb_dir / "runtime" / t['id']).mkdir(parents=True, exist_ok=True)
+
+    generated = []
+
+    for role in ('worker', 'advisor'):
+        if role in design:
+            md, fname = render_workflow_profile(design[role], role, team, basename)
+            (agents_dir / fname).write_text(md)
+            generated.append({"path": str((agents_dir / fname).relative_to(target_repo)), "kind": "workflow_profile"})
+            print(f"✓ profile {fname}: {md.count(chr(10)) + 1} lines")
+
+    launcher = render_workflow_drain_launcher(design) if design['shape'] == 'parallel-drain' else render_workflow_launcher(design)
+    (skill_dir / "SKILL.md").write_text(launcher)
+    generated.append({"path": str((skill_dir / 'SKILL.md').relative_to(target_repo)), "kind": "workflow_launcher_skill"})
+    print(f"✓ {design['shape']} launcher SKILL.md: {launcher.count(chr(10)) + 1} lines")
+
+    # TASKS.yaml — the live runtime work list (tasks + gates [+ queue])
+    tasks_doc = {'gates': design['gates']}
+    if 'tasks' in design: tasks_doc = {'tasks': design['tasks'], **tasks_doc}
+    if 'queue' in design: tasks_doc['queue'] = design['queue']
+    tasks_yaml = (f"# TASKS.yaml — live runtime work list for the {team} workflow.\n"
+                  "# Lead-editable: re-cut not-yet-done tasks + gates when the design pivots (W7).\n\n"
+                  + yaml.safe_dump(tasks_doc, sort_keys=False, allow_unicode=True))
+    (hub_dir / "TASKS.yaml").write_text(tasks_yaml)
+    generated.append({"path": str((hub_dir / 'TASKS.yaml').relative_to(target_repo)), "kind": "tasks_yaml"})
+    print(f"✓ TASKS.yaml: {len(design.get('tasks', []))} tasks, {len(design['gates'])} gates")
+
+    shutil.copyfile(DESIGN_PATH, hub_dir / "design.yaml")
+    generated.append({"path": str((hub_dir / 'design.yaml').relative_to(target_repo)), "kind": "design_contract"})
+
+    status = initial_status_json_workflow(design)
+    (hub_dir / "tracker" / "status.json").write_text(json.dumps(status, indent=2))
+    generated.append({"path": str((hub_dir / 'tracker' / 'status.json').relative_to(target_repo)), "kind": "ledger_initial_state"})
+    print(f"✓ tracker/status.json: {len(status)} top-level keys")
+
+    gd_path = hub_dir / "playground" / "gen_dashboard.py"
+    gd_path.write_text(render_gen_dashboard(design))
+    generated.append({"path": str(gd_path.relative_to(target_repo)), "kind": "dashboard_renderer"})
+    r = subprocess.run([sys.executable, str(gd_path)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("⚠ gen_dashboard.py failed:\n" + r.stderr)
+    else:
+        generated.append({"path": str((hub_dir / 'playground' / 'dashboard.html').relative_to(target_repo)), "kind": "initial_dashboard"})
+        print("✓ dashboard.html rendered via gen_dashboard.py")
+
+    kb_readme = (f"# {project['display_name']} — `{team}` workflow KB\n\n"
+                 f"Workflow archetype ({design['shape']}). Work list + gates: "
+                 f"`.claude/team-forge/{team}/TASKS.yaml`; progress: `tracker/status.json`.\n\n## Tasks\n"
+                 + "\n".join(f"- **{t['id']}** ({t['name']}) — gates: {t.get('gate_set', [])}" for t in design.get('tasks', []))
+                 + f"\n\n## Pointers\n- Launcher: `/{team}-workflow`\n- Dashboard: `.claude/team-forge/{team}/playground/dashboard.html`\n")
+    (kb_dir / "README.md").write_text(kb_readme)
+    generated.append({"path": str((kb_dir / 'README.md').relative_to(target_repo)), "kind": "kb_readme"})
+    print("✓ KB README.md")
+
+    manifest = {
+        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.0.1",
+        "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
+        "forged_at_iso": _NOW, "generated_files": generated,
+    }
+    (hub_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    print(f"✓ manifest.json: {len(generated)} files tracked")
+
+    print("\n=== Workflow forge complete ===")
+    print(f"Team: {team} ({design['shape']}) · {len(generated)} files")
+    print(f"Launcher: /{team}-workflow")
+    print(f"Dashboard: open {hub_dir / 'playground' / 'dashboard.html'}")
+
+
 # ───────── Main forge procedure ─────────
 
 design = yaml.safe_load(DESIGN_PATH.read_text())
@@ -169,6 +396,11 @@ project = design['project']
 team = project['name']
 target_repo = Path(project['target_repo'])
 basename = project['target_repo_basename']
+
+# Fork on archetype: workflow takes the lead-loop path and exits; default is the team path.
+if design.get('archetype') == 'workflow':
+    forge_workflow(design)
+    sys.exit(0)
 
 # Validate (Step 1)
 required_roles = {'work', 'verify', 'advise', 'tracker', 'monitor', 'orchestrator'}

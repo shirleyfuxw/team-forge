@@ -14,6 +14,19 @@ Evaluate Phase 4 output. Loadable standalone by a review subagent: needs only th
 
 Skip the fine-grained ones (exact prefix on each name, dashboard byte-count, KB subdir-by-subdir) — if checks 1+2 pass, those are almost certainly fine, and `forge.py` already self-checks during emission.
 
+## Workflow archetype (`archetype: workflow`)
+
+Same reconciliation, different emitted set (no 5-agent roster). Checks:
+
+| # | Check | Pass condition | Hard abort? |
+|---|---|---|---|
+| 1 | Manifest ↔ filesystem | Every `manifest.json.generated_files` path exists. | **Yes** |
+| 2 | Profiles present | `agents/<team>-worker.md` (+ `<team>-advisor.md` if in design) emitted; no extras. | **Yes** |
+| 3 | Frontmatter valid | Each profile + `skills/<team>-workflow/SKILL.md` opens `---` with `name:` + `description:`. | **Yes** |
+| 4 | Ledger parses | `tracker/status.json` valid JSON; has the `ledger.state_shape` fields + `forge_metadata`; `current_plan` is `null`, `plan_history` `[]`. | **Yes** |
+| 5 | Runtime artifacts | `TASKS.yaml`, `playground/gen_dashboard.py`, and the rendered `playground/dashboard.html` all exist. | **Yes** — broken loop/dashboard |
+| 6 | design_hash matches | sha256(design.yaml) == manifest. | No (warn) |
+
 ## Reporting
 
 ```

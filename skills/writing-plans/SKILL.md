@@ -34,7 +34,34 @@ write, `team-plan-v2.md` on the next revision).
 
 ## Procedure
 
-### Step 1 — Re-read the brainstorm
+> **Archetype branch.** If Phase 1 set `archetype: workflow`, follow **"Workflow archetype —
+> the task list"** below *instead of* the milestone Steps 1–5 (then do Steps 6–7). The
+> milestone procedure is the `team` path.
+
+### Workflow archetype — the task list (the proto-TASKS.yaml)
+
+Phase 2 for a workflow produces an **ordered task list**, not milestones. For each unit of work, with the user:
+
+1. **Verifiable output?** — a file path / artifact / metric.
+2. **Depends on?** — which task ids must be `done` first (the DAG must stay acyclic).
+3. **Blast radius?** — `low | medium | high`; this drives the `gate_set` (Phase 3 finalizes it).
+4. **Inline or dispatched?** — default `inline` (the lead codes it); `worker` only for
+   fan-out / context-isolation / independent verification.
+5. **Interface to next** — what state the next task inherits.
+
+Sketch the **gate vocabulary** alongside — Phase 3 finalizes it by reading the repo's
+verification surface (test suites, CI, build targets, invariants; W5). Expect to re-cut the
+list as implementation reveals the true shape (W7) — it is a hypothesis, not a contract.
+
+**Parallel-drain shape:** there is no authored task list — instead specify the `queue`
+(eligibility query, triage/routing predicate, wave size, routes) and, if recurring, the
+schedule + cycle box + `unattended` flag.
+
+Write the task list (or queue spec) into `team-plans/team-plan-v<n>.md` — it becomes the
+proto-`TASKS.yaml`. Then go to **Step 6** (tracker update) and **Step 7** (confirm). Skip
+Steps 1–5.
+
+### Step 1 — Re-read the brainstorm   *(team archetype path)*
 
 Read the current brainstorm doc. Note the milestone sketch + completion criteria
 + token budget. These are your starting context.

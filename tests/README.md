@@ -52,3 +52,28 @@ Requires `pyyaml`. Renders the fixture's design.yaml against the templates and w
 outputs to the target_repo declared in the design (currently hardcoded to
 `/tmp/test-team-forge-greeter/`). To test on your own design, edit the `DESIGN_PATH`
 constant at the top of `tools/forge.py`.
+
+## Workflow archetype fixtures
+
+Two version-controlled fixtures validate the `archetype: workflow` fork of `forge.py`
+(`forge_workflow` / `validate_workflow`):
+
+- **`fixtures/workflow-tidy/design.yaml`** — `shape: sequential-gated`. A 3-task
+  behavior-preserving refactor (extract shared utils → redirect callers → prove no dup).
+  Exercises the authored `tasks` list, the acyclic-DAG + `gate_set ⊆ gates` validation, the
+  shared-default `worker`/`advisor` profiles, the versioned ledger (`current_plan`/`plan_history`
+  seeded `null`/`[]`), and the lead-loop launcher.
+- **`fixtures/workflow-drain/design.yaml`** — `shape: parallel-drain` + `recurring:`. A
+  queue-driven, unattended issue-drainer (the ticket-drainer shape, minimized). Exercises the
+  `queue` block, the `pipeline()` drain launcher (wave size + recurring/box note), the cycle
+  ledger fields, and the `queue_state` + `ticket_table` dashboard panels.
+
+```
+python3 tools/forge.py tests/fixtures/workflow-tidy/design.yaml    # → /tmp/test-team-forge-tidy
+python3 tools/forge.py tests/fixtures/workflow-drain/design.yaml   # → /tmp/test-team-forge-drain
+```
+
+Each forges 10 files: 2 profiles + the `/<team>-workflow` launcher + `TASKS.yaml` + thin
+`status.json` + `gen_dashboard.py` + rendered `dashboard.html` + `design.yaml` copy + KB
+README + manifest. Validated: zero unsubstituted `{{}}`, correct ledger seeding, and the
+dashboard renders both empty and populated state.

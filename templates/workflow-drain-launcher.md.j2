@@ -1,0 +1,87 @@
+---
+name: {{team}}-workflow
+description: |
+  Use to run one cycle of the {{team}} drain workflow for {{project_display_name}}. Adopts
+  the lead role, triages the eligible queue, drains items in waves via the Workflow tool's
+  pipeline(). Parallel-drain shape — NOT a standing agent team.
+---
+
+# {{team}}-workflow — parallel-drain launcher (one cycle)
+
+You are the **lead** for the `{{team}}` drain workflow. No standing roster: you triage a
+queue and drain it in bounded waves, dispatching the worker profile per item.
+
+- Project: {{project_display_name}}
+- Repo: `{{target_repo}}`
+- Domain: {{domain}}
+- Integration branch: `{{integration_branch}}` (PRs target this; **never** auto-merged)
+- Wave size: **{{WAVE_SIZE}}** concurrent dispatches
+
+## Recurring
+
+{{RECURRING_NOTE}}
+
+## Prerequisites
+
+- Correct target_repo `{{target_repo}}`; branch allows `.claude/` writes; `python3` available.
+
+## Step 1 — open the cycle (this IS resume)
+
+Read `.claude/team-forge/{{team}}/TASKS.yaml` (the `queue` + `gates`) and `tracker/status.json`.
+
+- Stamp `current_cycle_id` (e.g. `cycle-<date>-NNN`) and `cycle_box_deadline` from the box.
+- **Carry-over:** any item left `in_review` from a prior cycle re-attaches first (read it from
+  `status.json.tickets[]`), before new triage.
+- Log `cycle_started`; re-render the dashboard:
+  `python3 .claude/team-forge/{{team}}/playground/gen_dashboard.py`.
+
+## Step 2 — triage the queue
+
+1. Run the `queue.eligibility` query → the eligible item set.
+2. Apply `queue.triage`: classify each item, detect risk, set per-item `route` +
+   `blast_radius` + `gate_set` (from the gate vocabulary). Write the partition to
+   `status.json.tickets[]` and the `queue_*` counts. Log `ticket_triaged` / `ticket_routed`.
+3. **`full-drain`** items proceed to Step 3. **`plan-gate`** items are the risky set — in an
+   unattended cycle they **HOLD** (auto-approve nothing); surface them for human approval.
+
+## Step 3 — drain in waves (the Workflow tool's `pipeline()`)
+
+Drain the full-drain set in waves of ≤ **{{WAVE_SIZE}}**. Call the **Workflow tool** to
+`pipeline(items, drain, gate)` — each item independently:
+- **drain** — dispatch the **worker** profile (`{{team}}-worker`, own worktree) per item;
+  escalate hard 2+-module questions to **advisor** (`{{team}}-advisor`).
+- **gate** — run the item's `gate_set` (mandatory under unattended; never PR on red).
+- on green → open a PR against `{{integration_branch}}`; set the item `stage: pr_ready`.
+
+The items are independent — no peer coordination. The lead owns the wave dispatch and the ledger.
+
+**Box freeze:** past `cycle_box_deadline`, dispatch **no new** item/wave. An in-flight item
+finishes its **current** iteration, checkpoints its PR, and carries as `in_review` to the next
+cycle (NOT blocked, NOT done). Log `cycle_box_hit`.
+
+## Step 4 — report + persist (+ rotate)
+
+Update `status.json` (thin): per-item `stage` / `pr_url` / `gate_status`, the `queue_*`
+counts, `budget`. Re-render the dashboard. Write a short cycle report under
+`artifacts/<cycle-id>/`. **Rotate:** archive this cycle's detail to `runtime/<cycle-id>/`;
+keep the live `status.json` to the current cycle. Log `cycle_completed`.
+
+## Re-plan (W7)
+
+If the routing predicate or gate vocabulary proves wrong mid-cycle, re-cut them in `TASKS.yaml`
+(new plan version + one-line *why*; `current_plan` ← new path, append to `plan_history`, log
+`replanned`) before continuing.
+
+## Memory authority (single-writer)
+
+You own `status.json` (thin) + `runtime/` + `artifacts/`. Workers write only their worktrees.
+`gen_dashboard.py` renders the dashboard mechanically.
+
+## Domain constraints
+
+{{CONSTRAINTS_BULLET_LIST}}
+
+## Cleanup
+
+At box or empty queue: final ledger update + dashboard render + cycle report. **Never
+self-merge** — PRs wait for human/CI. The schedule fires the next cycle.

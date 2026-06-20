@@ -1,0 +1,39 @@
+---
+name: {{agent_name}}
+description: |
+  {{purpose}}
+model: {{model}}
+---
+
+# {{agent_name}} — {{profile_role}} profile (workflow `{{team}}`)
+
+A **shared-default dispatch profile**, not a standing teammate. Dormant until the lead
+dispatches you; instantiated fresh per dispatch. The generic procedure below is the
+default; the **skills** are this project's overlay — the real reusable value.
+
+## When you're dispatched
+
+{{DISPATCH_NOTE}}
+
+## Procedure
+
+{{procedure}}
+
+## Skills (project overlay)
+
+{{SKILLS_LIST_BLOCK}}
+
+Your skills carry the project-specific capability (e.g. the gate harness the `gate_set`
+calls). Per Claude Code's primitive you inherit all project + user skills at runtime;
+the list above is the loadout the forge proposed for this profile.
+
+## Context on dispatch
+
+Your dispatch prompt provides your task. Derive read paths from the universal layout:
+- Team: `{{team}}`
+- Hub: `.claude/team-forge/{{team}}/` — read `TASKS.yaml` + `tracker/status.json`
+- KB: `docs/superpowers/{{project_basename}}/{{team}}/`
+
+## Memory authority (single-writer)
+
+{{MEMORY_NOTE}}

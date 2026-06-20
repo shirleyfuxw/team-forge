@@ -200,11 +200,26 @@ python3 tools/fetch_reference.py reference-libraries/ecc.yaml
 # prints the cache path; discovery reads <path>/agents and <path>/skills
 ```
 
+## Two archetypes
+
+team-forge forges one of two archetypes, chosen by a Phase-1 work-shape triage:
+
+- **`team`** (original) — a persistent multi-agent roster for parallel, open-ended,
+  multi-perspective work (research cohorts, debate). See [SCOPING.md](./SCOPING.md).
+- **`workflow`** — a lead-driven task/gate loop for coding-heavy, sequential or fan-out,
+  gate-driven work (refactor, migration, ticket-drain). No standing roster; the lead drives
+  the loop and dispatches a shared-default worker only at fan-out points. Two shapes —
+  **sequential-gated** + **parallel-drain** (with a recurring/unattended modifier). See
+  [WORKFLOW-SCOPING.md](./WORKFLOW-SCOPING.md). `forge.py` auto-detects `archetype: workflow`.
+
 ## Roadmap
 
-- [x] v0.1.0: MVP feature-complete + end-to-end forge validated
+- [x] v0.1.0: MVP feature-complete + end-to-end forge validated (team archetype)
+- [x] `workflow` archetype — both shapes (sequential-gated + parallel-drain + recurring)
+  implemented in `forge.py` + templates + the Phase-1–4 skill branches; validated end-to-end
+  on `tests/fixtures/workflow-{tidy,drain}/`
 - [ ] Run the forge skill via Claude (vs the Python renderer) on a real project
-- [ ] Larger-team forge test (10+ agents, real domain like HERC)
+- [ ] Larger forge test (real domain like HERC)
 - [ ] Idempotent regeneration on subsequent forge runs
 - [ ] CI: `python3 tools/forge.py` against `tests/` fixtures on every push
 
