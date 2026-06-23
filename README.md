@@ -2,7 +2,7 @@
 
 Meta-extension for Claude Code that auto-generates project-specific agent teams.
 
-**Status:** v0.2.0 — two archetypes (agent-team + workflow), both forge paths validated end-to-end. See [SCOPING.md](./SCOPING.md) (agent-team) + [WORKFLOW-SCOPING.md](./WORKFLOW-SCOPING.md) (workflow) for the designs, [tests/README.md](./tests/README.md) for what was validated.
+**Status:** v0.3.0 — two archetypes (agent-team + workflow), both forge paths validated end-to-end; retro #1687 fixes folded in (domain-named durable paths, naming discipline, teardown phase, dashboard/ledger hygiene). See [SCOPING.md](./SCOPING.md) (agent-team) + [WORKFLOW-SCOPING.md](./WORKFLOW-SCOPING.md) (workflow) for the designs, [tests/README.md](./tests/README.md) for what was validated.
 
 > **New here?** Open the interactive overview — [`docs/playgrounds/team-forge-overview.html`](./docs/playgrounds/team-forge-overview.html) — for a clickable walkthrough of what team-forge builds for the team: the 4-phase forge, the 5 role types, and the files it commits into your project.
 
@@ -67,7 +67,7 @@ Claude will interrogate you:
 - *Completion criteria?* → "100% of target repos updated OR clean failure report"
 - *Token budget?* → "Soft 50k per cohort"
 
-Claude writes `docs/superpowers/my-cli-project/<team>/brainstorms/brainstorm-phase1-initial.md` and runs the **self-review checklist** (5 criteria). Surfaces any gaps. Asks you to approve.
+Claude writes `docs/team-forge/<team>/brainstorms/brainstorm-phase1-initial.md` and runs the **self-review checklist** (5 criteria). Surfaces any gaps. Asks you to approve.
 
 ### Step 2 — Plan (Phase 2)
 
@@ -123,7 +123,7 @@ Claude validates the design, detects whether the target_repo is on a hook-protec
       tracker/status.json
       playground/dashboard.html
       playground/dashboard-data.json
-  docs/superpowers/my-cli-project/<team>/
+  docs/team-forge/<team>/
     brainstorms/ (with the brainstorm from Step 1)
     team-plans/ (with the plan from Step 2)
     artifacts/<milestone-id>/ (empty)
@@ -171,7 +171,7 @@ Both paths (agent-procedural via the forge skill OR Python script) produce ident
 
 ## What ships in this extension
 
-- **7 skills** (`skills/<name>/SKILL.md`): brainstorming, writing-plans, design, forge (Phase 1–4) plus rehydrate, tracker, monitor (runtime). Each phase skill has an explicit **self-review checklist** before user approval.
+- **8 skills** (`skills/<name>/SKILL.md`): brainstorming, writing-plans, design, forge (Phase 1–4) plus rehydrate, tracker, monitor (runtime) and teardown (the lifecycle close — archive, prune, retire). Each phase skill has an explicit **self-review checklist** before user approval.
 - **4 templates** (`templates/`): design.yaml schema reference, agent.md (with role-specific placeholder blocks), team-launcher.md, dashboard.html — all logic-free `{{VAR}}` substitution
 - **Optional Python renderer** (`tools/forge.py`) — deterministic alternative to the agent-procedural path
 - **Slim session-start hook** + plugin manifests + tests/ documentation

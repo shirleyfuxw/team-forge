@@ -28,7 +28,7 @@ sizes — NOT a detailed task list (the shared task list handles that at runtime
 
 ## What you produce
 
-A markdown file at `docs/superpowers/<project>/<team>/team-plans/team-plan-v<n>.md`
+A markdown file at `docs/team-forge/<team>/team-plans/team-plan-v<n>.md`
 where `<n>` increments from the last team-plan (e.g., `team-plan-v1.md` on first
 write, `team-plan-v2.md` on the next revision).
 
@@ -111,7 +111,7 @@ don't need that — the agent-teams shared task list IS the per-iteration planni
 
 ### Step 5 — Write the team-plan document
 
-Create `docs/superpowers/<project>/<team>/team-plans/team-plan-v<n>.md`:
+Create `docs/team-forge/<team>/team-plans/team-plan-v<n>.md`:
 
 ```markdown
 # <Project name> — Team Plan v<n>
@@ -122,6 +122,21 @@ Written <ISO-timestamp> by the lead (`<orchestrator-name>`). Derived from
 ## Project recap (1 paragraph)
 
 <re-state the goal from the brainstorm, for grounding>
+
+## Scope figures (verified vs estimated)
+
+Every quantitative scope claim goes here, in this table — separate VERIFIED from ESTIMATED.
+A figure is **verified** only if it came from running a command (a `grep -c`, a query, a count),
+with that command cited. Everything else is an **estimate** and is labelled as such.
+
+| Figure | Value | Status | How obtained |
+|---|---|---|---|
+| <e.g. files in scope> | <n> | verified / estimated | <command run, or "rough guess — to be closed"> |
+
+**Do not state a firm headline number until its counts are closed (all VERIFIED).** A headline like
+"~11,600 files" that turns out to be mostly dead archive (real surface ~1,069) is a planning defect —
+it mis-sizes the team and the budget. If a count is not yet verified, write the milestone around the
+*verified* surface and flag the estimate as open.
 
 ## Milestones
 
@@ -183,6 +198,7 @@ Ask if they approve to move to Phase 3 (Design).
 
 - **Cyclic dependencies declared** → push back to user; refuse to write the plan with cycles
 - **Vague verifiable outputs** → push for concrete; "works well" is unacceptable
+- **Unsubstantiated scope headline** → a firm count with no verifying command is an estimate; label it as such in the Scope-figures table and size the plan off the verified surface. Do not headline an unclosed count.
 - **User wants to skip ahead to Phase 3 without naming dependencies** → tell them dependencies are mandatory; offer to mark all as `[]` only if they explicitly say so
 
 

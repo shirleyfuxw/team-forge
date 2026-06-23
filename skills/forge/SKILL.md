@@ -43,6 +43,35 @@ protected branch (commonly `main`, `master`, `production`):
 
 Do NOT proceed until the target is on a writable branch.
 
+## Step 0b — Target-repo tooling & robustness preflight
+
+The forged team will operate inside the target repo's hook environment. Three known incompatibilities
+cost real rework in the alpha-variant-system run (retro #1687, items 6–8). Detect them now and warn
+the user — team-forge can't rewrite the target's hooks, but a forged team that walks into them blind
+ships churn and bypasses gates. Grep `<target_repo>/.claude/settings*.json` + `.claude/hooks/`:
+
+1. **Auto-formatter PostToolUse hook (item 6).** A formatter that runs on every `Edit` and re-churns
+   unrelated lines (quote style, line collapsing) fights the surgical-edit rule — it turns a 3-line
+   change into an 80-line diff and can ship churn into production-critical files. If one exists, tell
+   the user to **scope the formatter to changed lines, pre-align the repo to the formatter style, or
+   bless a binary-write path** for the worker before running the team. Note it in the team's
+   `constraints`.
+
+2. **Review-receipt PostToolUse hook under worktrees (item 7).** A "mandatory review receipt" hook
+   that inspects staged files runs in the **harness CWD (main repo)**, not the Bash tool's worktree
+   CWD — so under the worktree workflow team-forge prescribes it never detects the worktree's staged
+   files and gets blanket-bypassed (`SKIP_REVIEW_CHECK=1` on every commit), silently defeating the
+   gate. If one exists, tell the user to **make the hook worktree-aware** (resolve the worktree CWD)
+   or **define a worktree-native receipt flow** before relying on it.
+
+3. **Model fallback on provider outage (item 8).** When a provider tier is globally unavailable
+   mid-run, dispatched agents on that tier FAIL the stage. The launcher templates instruct the lead
+   to **fall back one tier** (e.g. fable → opus) on a provider-unavailable error rather than failing —
+   confirm the design's `model` choices have a sane fallback and that critical stages aren't pinned to
+   a single tier.
+
+These are warnings, not hard aborts — proceed if the user accepts the risk, but record the decision.
+
 ## Step 1 — Run the renderer
 
 ```
@@ -56,7 +85,7 @@ python3 <team-forge-extension>/tools/forge.py <target_repo>/.claude/team-forge/<
 4. **Team-launcher skill** — `<team>-team/SKILL.md` from `team-launcher.md.j2`.
 5. **Initial `tracker/status.json`** — empty state typed from `tracking.state_shape` + `forge_metadata` (forged_at_iso, design_hash, forge_version).
 6. **Initial `dashboard.html`** — rendered from `dashboard.html.j2` + `tracking.dashboard_panels`, empty state.
-7. **KB scaffold** — `docs/superpowers/<basename>/<team>/{brainstorms,team-plans,artifacts/<id>,runtime/<id>}/` + README.
+7. **KB scaffold** — `docs/team-forge/<team>/{brainstorms,team-plans,artifacts/<id>,runtime/<id>}/` + README.
 8. **manifest.json** — generated-files list + design_hash.
 
 If Python or `pyyaml` is unavailable, the same procedure can be followed by hand

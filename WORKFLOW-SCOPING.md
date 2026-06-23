@@ -71,9 +71,23 @@ ledger: {state_shape: [current_plan, plan_history, ...], events: [...,replanned]
   skills/<team>-workflow/SKILL.md         entry point /<team>-workflow (the lead loop)
   agents/<team>-worker.md, -advisor.md    thin overlays → shared default + project skills (dormant)
   team-forge/<team>/{design.yaml, TASKS.yaml, tracker/status.json (thin),
-                     playground/{dashboard.html, gen_dashboard.py}}
-docs/superpowers/<project>/<team>/{brainstorms, team-plans, artifacts/<task-id>, README.md}
+                     gates/<descriptive-name>.{py,sh},          ← lead-owned gate harness (tracked)
+                     playground/{dashboard.html, gen_dashboard.py},  ← ephemeral (gitignored)
+                     .gitignore}                                 ← ignores playground/ + tracker/status.json
+docs/team-forge/<team>/{brainstorms, team-plans, artifacts/<task-slug>, README.md}
 ```
+
+**Lead gate-harness home (retro #1687, item 10).** Producer≠verifier parity scripts and other
+lead-authored gate checks are load-bearing evidence, not throwaway — they get a standard home at
+`.claude/team-forge/<team>/gates/` with content-descriptive names (`parity-check.py`,
+`post-deletion-parity.py`), referenced by the `gates:` commands in `TASKS.yaml`. They are TRACKED
+(not under the ephemeral `playground/`). Teardown classifies each: reusable-beyond-this-team → move
+to the project's standard tools location; single-use → remove with the rest of the scaffolding.
+
+`<task-slug>` is the task's descriptive `id` (e.g. `post-process-runner/`), never an opaque phase
+code (`t5/`). Task IDs stay in the ledger (`TASKS.yaml` + `status.json`); commits, PR titles, code
+comments, and artifact filenames use the task's human-readable name. See "Naming discipline" in
+SCOPING.md — the same rule governs both archetypes.
 
 No `-tracker/-monitor/-verifier.md`; no `respawn_order`.
 

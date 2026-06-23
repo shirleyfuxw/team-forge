@@ -29,7 +29,7 @@ If any fails, **stop and tell the user**.
 Read `.claude/team-forge/{{team}}/TASKS.yaml` and `.claude/team-forge/{{team}}/tracker/status.json`.
 
 - **Fresh start** (`current_task == null`, all tasks `pending`): read the brainstorm +
-  team-plan under `docs/superpowers/{{project_basename}}/{{team}}/`, write the plan path to
+  team-plan under `docs/team-forge/{{team}}/`, write the plan path to
   `status.json.current_plan`, set `current_task` to the first task with satisfied
   `depends_on`, then enter the loop.
 - **Resume**: find the first task whose `status != done`; resume there (re-run its
@@ -42,15 +42,23 @@ Re-render the dashboard: `python3 .claude/team-forge/{{team}}/playground/gen_das
 For each task (in `depends_on` order), **do the work inline by default**:
 
 1. **design-before-code** — a short DRY/SOLID pass. Reject a design that re-introduces a
-   copy. For a non-trivial task, write it to `artifacts/<task-id>/design-<n>.md`.
+   copy. For a non-trivial task, write it to `artifacts/<task-slug>/<subject>-design.md`
+   (descriptive slug + descriptive filename — never `artifacts/t5/design-3.md`; see Naming
+   discipline below).
 2. **implement** — inline, in one followable diff. **Dispatch a subagent ONLY when** the task
    is (a) part of a parallel fan-out, (b) large + self-contained (keep it out of your
    context), or (c) needs an independent perspective. Then dispatch the **worker** profile
    (`{{team}}-worker`, own worktree); escalate hard 2+-module questions to **advisor**
    (`{{team}}-advisor`, on-demand call). Otherwise stay inline.
+   **Provider-outage fallback:** if a dispatch fails because the agent's model tier is globally
+   unavailable, retry one tier down (e.g. fable → opus) rather than failing the task — a transient
+   provider outage should not stall the loop.
 3. **gate** — run the task's `gate_set` (defined in `TASKS.yaml.gates`, scaled to
-   `blast_radius`). **Never advance on red** — fix in place and re-gate.
-4. **commit** on `{{integration_branch}}`. The commit log is the story.
+   `blast_radius`). **Never advance on red** — fix in place and re-gate. Any gate SCRIPT you
+   author (parity check, deletion-safety cert) lives at `.claude/team-forge/{{team}}/gates/` with a
+   descriptive name (`parity-check.py`) — tracked, not an ad-hoc playground script.
+4. **commit** on `{{integration_branch}}`. The commit log is the story — write the message
+   in the task's human-readable NAME, never its ID (`T5`). The reader has no ID decoder.
 5. **update the ledger** — set the task `status: done` + `gate_status` + `commit` in
    `status.json` (keep it a THIN index), append a `task_completed` event, re-run
    `gen_dashboard.py`.
@@ -63,9 +71,16 @@ for a bounded burst that instantiates the worker/verifier profile N-way — then
 back to this loop:
 - **parallel build** — N independent tasks/items at once (e.g. a per-module migration).
 - **verification fan-out** — M facet-maps + K adversarial verdicts → synthesize a
-  certification doc under `artifacts/<task-id>/`.
+  certification doc under `artifacts/<task-slug>/`.
 
 agent-teams is **not** used. Fan-out is the Workflow tool; the steady state is this lead loop.
+
+**Adversarial critique is REQUIRED, not optional, on medium/high `blast_radius` tasks.** The
+fan-out → synthesize → **adversarial-critique** → revise loop is what catches load-bearing errors
+(silent signal-flips, double-applies, silent-success-on-failed-write) — cosmetics survive without it,
+real bugs don't. For any non-trivial change, run at least one critic pass whose explicit job is to
+REFUTE the result before you propagate; record its verdict in the certification doc. A green gate set
+without a critic pass is not "verified."
 
 ## Step 4 — re-plan (design is a living artifact — W7)
 
@@ -82,11 +97,29 @@ A refactor that never pivots probably wasn't understood — expect to re-plan.
 You own `status.json` (kept thin) + `runtime/` + `artifacts/` + `team-plans/`. A dispatched
 worker writes only its worktree. `gen_dashboard.py` renders `dashboard.html` mechanically.
 
+## Naming discipline (IDs stay internal)
+
+Task IDs (`T5`, `m1`) are **internal-ledger-only** — they live in `TASKS.yaml` + `status.json`
+and nowhere else. Every outward surface uses the task's human-readable NAME:
+
+- **commit messages, PR titles** — name the work, not the ID.
+- **code comments** — never write `# honour T5 write-only-first`; describe the behaviour.
+- **artifact filenames** — `<subject>-<artifact-kind>.md` (`migration-plan.md`), never `design-3.md`.
+- **artifact directories** — descriptive slug (`artifacts/post-process-runner/`), never `artifacts/t5/`.
+
+If an ID must appear on a durable surface for cross-reference, include a one-line glossary so the
+artifact is self-decoding.
+
 ## Domain constraints
 
 {{CONSTRAINTS_BULLET_LIST}}
 
-## Cleanup
+## Cleanup / teardown
 
 When all tasks are `done` (or the user stops): final ledger update + dashboard render, then
 hand the whole `{{integration_branch}}` to human review. **Never self-merge.**
+
+Once the branch is merged/closed, run **`team-forge:teardown`** to retire the workflow: archive
+the ledger to `docs/team-forge/{{team}}/`, prune worktrees, remove this launcher skill + its
+trigger + the worker/advisor profiles, retire single-use gate scripts, and drop the ephemeral
+playground. "Done" is not "cleaned up."

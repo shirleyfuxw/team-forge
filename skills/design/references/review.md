@@ -6,7 +6,7 @@ Evaluate a `design.yaml` from Phase 3. Loadable standalone by a review subagent.
 
 | # | Check | Pass condition | Hard abort? |
 |---|---|---|---|
-| 1 | Schema valid + project fields | Parses as YAML; sections present (`project`, `milestones`, `roster`, `rehydrate`, `tracking`, `constraints`, `asset_discovery`); `project.{name,target_repo,target_repo_basename,display_name,domain,brief}` non-empty. | **Yes** |
+| 1 | Schema valid + project fields | Parses as YAML; sections present (`project`, `milestones`, `roster`, `rehydrate`, `tracking`, `constraints`, `asset_discovery`); `project.{name,target_repo,display_name,domain,brief}` non-empty. (`target_repo_basename` is optional + display-only — forge derives it from `target_repo`; never a durable-path component.) | **Yes** |
 | 2 | Role coverage | At least one teammate per role (work/verify/advise/tracker/monitor, via `role` or `combined_roles`) AND exactly one `orchestrator`. | **Yes** — the brand rule |
 | 3 | Comms closure | Every `tracking.state_shape[].source` is `"lead"` or a name in `roster`. | **Yes** |
 

@@ -49,7 +49,8 @@ Read `.claude/team-forge/{{team}}/TASKS.yaml` (the `queue` + `gates`) and `track
 Drain the full-drain set in waves of ≤ **{{WAVE_SIZE}}**. Call the **Workflow tool** to
 `pipeline(items, drain, gate)` — each item independently:
 - **drain** — dispatch the **worker** profile (`{{team}}-worker`, own worktree) per item;
-  escalate hard 2+-module questions to **advisor** (`{{team}}-advisor`).
+  escalate hard 2+-module questions to **advisor** (`{{team}}-advisor`). On a provider-unavailable
+  failure, retry one model tier down (e.g. fable → opus) before marking the item blocked.
 - **gate** — run the item's `gate_set` (mandatory under unattended; never PR on red).
 - on green → open a PR against `{{integration_branch}}`; set the item `stage: pr_ready`.
 
@@ -77,6 +78,12 @@ If the routing predicate or gate vocabulary proves wrong mid-cycle, re-cut them 
 You own `status.json` (thin) + `runtime/` + `artifacts/`. Workers write only their worktrees.
 `gen_dashboard.py` renders the dashboard mechanically.
 
+## Naming discipline (IDs stay internal)
+
+Item/ticket IDs are **internal-ledger-only** (`status.json`, `TASKS.yaml`). PR titles, commit
+messages, and code comments describe the item in human terms, never by ID. Cycle report files are
+content-descriptive; if an ID is needed on a durable surface, carry a glossary.
+
 ## Domain constraints
 
 {{CONSTRAINTS_BULLET_LIST}}
@@ -85,3 +92,7 @@ You own `status.json` (thin) + `runtime/` + `artifacts/`. Workers write only the
 
 At box or empty queue: final ledger update + dashboard render + cycle report. **Never
 self-merge** — PRs wait for human/CI. The schedule fires the next cycle.
+
+**Retiring the recurring workflow** (not per-cycle): when the drain is decommissioned, run
+**`team-forge:teardown`** — it removes the schedule/cron trigger first (so no further cycles fire),
+archives the ledger, prunes worktrees, and removes the launcher + profiles + ephemeral state.

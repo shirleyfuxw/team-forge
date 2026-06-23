@@ -33,7 +33,7 @@ logic-free `{{VAR}}` + named placeholder template format, so either is valid.
 - 6× `.claude/agents/greeter-*.md`
 - `.claude/skills/greeter-team/SKILL.md`
 - `.claude/team-forge/greeter/{design.yaml, manifest.json, tracker/status.json, playground/dashboard.html, playground/dashboard-data.json}`
-- `docs/superpowers/test-team-forge-greeter/greeter/README.md` + scaffolded subdirs
+- `docs/team-forge/greeter/README.md` + scaffolded subdirs
 
 ## Open issue surfaced by the test
 

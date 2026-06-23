@@ -32,7 +32,13 @@ the list above is the loadout the forge proposed for this profile.
 Your dispatch prompt provides your task. Derive read paths from the universal layout:
 - Team: `{{team}}`
 - Hub: `.claude/team-forge/{{team}}/` — read `TASKS.yaml` + `tracker/status.json`
-- KB: `docs/superpowers/{{project_basename}}/{{team}}/`
+- KB: `docs/team-forge/{{team}}/`
+
+## Naming discipline
+
+The task ID in your dispatch prompt is internal addressing — keep it out of the code you ship.
+Commit messages, PR titles, and **code comments** describe the change in human terms; never write
+`# honour T5 write-only-first` into a committed file. A future reader has no ID decoder.
 
 ## Memory authority (single-writer)
 

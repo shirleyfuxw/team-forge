@@ -30,13 +30,13 @@ ROLE_DESCRIPTIONS = {
     'verify': "You check outputs before they propagate. Read work-role outputs, validate against the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage`, and report status updates to the team's tracker.",
     'advise': "You unblock work agents on hard problems. You are called on-demand via `Agent()` dispatch. Read shared project memory + the team's KB + the rejected-hypotheses corpus (if domain has one). Return structured advice; do not modify durable files.",
     'tracker': "You aggregate project state per the team's `tracking.state_shape` spec from design.yaml. **You are the single-writer for `.claude/team-forge/{team}/tracker/status.json`.** Read verdicts from verify-role teammates and plan outputs from the lead. Append events from `tracking.events_to_log`. Tracker is load-bearing for `/resume` — your status.json is the durable state source. Spawned FIRST on rehydrate.",
-    'monitor': "You read the tracker's status.json + the narrative artifacts under `docs/superpowers/<project>/{team}/`. **You are the single-writer for `.claude/team-forge/{team}/playground/dashboard.html`.** Rewrite the dashboard per `tracking.dashboard_panels`. Trigger on every meaningful state change.",
-    'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. **You are the single-writer for `docs/superpowers/<project>/{team}/` narrative state.**",
+    'monitor': "You read the tracker's status.json + the narrative artifacts under `docs/team-forge/{team}/`. **You are the single-writer for `.claude/team-forge/{team}/playground/dashboard.html`.** Rewrite the dashboard per `tracking.dashboard_panels`. Trigger on every meaningful state change.",
+    'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. **You are the single-writer for `docs/team-forge/{team}/` narrative state.**",
 }
 MEMORY_AUTHORITY = {
     'tracker': "You write only to `.claude/team-forge/{team}/tracker/status.json`.",
     'monitor': "You write only to `.claude/team-forge/{team}/playground/dashboard.html` and `dashboard-data.json`.",
-    'orchestrator': "You write to `docs/superpowers/<project>/{team}/{{brainstorms,team-plans,artifacts,runtime}}/`.",
+    'orchestrator': "You write to `docs/team-forge/{team}/{{brainstorms,team-plans,artifacts,runtime}}/`.",
     'work': "You write to ephemeral worktrees only. No durable writes.",
     'verify': "You write to ephemeral worktrees only. No durable writes.",
     'advise': "You write to ephemeral worktrees only. No durable writes.",
@@ -49,6 +49,20 @@ def substitute_simple(text, vars):
     for k, v in vars.items():
         text = text.replace('{{' + k + '}}', str(v))
     return text
+
+def write_hub_gitignore(hub_dir, team):
+    """Emit .claude/team-forge/<team>/.gitignore so runtime state is uniformly ephemeral.
+    The dashboard is GENERATED from status.json; status.json is RUNTIME. Tracking one but
+    ignoring the other produces commit noise from a generated artifact derived from ignored
+    state (retro #1687, item 11). Both are ephemeral; the durable record is the KB +
+    (on teardown) docs/team-forge/<team>/final-ledger.json."""
+    (hub_dir / ".gitignore").write_text(
+        f"# team-forge runtime state for `{team}` — ephemeral, regenerated each session.\n"
+        f"# Durable knowledge is the KB at docs/team-forge/{team}/ and the design.yaml contract.\n"
+        "# Do NOT track the generated dashboard or the live ledger (retro #1687, item 11).\n"
+        "playground/\n"
+        "tracker/status.json\n"
+    )
 
 def render_agent_md(entry, team, project_basename):
     """Render templates/agent.md.j2 for one roster entry."""
@@ -114,7 +128,7 @@ def initial_status_json(design):
         'forge_metadata': {
             'forged_at_iso': _NOW,
             'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-            'forge_version': '0.0.1',
+            'forge_version': '0.3.0',
         }
     })
     return state
@@ -260,7 +274,7 @@ def initial_status_json_workflow(design):
     state['forge_metadata'] = {
         'forged_at_iso': _NOW,
         'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-        'forge_version': '0.0.1', 'archetype': 'workflow', 'shape': design.get('shape'),
+        'forge_version': '0.3.0', 'archetype': 'workflow', 'shape': design.get('shape'),
     }
     return state
 
@@ -307,23 +321,25 @@ def forge_workflow(design):
     project = design['project']
     team = project['name']
     target_repo = Path(project['target_repo'])
-    basename = project['target_repo_basename']
+    basename = project.get('target_repo_basename') or Path(project['target_repo']).name
 
     validate_workflow(design)
 
     agents_dir = target_repo / ".claude/agents"
     skill_dir = target_repo / f".claude/skills/{team}-workflow"
     hub_dir = target_repo / f".claude/team-forge/{team}"
-    kb_dir = target_repo / f"docs/superpowers/{basename}/{team}"
+    kb_dir = target_repo / f"docs/team-forge/{team}"
     evals_dir = target_repo / f"agent_evals/{team}"
     for d in [agents_dir, skill_dir, hub_dir / "tracker", hub_dir / "playground",
-              kb_dir / "brainstorms", kb_dir / "team-plans", evals_dir]:
+              hub_dir / "gates", kb_dir / "brainstorms", kb_dir / "team-plans", evals_dir]:
         d.mkdir(parents=True, exist_ok=True)
     for t in design.get('tasks', []):
         (kb_dir / "artifacts" / t['id']).mkdir(parents=True, exist_ok=True)
         (kb_dir / "runtime" / t['id']).mkdir(parents=True, exist_ok=True)
 
     generated = []
+    write_hub_gitignore(hub_dir, team)
+    generated.append({"path": str((hub_dir / '.gitignore').relative_to(target_repo)), "kind": "hub_gitignore"})
 
     for role in ('worker', 'advisor'):
         if role in design:
@@ -376,7 +392,7 @@ def forge_workflow(design):
     print("✓ KB README.md")
 
     manifest = {
-        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.0.1",
+        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.3.0",
         "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
         "forged_at_iso": _NOW, "generated_files": generated,
     }
@@ -395,7 +411,10 @@ design = yaml.safe_load(DESIGN_PATH.read_text())
 project = design['project']
 team = project['name']
 target_repo = Path(project['target_repo'])
-basename = project['target_repo_basename']
+# target_repo_basename is OPTIONAL + display-only (never a durable-path component); derive it
+# from target_repo when absent so paths never depend on the config field being set (retro #1687, item 3).
+basename = project.get('target_repo_basename') or Path(project['target_repo']).name
+project['target_repo_basename'] = basename   # normalize so all downstream reads succeed
 
 # Fork on archetype: workflow takes the lead-loop path and exits; default is the team path.
 if design.get('archetype') == 'workflow':
@@ -420,7 +439,7 @@ print(f"✓ Validation: {len(design['roster'])} roster entries, {n} milestones, 
 agents_dir = target_repo / ".claude/agents"
 team_skill_dir = target_repo / f".claude/skills/{team}-team"
 hub_dir = target_repo / f".claude/team-forge/{team}"
-kb_dir = target_repo / f"docs/superpowers/{basename}/{team}"
+kb_dir = target_repo / f"docs/team-forge/{team}"
 evals_dir = target_repo / f"agent_evals/{team}"
 for d in [agents_dir, team_skill_dir, hub_dir / "tracker", hub_dir / "playground",
           kb_dir / "brainstorms", kb_dir / "team-plans", evals_dir]:
@@ -430,6 +449,8 @@ for m in design['milestones']:
     (kb_dir / "runtime" / m['id']).mkdir(parents=True, exist_ok=True)
 
 generated = []
+write_hub_gitignore(hub_dir, team)
+generated.append({"path": str((hub_dir / '.gitignore').relative_to(target_repo)), "kind": "hub_gitignore"})
 
 # Step 3 — agent .md files
 for entry in design['roster']:
@@ -464,7 +485,7 @@ print(f"✓ dashboard.html: {dash.count(chr(10)) + 1} lines")
 # Step 8 — KB README
 kb_readme = f"""# {project['display_name']} — `{team}` agent team KB
 
-This directory holds the human-readable knowledge base for the `{team}` team forged for `{basename}`.
+This directory holds the human-readable knowledge base for the `{team}` team.
 
 ## Milestones
 """ + "\n".join(f"- **{m['id']}** ({m['name']}) — go/no-go: {m['go_no_go']}" for m in design['milestones']) + f"""
@@ -484,7 +505,7 @@ print(f"✓ KB README.md")
 # Step 9 — manifest.json
 manifest = {
     "team": team,
-    "forge_version": "0.0.1",
+    "forge_version": "0.3.0",
     "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
     "forged_at_iso": _NOW,
     "generated_files": generated,

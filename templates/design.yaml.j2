@@ -28,9 +28,9 @@ project:
   name: <slug>                              # team prefix; lowercase + hyphens; required
   display_name: "<human-friendly name>"     # required
   target_repo: "/absolute/path/to/repo"     # required; absolute path
-  target_repo_basename: <basename>          # REQUIRED; derived as basename(target_repo).
-                                            # forge-design-agents MUST compute and write this
-                                            # explicitly (do not rely on a renderer to derive it).
+  target_repo_basename: <basename>          # OPTIONAL; display-only label (dashboard eyebrow).
+                                            # NEVER a durable-path component — durable artifacts
+                                            # live at docs/team-forge/<team>/ with no repo-name level.
   domain: <enum>                            # quant-research | frontend | ml-research |
                                             # backend-api | data-pipeline | custom
   brief: |
@@ -41,7 +41,9 @@ project:
 # ----------------------------------------------------------------------------
 # 2–5 milestones. Each has a verifiable output + an explicit human go/no-go gate.
 milestones:
-  - id: <slug>
+  - id: <descriptive-slug>                   # e.g. post-process-runner, NOT t5/m1 — this id
+                                             # becomes the artifacts/<id>/ directory name. Opaque
+                                             # phase codes are banned (see Naming discipline, SCOPING.md).
     name: "<human-friendly>"
     output: "<verifiable artifact description>"
     go_no_go: "<explicit human-decidable criterion>"
@@ -81,10 +83,10 @@ roster:
 rehydrate:
   durable_state:
     - .claude/team-forge/<team>/tracker/status.json
-    - docs/superpowers/<target_repo_basename>/<team>/brainstorms/<current>.md
-    - docs/superpowers/<target_repo_basename>/<team>/team-plans/<current>.md
-    - docs/superpowers/<target_repo_basename>/<team>/artifacts/<milestone-id>/*.md
-    - docs/superpowers/<target_repo_basename>/<team>/runtime/<milestone-id>/*.md   # optional
+    - docs/team-forge/<team>/brainstorms/<current>.md
+    - docs/team-forge/<team>/team-plans/<current>.md
+    - docs/team-forge/<team>/artifacts/<milestone-id>/*.md
+    - docs/team-forge/<team>/runtime/<milestone-id>/*.md   # optional
   respawn_order: [tracker, <other-roles-in-order>, monitor]
                                             # tracker MUST be first (rehydrate source of truth)
                                             # monitor MUST be last (depends on others being up)
