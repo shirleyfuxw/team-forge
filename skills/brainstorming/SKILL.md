@@ -25,7 +25,7 @@ needed to design a multi-agent team.
 
 ## What you produce
 
-A markdown file at `docs/superpowers/<project>/<team>/brainstorms/brainstorm-<session-id>.md`
+A markdown file at `docs/team-forge/<team>/brainstorms/brainstorm-<session-id>.md`
 where `<session-id>` is an ISO timestamp or a slug like `phase1-initial` or `pivot-1`.
 
 ## Procedure
@@ -110,7 +110,7 @@ Phase 3 (design).
 
 ### Step 5 — Write the brainstorm document
 
-Create `docs/superpowers/<project>/<team>/brainstorms/brainstorm-<session-id>.md`:
+Create `docs/team-forge/<team>/brainstorms/brainstorm-<session-id>.md`:
 
 ```markdown
 # <Project name> — Brainstorm <session-id>

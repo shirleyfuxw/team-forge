@@ -1,4 +1,4 @@
-# team-forge — scoping (v8.2, frozen + docs/superpowers KB split)
+# team-forge — scoping (v8.3, frozen + docs/team-forge KB root)
 
 Drafted 2026-05-31 by Shirley + Claude (Opus 4.7).
 Status: **design phase, frozen for implementation. No more reshuffling.**
@@ -132,10 +132,10 @@ roster:
 rehydrate:
   durable_state:
     - .claude/team-forge/<team>/tracker/status.json                            # source of truth — points to current brainstorm + team-plan
-    - docs/superpowers/<project>/<team>/brainstorms/<current>.md               # KB, from status.json.current_brainstorm
-    - docs/superpowers/<project>/<team>/team-plans/<current>.md                # KB, from status.json.current_team_plan
-    - docs/superpowers/<project>/<team>/artifacts/<milestone-id>/*.md          # KB (narrative)
-    - docs/superpowers/<project>/<team>/runtime/<milestone-id>/*.md            # KB (optional; iterative only)
+    - docs/team-forge/<team>/brainstorms/<current>.md               # KB, from status.json.current_brainstorm
+    - docs/team-forge/<team>/team-plans/<current>.md                # KB, from status.json.current_team_plan
+    - docs/team-forge/<team>/artifacts/<milestone-id>/*.md          # KB (narrative)
+    - docs/team-forge/<team>/runtime/<milestone-id>/*.md            # KB (optional; iterative only)
     # Plus the agent-teams shared task list at ~/.claude/tasks/<team>/ — native, lead-managed.
     # Tracker history fields let lead reconstruct prior brainstorms/plans if needed for audit.
   respawn_order: [tracker, advise, verify, work, monitor]
@@ -204,8 +204,8 @@ The design agent populates everything except the `project`, `milestones`, and `c
                                                           (Phase 4 emits initial rendered from template + tracking.dashboard_panels)
         dashboard-data.json
 
-  docs/                                                 ← HUMAN-FACING KNOWLEDGE BASE (Superpowers KB pattern)
-    superpowers/<project_name>/<team>/                  ← audit trail + narrative artifacts
+  docs/                                                 ← HUMAN-FACING KNOWLEDGE BASE
+    team-forge/<team>/                                  ← audit trail + narrative artifacts (no skill-family namespace, no repo-name level)
       brainstorms/                                      ← REQUIRED dir · single-writer: lead only
         brainstorm-<session-id>.md                      ← e.g. brainstorm-2026-05-31.md, brainstorm-pivot1.md
                                                           PROJECT-LEVEL. Phase 1 produces the FIRST one.
@@ -247,9 +247,36 @@ Monitor's dashboard surfaces both current pointers + history. README.md at the t
   tasks/<team>/                                         ← shared task list (lead-managed at runtime)
 ```
 
-**The split rationale:** `.claude/team-forge/<team>/` holds small, structured runtime state (JSON files, the contract YAML, generated dashboard HTML). `docs/superpowers/<project>/<team>/` holds the human-readable knowledge base — brainstorm narratives, plan walkthroughs, verifier conclusions, audit trail. Same rationale as the project's existing `docs/wjsl_trader/` KB: human content goes under `docs/`, not `.claude/`. team-forge follows Superpowers' KB convention for its forged outputs.
+**The split rationale:** `.claude/team-forge/<team>/` holds small, structured runtime state (JSON files, the contract YAML, generated dashboard HTML). `docs/team-forge/<team>/` holds the human-readable knowledge base — brainstorm narratives, plan walkthroughs, verifier conclusions, audit trail. Human content goes under `docs/`, not `.claude/`.
+
+**Durable paths are domain-named, repo-relative, and framework-neutral.** The KB root is `docs/team-forge/<team>/` — one project-owned root, no skill-family namespace (no `superpowers/`), and no repo-name level (we are already inside that repo; `target_repo_basename` never appears in a durable path). Framework-internal identifiers (phase/task IDs) live ONLY in the runtime ledger (`status.json`, `TASKS.yaml`); they never leak into durable, portable, human-facing surfaces. See "Naming discipline" below.
 
 **No `.claude/hooks/` dir.** No `.claude/workflows/` dir (Workflow dropped as runtime primitive). No `tools_allowed` declarations on teammates.
+
+## Naming discipline (framework-internal IDs vs durable surfaces)
+
+**Root cause this prevents:** framework-internal identifiers leaking into durable, portable, human-facing surfaces. A future engineer reading `git blame` should never hit "honour D5 write-only-first" with no decoder.
+
+1. **Phase / milestone / task IDs are internal-ledger-only.** IDs (`m1`, `T5b`, `F12`, …) appear ONLY in the runtime ledger — `status.json`, `TASKS.yaml`, the `design.yaml` contract. They are the framework's internal addressing, not a public vocabulary.
+2. **Outward surfaces use the human-readable NAME, never the ID.** Commit messages, PR titles, code comments, and KB doc filenames/headers reference the milestone/task *name* (e.g. "post-process-only runner"), not its ID (`T5`). If an ID is genuinely needed for cross-reference, the artifact must carry a glossary mapping IDs → names so it is self-decoding.
+3. **Artifact filenames are content-descriptive:** `<subject>-<artifact-kind>.md` (e.g. `migration-plan.md`, `runner-design.md`, `deletion-safety-cert.md`). Banned: generic names (`open-decisions.md`, `design-3.md`, `team-plan-v1.md` is acceptable only because it is a project-level required artifact with a version).
+4. **Directory names are descriptive slugs, never phase IDs.** `artifacts/<milestone-slug>/` where the slug is meaningful (`post-process-runner/`), never an opaque code (`artifacts/t5/`). Milestone/task IDs in `design.yaml` SHOULD themselves be descriptive slugs so this falls out for free.
+
+The forge skill and the team/workflow launchers carry the operational reminder; this section is the rationale of record.
+
+## Adversarial critique is a REQUIRED phase
+
+The pattern that repeatedly catches **load-bearing** errors (not cosmetics) is
+**fan-out → synthesize → adversarial-critique → revise.** In the alpha-variant-system run it caught a
+silent signal-flip (per-family transform asymmetry), a non-identity-base double-apply, standalone
+wrappers that couldn't use the post-process-only runner, and silent-success-on-failed-write — none of
+which a passing gate set surfaced on its own.
+
+So the critic stage is **required, not optional**, on any non-trivial change (plan, migration, PR,
+medium/high `blast_radius` task): at least one pass whose explicit job is to REFUTE the result before
+it propagates, with its verdict recorded in the artifact. The phase skills' self-review checklists and
+the launchers' verification fan-out are where this is enforced; a green gate set without a critic pass
+is not "verified."
 
 ## The team-forge extension — what we ship
 
@@ -264,6 +291,8 @@ team-forge/                                       ← OUR extension repo (generi
     team-forge:tracker/SKILL.md                   ← tracker-role generic pattern
     team-forge:monitor/SKILL.md                   ← monitor-role generic pattern
     team-forge:rehydrate/SKILL.md                 ← /resume rehydrate protocol for lead
+    team-forge:teardown/SKILL.md                  ← lifecycle close: archive ledger, prune worktrees,
+                                                    remove launcher+trigger, classify durable vs ephemeral
   templates/                                      ← Phase 4 emits from these
     design.yaml.j2                                ← Phase 3 schema skeleton
     agent.md.j2                                   ← per-agent emission template
@@ -287,9 +316,9 @@ Per verification: **no native memory for agent-team teammates.** We design our o
 | Layer | Owner | Storage | Notes |
 |---|---|---|---|
 | Per-teammate runtime context | Each teammate | In-context only (ephemeral) | Gone on `/resume`; teammates must respawn with explicit context from the hub + KB |
-| Shared team narrative state (audit trail / KB) | Lead (single-writer) | `docs/superpowers/<project>/<team>/{brainstorms/, team-plans/, artifacts/, runtime/?}` | Multiple brainstorms + team-plans accumulate over the team's lifetime (project pivots, scope shifts). Tracker's `status.json` holds `current_brainstorm` + `current_team_plan` pointers + history arrays. artifacts/ narrative outputs as work happens. runtime/ optional — iterative milestones only. README.md links to current. |
-| Project status (structured) | Tracker (single-writer to its file) | `.claude/team-forge/<team>/tracker/status.json` | Rehydrate source of truth. Lead spawns tracker first on resume; tracker reads back its state. |
-| User-facing dashboard | Monitor (single-writer to its file) | `.claude/team-forge/<team>/playground/dashboard.html` | Replaced on each update; not durable in the audit-trail sense |
+| Shared team narrative state (audit trail / KB) | Lead (single-writer) | `docs/team-forge/<team>/{brainstorms/, team-plans/, artifacts/, runtime/?}` | Multiple brainstorms + team-plans accumulate over the team's lifetime (project pivots, scope shifts). Tracker's `status.json` holds `current_brainstorm` + `current_team_plan` pointers + history arrays. artifacts/ narrative outputs as work happens. runtime/ optional — iterative milestones only. README.md links to current. |
+| Project status (structured) | Tracker (single-writer to its file) | `.claude/team-forge/<team>/tracker/status.json` | Rehydrate source of truth (persists on disk). **Ephemeral / gitignored** — runtime state, not git-tracked; the durable record is the KB + (on teardown) `final-ledger.json`. |
+| User-facing dashboard | Monitor (single-writer to its file) | `.claude/team-forge/<team>/playground/dashboard.html` | Replaced on each update; **ephemeral / gitignored**. Generated from status.json — committing it would be a tracked artifact derived from ignored state (retro #1687, item 11). Forge emits `hub/.gitignore` ignoring `playground/` + `tracker/status.json` so both are uniformly ephemeral. |
 | Design contract | Phase 4 forge (write-once) | `.claude/team-forge/<team>/design.yaml` | Authoritative; Phase 4 input + ongoing reference |
 
 Single-writer per file = no locking needed. Multi-writer scenarios are rejected at design time.

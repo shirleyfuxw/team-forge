@@ -21,8 +21,8 @@ before the human approval gate.
 
 ## Inputs
 
-- The current brainstorm (`docs/superpowers/<project>/<team>/brainstorms/<current>.md`)
-- The current team-plan (`docs/superpowers/<project>/<team>/team-plans/<current>.md`)
+- The current brainstorm (`docs/team-forge/<team>/brainstorms/<current>.md`)
+- The current team-plan (`docs/team-forge/<team>/team-plans/<current>.md`)
 - The user (for approval gates)
 
 ## What you produce

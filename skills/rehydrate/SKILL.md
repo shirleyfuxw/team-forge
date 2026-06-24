@@ -45,10 +45,10 @@ Note in particular:
 ### Step 2 — Read the project KB
 
 Read these in order:
-1. `docs/superpowers/<project_basename>/<team>/brainstorms/<current_brainstorm>` — full project understanding
-2. `docs/superpowers/<project_basename>/<team>/team-plans/<current_team_plan>` — full delegation plan
-3. `docs/superpowers/<project_basename>/<team>/artifacts/<current_milestone>/` — list recent files, read the most recent 3 verifier walkthroughs + section conclusions
-4. `docs/superpowers/<project_basename>/<team>/runtime/<current_milestone>/` — if exists, read the most recent per-iteration plan
+1. `docs/team-forge/<team>/brainstorms/<current_brainstorm>` — full project understanding
+2. `docs/team-forge/<team>/team-plans/<current_team_plan>` — full delegation plan
+3. `docs/team-forge/<team>/artifacts/<current_milestone>/` — list recent files, read the most recent 3 verifier walkthroughs + section conclusions
+4. `docs/team-forge/<team>/runtime/<current_milestone>/` — if exists, read the most recent per-iteration plan
 
 ### Step 3 — Read the design contract
 
@@ -67,7 +67,7 @@ For each entry in `rehydrate.respawn_order`:
    - Their role (canonical)
    - Their team name
    - A pointer to the runtime hub: `.claude/team-forge/<team>/`
-   - A pointer to the KB: `docs/superpowers/<project_basename>/<team>/`
+   - A pointer to the KB: `docs/team-forge/<team>/`
    - A summary of where work was when the prior session ended (1–3 sentences from `events`)
    - For work-role teammates with an active task in `~/.claude/tasks/<team>/`: their assigned task id
 

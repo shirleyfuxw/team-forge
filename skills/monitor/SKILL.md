@@ -27,10 +27,10 @@ You may NOT write to tracker (read-only) or KB narrative artifacts (read-only).
 
 - `.claude/team-forge/<team>/tracker/status.json` (every render, never cache)
 - `.claude/team-forge/<team>/design.yaml` (for `tracking.dashboard_panels`, `roster`, `milestones`)
-- `docs/superpowers/<project>/<team>/brainstorms/<current>.md` (path from status.json)
-- `docs/superpowers/<project>/<team>/team-plans/<current>.md`
-- `docs/superpowers/<project>/<team>/artifacts/<current-milestone>/*.md` (recent N)
-- `docs/superpowers/<project>/<team>/runtime/<current-milestone>/*.md` (if iterative)
+- `docs/team-forge/<team>/brainstorms/<current>.md` (path from status.json)
+- `docs/team-forge/<team>/team-plans/<current>.md`
+- `docs/team-forge/<team>/artifacts/<current-milestone>/*.md` (recent N)
+- `docs/team-forge/<team>/runtime/<current-milestone>/*.md` (if iterative)
 - The dashboard template at `<team-forge-extension>/templates/dashboard.html.j2`
 
 ## What you write

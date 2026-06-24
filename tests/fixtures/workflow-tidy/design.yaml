@@ -20,7 +20,7 @@ project:
 
 # --- shape: sequential-gated → an AUTHORED task list (the proto-TASKS.yaml) ---
 tasks:
-  - id: t1-extract
+  - id: extract-shared-utils       # descriptive slug, not a phase code (becomes artifacts/<id>/)
     name: "Extract the shared string utils"
     output: "utils/strings.py with slugify + truncate; unit-tested"
     depends_on: []
@@ -29,19 +29,19 @@ tasks:
     dispatch: inline                 # lead does it inline (worker dormant)
     interface_to_next: |
       One importable slugify/truncate API, behavior identical to the three originals.
-  - id: t2-redirect
+  - id: redirect-callers
     name: "Redirect the three callers"
     output: "modules a/b/c import the shared util; their local copies deleted"
-    depends_on: [t1-extract]
+    depends_on: [extract-shared-utils]
     blast_radius: medium
     gate_set: [import_check, unit, parity]
     dispatch: inline
     interface_to_next: |
       All callers on the shared util; parity proven against pre-refactor output.
-  - id: t3-dedup-check
+  - id: prove-no-dups
     name: "Prove no dup remains"
     output: "grep gate: zero remaining inline slugify/truncate defs"
-    depends_on: [t2-redirect]
+    depends_on: [redirect-callers]
     blast_radius: low
     gate_set: [import_check, grep_no_dup]
     dispatch: inline
@@ -89,6 +89,6 @@ ledger:
   dashboard_panels: [task_timeline, gate_matrix, integration_branch_status, recent_events]
 
 constraints:
-  - "Behavior-preserving: t2 must prove parity (max_diff == 0) vs pre-refactor output — a refactor that moves output is a failed refactor."
+  - "Behavior-preserving: redirect-callers must prove parity (max_diff == 0) vs pre-refactor output — a refactor that moves output is a failed refactor."
   - "Single integration branch refactor/tidy-shared-utils; never auto-merge; one human review at the end."
   - "design-before-code: each task opens with a DRY/SOLID pass; a design that re-introduces a copy is rejected."
