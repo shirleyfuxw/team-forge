@@ -11,9 +11,13 @@ description: |
 This skill is for monitor-role teammates. The monitor reads structured state
 from tracker + narrative artifacts from the KB, and rewrites the dashboard HTML.
 
-The dashboard template is **logic-free** — uses `{{VAR}}` substitution plus
-named placeholder blocks (`{{PANELS_HTML}}`, `{{EVENTS_HTML}}`) that this skill
-fills procedurally.
+The dashboard shell (`templates/dashboard.html.j2`) is **self-contained**: it
+carries the full design-system CSS and a client-side renderer, and exposes a
+**single** slot, `{{DASHBOARD_DATA_JSON}}`. Your whole job each render is to build
+one **payload** from state and inject it into that slot. You do **not** hand-build
+panel HTML — the shell's renderer draws every panel from the payload. (The workflow
+archetype's `gen_dashboard.py` produces the identical payload from the identical
+shell; the only difference is that here an agent writes it.)
 
 ## Your authority
 
@@ -26,17 +30,15 @@ You may NOT write to tracker (read-only) or KB narrative artifacts (read-only).
 ## What you read
 
 - `.claude/team-forge/<team>/tracker/status.json` (every render, never cache)
-- `.claude/team-forge/<team>/design.yaml` (for `tracking.dashboard_panels`, `roster`, `milestones`)
+- `.claude/team-forge/<team>/design.yaml` (for `tracking.dashboard_panels`, `roster`, `milestones`, `project`)
 - `docs/team-forge/<team>/brainstorms/<current>.md` (path from status.json)
 - `docs/team-forge/<team>/team-plans/<current>.md`
-- `docs/team-forge/<team>/artifacts/<current-milestone>/*.md` (recent N)
-- `docs/team-forge/<team>/runtime/<current-milestone>/*.md` (if iterative)
-- The dashboard template at `<team-forge-extension>/templates/dashboard.html.j2`
+- The dashboard shell at `<team-forge-extension>/templates/dashboard.html.j2`
 
 ## What you write
 
-- `dashboard.html` — full HTML, atomic replace
-- `dashboard-data.json` — the JSON payload used to render (debug aid)
+- `dashboard.html` — the shell with the payload injected, atomic replace
+- `dashboard-data.json` — the exact payload you injected (debug aid + reuse cache)
 
 ## When to render
 
@@ -52,134 +54,66 @@ Do NOT poll. Wait for explicit triggers.
 ### Step 1 — Read fresh state
 
 1. Read `tracker/status.json`
-2. Read `design.yaml`: extract `tracking.dashboard_panels`, `roster`, `milestones`
-3. From status.json's `current_brainstorm` + `current_team_plan` paths, resolve the actual files
+2. Read `design.yaml`: extract `project`, `tracking.dashboard_panels`, `roster`, `milestones`
+3. Resolve `current_brainstorm` + `current_team_plan` paths from status.json
 
-### Step 2 — Build the dashboard data payload
+### Step 2 — Build the unified payload
 
-Compose a flat JSON dictionary (this becomes dashboard-data.json):
+Compose this nested object (it becomes `dashboard-data.json` verbatim). This is the
+**exact same shape** that `tools/forge.py::build_team_payload` produces at forge time —
+that function is the canonical reference; keep this in sync with it.
 
 ```json
 {
-  "team": "<from design.project.name>",
-  "project_display_name": "<from design.project.display_name>",
-  "project_basename": "<from design.project.target_repo_basename>",
-  "domain": "<from design.project.domain>",
-  "current_milestone": "<from status.json>",
-  "current_cohort_id": "<from status.json>",
-  "current_brainstorm": "<from status.json>",
-  "current_team_plan": "<from status.json>",
-  "token_spend_cumulative_k": <from status.json>,
-  "overall_status": "<computed: initial|running|completed|failed>",
-  "last_update_iso": "<now>",
-  "dashboard_panels": [<from design.tracking.dashboard_panels>],
-  "milestones": [<from design.milestones, with computed status>],
-  "roster": [<from design.roster, with computed status>],
-  "events": [<last 30 from status.json.events>]
+  "meta": {
+    "team": "<design.project.name>",
+    "project_display_name": "<design.project.display_name>",
+    "project_basename": "<design.project.target_repo_basename>",
+    "domain": "<design.project.domain>",
+    "archetype": "team",
+    "overall_status": "<computed: initial|running|completed>",
+    "current_milestone": "<status.json or null>",
+    "current_cohort_id": "<status.json or null>",
+    "token_spend_cumulative_k": <status.json or 0>,
+    "last_update_iso": "<now, ISO-8601 Z>"
+  },
+  "panels": [<design.tracking.dashboard_panels, in order>],
+  "milestones": [{ "id", "name", "output", "status" }],
+  "roster": [{ "name", "role", "status" }],
+  "pointers": { "brainstorm": "<current_brainstorm or null>", "team_plan": "<current_team_plan or null>" },
+  "events": [<last 30 of status.json.events, oldest→newest>]
 }
 ```
 
-Derived values:
-- `overall_status`:
-  - `initial` if `current_milestone == null` and no events
-  - `running` if `current_milestone != null` and last event ≠ `milestone_completed` for the final milestone
-  - `completed` if last event is `milestone_completed` for the final milestone
-  - `failed` if a recent `agent_blocked` event has no resolution
-- `milestones[].status`: `completed` if events contain matching `milestone_completed`; `running` if `current_milestone == this.id`; else `pending`
-- `roster[].status`: `idle` (no per-teammate signal yet; future: derive from heartbeats)
+Derived values (these mirror `tools/forge.py::build_team_payload` exactly):
+- A milestone is **done** when a `milestone_completed` event names it. Those events SHOULD
+  carry a `milestone_id` field (the tracker writes it); if absent, fall back to position —
+  with sequential milestones, everything before `current_milestone` is done.
+- `milestones[].status`: `completed` if the milestone is done (per above); `running` if
+  `current_milestone == this.id`; else `pending`.
+- `meta.overall_status`: `initial` if no events; `completed` if the final milestone is done
+  (or, lacking `milestone_id`, you are on the final milestone and there are ≥ N
+  `milestone_completed` events for N milestones); otherwise `running`.
+- `roster[].status`: `idle` (no per-teammate signal yet; future: derive from heartbeats).
+- Each event keeps `{ ts, actor, kind, summary }` (milestone events additionally carry
+  `milestone_id`). The renderer renders events newest-first and handles empty lists itself —
+  pass the list as-is.
 
-### Step 3 — Render the template
+Panel ids you don't have data for are fine — list them in `panels` anyway; the renderer
+shows a labeled empty-state for any panel it can't fill.
 
-Read `templates/dashboard.html.j2`. Perform substitution:
+### Step 3 — Inject into the shell
 
-**Simple substitutions** (top-of-template + footer):
-- `{{team}}`, `{{project_display_name}}`, `{{project_basename}}`, `{{domain}}` from payload
-- `{{current_milestone}}` → payload value (or `—` if null)
-- `{{current_cohort_id}}` → payload value (or `—` if null)
-- `{{token_spend_cumulative_k}}` → payload value
-- `{{overall_status}}` → payload value
-- `{{last_update_iso}}` → payload value
-
-**Placeholder blocks:**
-
-#### `{{PANELS_HTML}}`
-
-For each panel in `payload.dashboard_panels`, build a `<div class="panel">` and concatenate:
-
-- `milestone_timeline`:
-  ```html
-  <div class="panel">
-    <div class="panel-title">Milestone timeline</div>
-    <div class="panel-intro">Project milestones with status pills.</div>
-    <div class="timeline">
-      <!-- one row per payload.milestones[] -->
-      <div class="milestone-row">
-        <div class="milestone-label"><MILESTONE.id></div>
-        <div class="milestone-body">
-          <div class="ms-name"><MILESTONE.name> <span class="pill <STATUS>"><STATUS></span></div>
-          <div class="ms-desc"><MILESTONE.output></div>
-        </div>
-      </div>
-    </div>
-  </div>
-  ```
-
-- `team_roster_and_status`:
-  ```html
-  <div class="panel">
-    <div class="panel-title">Team roster</div>
-    <div class="panel-intro"><N> teammates.</div>
-    <table class="roster-table">
-      <!-- one row per payload.roster[] -->
-      <tr>
-        <td class="agent-name"><AGENT.name></td>
-        <td><span class="role-tag <ROLE>"><ROLE></span></td>
-        <td><span class="pill <STATUS>"><STATUS></span></td>
-      </tr>
-    </table>
-  </div>
-  ```
-
-- `current_pointers`:
-  ```html
-  <div class="panel">
-    <div class="panel-title">Current pointers</div>
-    <div style="font-size: 13px; line-height: 1.7;">
-      <div><span style="color:var(--gray-500)">Brainstorm:</span> <code><CURRENT_BRAINSTORM></code></div>
-      <div><span style="color:var(--gray-500)">Team plan:</span> <code><CURRENT_TEAM_PLAN></code></div>
-    </div>
-  </div>
-  ```
-
-- Any other panel: emit empty-state placeholder:
-  ```html
-  <div class="panel">
-    <div class="panel-title"><PANEL-NAME-TITLE-CASED></div>
-    <div class="empty-state">Awaiting data. Monitor populates this from tracker events.</div>
-  </div>
-  ```
-
-#### `{{EVENTS_HTML}}`
-
-If `payload.events` is empty:
-```html
-<div class="empty-state">No events yet. The team is just starting.</div>
-```
-
-Otherwise (events most-recent-first):
-```html
-<div style="font-size: 12px; max-height: 480px; overflow-y: auto;">
-  <!-- one row per event, newest first -->
-  <div class="event-row">
-    <div class="event-meta"><EVENT.ts> · <EVENT.actor></div>
-    <div style="margin-top:2px"><strong><EVENT.kind></strong> — <EVENT.summary></div>
-  </div>
-</div>
-```
+1. Read `templates/dashboard.html.j2`.
+2. Serialize the payload to JSON. **Escape `<` as `<`** so a `</script>` inside any
+   string field can't close the inline script tag early:
+   `data = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c")`
+3. Replace the single `{{DASHBOARD_DATA_JSON}}` slot with that JSON. No other
+   substitution — every visible value comes from the payload.
 
 ### Step 4 — Write atomically
 
-1. Write rendered HTML to a temp file `<dashboard.html>.tmp`
+1. Write the rendered HTML to a temp file `<dashboard.html>.tmp`
 2. `mv` it over the real `dashboard.html`
 3. Write the payload JSON to `dashboard-data.json` (overwrite is fine)
 
@@ -189,11 +123,12 @@ Send `MONITOR_RENDERED` to whoever triggered you (tracker or lead).
 
 ## Performance notes
 
-- Skip rendering if the input payload's hash matches the last render's. Cache that hash in your agent context.
+- Skip rendering if the payload's hash matches the last render's. Cache that hash in your
+  agent context (or diff against `dashboard-data.json`).
 - Implement a 30-second debounce for rapid-fire triggers unless flagged `priority: high`.
 
 ## Failure modes
 
 - **status.json missing/unreadable** → tell the lead via mailbox; do NOT render an old dashboard (stale = misleading)
-- **Template render fails** → write the payload to `dashboard-data.json` for debugging; write a minimal error-page HTML to dashboard.html
+- **Shell render fails** → write the payload to `dashboard-data.json` for debugging; write a minimal error-page HTML to dashboard.html
 - **Disk full** → fail loudly to the lead

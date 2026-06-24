@@ -5,9 +5,10 @@ end-to-end before v0.1.
 
 ## What was tested
 
-A throwaway 6-agent "greeter" team forged into a temp target_repo at
+A 6-agent "greeter" team forged into a temp target_repo at
 `/tmp/test-team-forge-greeter/`. The fixture covers all 5 role types plus the
-orchestrator, two milestones, custom domain, and a minimal tracking spec.
+orchestrator, two milestones, custom domain, and a minimal tracking spec. It is now
+version-controlled at `fixtures/team-greeter/design.yaml` (was a throwaway).
 
 The test was run via `tools/forge.py` (the optional deterministic renderer),
 which mirrors the procedure described in `skills/forge/SKILL.md`. Both paths —
@@ -23,7 +24,7 @@ logic-free `{{VAR}}` + named placeholder template format, so either is valid.
 ✓ Skill loadout substitution (some teammates with skills, some empty)
 ✓ Shared-agent prefix rule (none in this test; non-shared got `<team>-` prefix)
 ✓ Initial tracker status.json built from `state_shape` with type defaults
-✓ Initial dashboard.html rendered with milestone_timeline + team_roster_and_status + current_pointers panels
+✓ Initial dashboard.html rendered as the self-contained interactive shell (warm-ivory design system + embedded payload) with milestone_timeline + team_roster_and_status + current_pointers + recent_events panels
 ✓ KB directory scaffold (brainstorms/, team-plans/, artifacts/<m>/, runtime/<m>/, README)
 ✓ manifest.json tracks all 10 generated files + design.yaml hash
 
@@ -77,3 +78,23 @@ Each forges 10 files: 2 profiles + the `/<team>-workflow` launcher + `TASKS.yaml
 `status.json` + `gen_dashboard.py` + rendered `dashboard.html` + `design.yaml` copy + KB
 README + manifest. Validated: zero unsubstituted `{{}}`, correct ledger seeding, and the
 dashboard renders both empty and populated state.
+
+## Dashboard contract check (`check_dashboard.py`)
+
+Since v0.4.0 both archetypes render the **same** self-contained interactive dashboard
+shell (`templates/dashboard.html.j2`): warm-ivory design system + a client-side renderer +
+a single `{{DASHBOARD_DATA_JSON}}` slot. The team archetype's monitor agent and the
+workflow archetype's emitted `gen_dashboard.py` each build the identical payload and inject
+it into that one shell.
+
+`check_dashboard.py` forges all three fixtures and asserts the dashboard contract on each
+emitted `dashboard.html`:
+
+```
+python3 tests/check_dashboard.py
+```
+
+Asserts: no leftover `{{SLOT}}` markers · the payload is embedded as
+`const DASHBOARD_DATA = {…}` and parses as JSON with `meta.team` + a non-empty `panels`
+list · no external resource references (works offline / from `file://`) · and — when `node`
+is on PATH — the inline `<script>` passes `node --check`. Exit 0 = all green.
