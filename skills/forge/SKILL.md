@@ -84,7 +84,7 @@ python3 <team-forge-extension>/tools/forge.py <target_repo>/.claude/team-forge/<
 3. **Agent `.md` emission** — one per roster entry, role-specific description + memory-authority + suggested-skills blocks substituted from the role text banks defined in `forge.py`.
 4. **Team-launcher skill** — `<team>-team/SKILL.md` from `team-launcher.md.j2`.
 5. **Initial `tracker/status.json`** — empty state typed from `tracking.state_shape` + `forge_metadata` (forged_at_iso, design_hash, forge_version).
-6. **Initial `dashboard.html`** — rendered from `dashboard.html.j2` + `tracking.dashboard_panels`, empty state.
+6. **Initial `dashboard.html`** — the self-contained interactive shell (`dashboard.html.j2`) with the initial payload (built from `tracking.dashboard_panels` + the empty `status.json`) embedded in its single `{{DASHBOARD_DATA_JSON}}` slot. Same shell the monitor (team) / `gen_dashboard.py` (workflow) rewrite at runtime.
 7. **KB scaffold** — `docs/team-forge/<team>/{brainstorms,team-plans,artifacts/<id>,runtime/<id>}/` + README.
 8. **manifest.json** — generated-files list + design_hash.
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Dashboard renderer for the {{team}} workflow.
-Reads ../tracker/status.json, writes dashboard.html. Deterministic render step that
-replaces the team archetype's monitor agent. Re-run after each status.json update:
+Reads ../tracker/status.json, builds the unified dashboard payload, and injects it into
+the shared team-forge shell (baked in below as SHELL). Deterministic render step that
+replaces the team archetype's monitor agent — the SAME warm-ivory interactive shell, just
+written by a script instead of an agent. Re-run after each status.json update:
     python3 gen_dashboard.py
 """
 import json, datetime
@@ -10,105 +12,60 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent              # .../team-forge/{{team}}/playground
 STATUS = HERE.parent / "tracker" / "status.json"
 OUT = HERE / "dashboard.html"
+
 TEAM = "{{team}}"
 TITLE = "{{project_display_name}}"
+BASENAME = "{{project_basename}}"
+DOMAIN = "{{domain}}"
 PANEL_IDS = {{DASHBOARD_PANELS_JSON}}
+# The shared shell (CSS + client-side renderer) baked in as a constant, so this script is
+# self-contained and never depends on the team-forge extension being present at runtime.
+SHELL = {{DASHBOARD_SHELL_JSON}}
+
+QUEUE_KEYS = ["eligible", "full_drain", "plan_gate", "in_flight", "pr_ready", "blocked"]
+DATA_SLOT = "{{" + "DASHBOARD_DATA_JSON" + "}}"   # the runtime injection point in SHELL
+
 
 def load():
     return json.loads(STATUS.read_text()) if STATUS.exists() else {}
 
-def esc(s):
-    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-def pill(status):
-    cls = {"done": "ok", "in_progress": "run", "blocked": "bad", "pending": "idle"}.get(str(status), "idle")
-    return f'<span class="pill {cls}">{esc(status)}</span>'
+def build_payload(d):
+    """The unified dashboard payload — same shape the agent-team monitor produces."""
+    events = d.get("events") or []
+    tasks = d.get("tasks") or []
+    if not events:
+        overall = "initial"
+    elif tasks and all(str(t.get("status")) in ("done", "completed") for t in tasks):
+        overall = "completed"
+    else:
+        overall = "running"
+    budget = d.get("budget") or {}
+    spend = d.get("token_spend_cumulative_k") or budget.get("spent_k") or 0
+    return {
+        "meta": {
+            "team": TEAM, "project_display_name": TITLE, "project_basename": BASENAME,
+            "domain": DOMAIN, "archetype": "workflow", "overall_status": overall,
+            "current_task": d.get("current_task"), "token_spend_cumulative_k": spend,
+            "last_update_iso": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        },
+        "panels": PANEL_IDS,
+        "tasks": tasks,
+        "gate_results": d.get("gate_results") or [],
+        "integration_branch": d.get("integration_branch") or {},
+        "tickets": d.get("tickets") or [],
+        "queue": {k: d.get("queue_" + k, 0) for k in QUEUE_KEYS},
+        "events": events[-30:],
+    }
 
-def panel_tasks(d):
-    rows = []
-    for t in d.get("tasks") or []:
-        commit = (t.get("commit") or "")[:9] or "—"
-        rows.append(f'<tr><td class="mono">{esc(t.get("id"))}</td><td>{pill(t.get("status", "pending"))}</td>'
-                    f'<td>{esc(t.get("gate_status") or "—")}</td><td class="mono">{esc(commit)}</td></tr>')
-    body = "".join(rows) or '<tr><td colspan="4" class="empty">No tasks yet.</td></tr>'
-    return ('<div class="panel"><div class="ptitle">Task timeline</div>'
-            '<table><tr><th>task</th><th>status</th><th>gate</th><th>commit</th></tr>' + body + "</table></div>")
-
-def panel_gates(d):
-    rows = []
-    for g in d.get("gate_results") or []:
-        rows.append(f'<tr><td class="mono">{esc(g.get("task"))}</td><td class="mono">{esc(g.get("gate"))}</td>'
-                    f'<td>{pill("done" if g.get("passed") else "blocked")}</td></tr>')
-    body = "".join(rows) or '<tr><td colspan="3" class="empty">No gate runs yet.</td></tr>'
-    return ('<div class="panel"><div class="ptitle">Gate matrix</div>'
-            '<table><tr><th>task</th><th>gate</th><th>result</th></tr>' + body + "</table></div>")
-
-def panel_branch(d):
-    b = d.get("integration_branch") or {}
-    return ('<div class="panel"><div class="ptitle">Integration branch</div>'
-            f'<div class="kv"><span>branch</span><code>{esc(b.get("name", "—"))}</code></div>'
-            f'<div class="kv"><span>head</span><code>{esc((b.get("head_sha") or "—")[:9])}</code></div>'
-            f'<div class="kv"><span>PR</span><code>{esc(b.get("pr_url") or "—")}</code></div>'
-            f'<div class="kv"><span>plan</span><code>{esc(d.get("current_plan") or "—")}</code></div></div>')
-
-def panel_events(d):
-    rows = []
-    for e in reversed((d.get("events") or [])[-12:]):
-        rows.append(f'<div class="ev"><span class="mono">{esc(e.get("ts", "")[:19])}</span> '
-                    f'<b>{esc(e.get("kind", ""))}</b> {esc(e.get("payload", ""))}</div>')
-    body = "".join(rows) or '<div class="empty">No events yet.</div>'
-    return '<div class="panel"><div class="ptitle">Recent events</div>' + body + "</div>"
-
-def panel_queue(d):
-    fields = [("eligible", "queue_eligible"), ("full-drain", "queue_full_drain"), ("plan-gate", "queue_plan_gate"),
-              ("in-flight", "queue_in_flight"), ("pr-ready", "queue_pr_ready"), ("blocked", "queue_blocked")]
-    cells = "".join(f'<div class="stat"><div class="num">{esc(d.get(k, 0))}</div><div class="lbl">{label}</div></div>' for label, k in fields)
-    cyc = esc(d.get("current_cycle_id") or "—")
-    return (f'<div class="panel"><div class="ptitle">Queue · cycle {cyc}</div><div class="stats">{cells}</div></div>')
-
-def panel_tickets(d):
-    rows = []
-    for t in d.get("tickets") or []:
-        pr = t.get("pr_url")
-        prc = f'<code>{esc(pr)}</code>' if pr else "—"
-        rows.append(f'<tr><td class="mono">#{esc(t.get("issue"))}</td><td>{esc(t.get("type"))}</td>'
-                    f'<td>{esc(t.get("route"))}</td><td>{pill(t.get("stage", "pending"))}</td><td>{prc}</td></tr>')
-    body = "".join(rows) or '<tr><td colspan="5" class="empty">No tickets triaged yet.</td></tr>'
-    return ('<div class="panel"><div class="ptitle">Tickets</div>'
-            '<table><tr><th>issue</th><th>type</th><th>route</th><th>stage</th><th>PR</th></tr>' + body + "</table></div>")
-
-PANELS = {"task_timeline": panel_tasks, "gate_matrix": panel_gates,
-          "integration_branch_status": panel_branch, "recent_events": panel_events,
-          "queue_state": panel_queue, "ticket_table": panel_tickets}
-
-CSS = """
-:root{--bg:#0f1419;--card:#171c23;--line:#262d36;--ink:#e6edf3;--dim:#8b949e;--ok:#2ea043;--run:#1f6feb;--bad:#da3633;--idle:#6e7681}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,Segoe UI,sans-serif}
-header{padding:20px 28px;border-bottom:1px solid var(--line)}h1{margin:0;font-size:18px}.sub{color:var(--dim);font-size:12px;margin-top:4px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:24px;max-width:1100px}
-.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
-.ptitle{font-weight:600;margin-bottom:10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
-table{width:100%;border-collapse:collapse}th{text-align:left;color:var(--dim);font-weight:500;font-size:11px;padding:4px 8px}
-td{padding:6px 8px;border-top:1px solid var(--line)}.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
-.pill{padding:1px 8px;border-radius:20px;font-size:11px;color:#fff}.pill.ok{background:var(--ok)}.pill.run{background:var(--run)}.pill.bad{background:var(--bad)}.pill.idle{background:var(--idle)}
-.kv{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line)}.kv span{color:var(--dim)}
-.ev{padding:5px 0;border-top:1px solid var(--line);font-size:13px}.empty{color:var(--dim);padding:8px;font-style:italic}
-code{background:#0d1117;padding:1px 6px;border-radius:5px;font-size:12px}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{text-align:center;padding:8px;background:#0d1117;border-radius:8px}
-.num{font-size:22px;font-weight:600}.lbl{font-size:11px;color:var(--dim);margin-top:2px}
-"""
 
 def render():
-    d = load()
-    panels_html = "\n".join(PANELS[p](d) for p in PANEL_IDS if p in PANELS)
-    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    html = ("<!doctype html><html><head><meta charset='utf-8'><title>" + esc(TITLE) + "</title>"
-            "<style>" + CSS + "</style></head><body>"
-            "<header><h1>" + esc(TITLE) + " · <span class='mono'>" + TEAM + "</span></h1>"
-            "<div class='sub'>current task: <b>" + esc(d.get("current_task") or "—") + "</b> · rendered " + now + "</div></header>"
-            "<div class='grid'>" + panels_html + "</div></body></html>")
-    OUT.write_text(html)
+    payload = build_payload(load())
+    # Escaping `<` keeps a `</script>` inside any string field from closing the tag early.
+    data_json = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c")
+    OUT.write_text(SHELL.replace(DATA_SLOT, data_json))
     print("wrote", OUT)
+
 
 if __name__ == "__main__":
     render()

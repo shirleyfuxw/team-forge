@@ -1,0 +1,103 @@
+# team-forge / agent-team-archetype fixture — the greeter team, version-controlled.
+# Validates the default (agent-team) fork of forge.py end-to-end, including the
+# self-contained interactive dashboard render. Sibling of the workflow-* fixtures.
+# ============================================================================
+
+project:
+  name: greeter
+  display_name: "Greeter — demo agent team"
+  target_repo: "/tmp/test-team-forge-greeter"
+  target_repo_basename: test-team-forge-greeter
+  domain: custom
+  brief: |
+    A throwaway demo team that greets the world. Exists only to exercise the forge
+    procedure across all five role types plus an orchestrator, two milestones, and a
+    minimal tracking spec.
+
+milestones:
+  - id: scaffold
+    name: "Scaffold the greeter"
+    output: "greeter package skeleton + a passing smoke test"
+    go_no_go: "human confirms the skeleton imports and the smoke test is green"
+    expected_team_size: 3
+    next_phase_check: "smoke test green"
+    hard_dependencies: []
+    interface_to_next: |
+      An importable greeter package with one stub entrypoint.
+  - id: build-core
+    name: "Build the greeting core"
+    output: "greet(name) returns a localized greeting; unit-tested"
+    go_no_go: "human confirms greet() output for 3 locales"
+    expected_team_size: 3
+    next_phase_check: "unit tests green for 3 locales"
+    hard_dependencies: [scaffold]
+    interface_to_next: |
+      A tested greet() API ready to wire into a CLI.
+
+roster:
+  - name: lead
+    role: orchestrator
+    purpose: |
+      The team lead. Adopts this role in the main session, dispatches teammates,
+      arbitrates verdicts, writes narrative artifacts, and makes go/no-go calls.
+    skills: [team-forge:brainstorming, team-forge:writing-plans]
+    model: opus
+  - name: builder
+    role: work
+    purpose: |
+      Produces the primary milestone output — the greeter package and its core logic.
+    skills: [code-refactor]
+    model: sonnet
+  - name: checker
+    role: verify
+    purpose: |
+      Validates builder output against each milestone's go/no-go before it propagates.
+    skills: []
+    model: sonnet
+  - name: helper
+    role: advise
+    purpose: |
+      On-demand advisor that unblocks the builder on hard 2+ module questions.
+    skills: [knowledge-retrieval]
+    model: opus
+  - name: tracker
+    role: tracker
+    purpose: |
+      Single-writer for status.json. Aggregates state per the tracking spec and appends events.
+    skills: [team-forge:tracker]
+    model: sonnet
+  - name: monitor
+    role: monitor
+    purpose: |
+      Single-writer for the dashboard. Rebuilds the unified payload from status.json and
+      injects it into the shared shell on every meaningful state change.
+    skills: [team-forge:monitor]
+    model: sonnet
+
+rehydrate:
+  durable_state:
+    - .claude/team-forge/greeter/tracker/status.json
+    - docs/team-forge/greeter/brainstorms/<current>.md
+    - docs/team-forge/greeter/team-plans/<current>.md
+    - docs/team-forge/greeter/artifacts/<milestone-id>/*.md
+  respawn_order: [tracker, lead, builder, checker, helper, monitor]
+
+tracking:
+  state_shape:
+    - {id: current_milestone, type: string, source: lead, description: "active milestone id"}
+    - {id: current_cohort_id, type: string, source: lead, description: "active cohort id, if iterative"}
+    - {id: token_spend_cumulative_k, type: int, source: lead, description: "cumulative token spend in thousands"}
+  events_to_log:
+    - milestone_started
+    - milestone_completed
+    - verifier_verdict
+    - agent_blocked
+    - rehydrate
+  dashboard_panels:
+    - milestone_timeline
+    - team_roster_and_status
+    - current_pointers
+    - recent_events
+
+constraints:
+  - "Throwaway demo: this team exists only to exercise the forge procedure end-to-end."

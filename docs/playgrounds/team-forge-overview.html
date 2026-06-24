@@ -340,7 +340,7 @@ const prompts = {
   'role-verify': `Explain the Verify role — when it runs in the pipeline, how verdicts flow to the lead, and what status it reports to the tracker.`,
   'role-advise': `Explain the Advise role — how work agents call it on-demand to get unblocked, and what memory/corpus it reads.`,
   'role-tracker': `Explain the Tracker role and why status.json is the durable rehydrate source of truth. What is the state_shape + events[] structure?`,
-  'role-monitor': `Explain the Monitor role — how it reads the tracker and rewrites dashboard.html per the dashboard_panels spec, and why dashboard.html is durable.`,
+  'role-monitor': `Explain the Monitor role — how it builds the dashboard payload from the tracker and injects it into the self-contained shell per the dashboard_panels spec, and why dashboard.html is ephemeral (regenerated from status.json, gitignored).`,
   coverage: `Explain the hard role-coverage rule in team-forge: why all 5 roles must be covered per-team-as-a-whole, and how combined_roles works for one-shot project domains.`,
   output: `Walk me through the full set of files team-forge commits into a target project's .claude/ at Phase 4, and which ones are durable vs ephemeral.`,
   ships: `List what the team-forge extension actually ships (generic wiring) vs what it forges into each project (domain-specific), and why that split exists.`,
