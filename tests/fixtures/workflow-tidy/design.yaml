@@ -58,6 +58,25 @@ gates:
   #   low    → [import_check, unit] or [import_check, grep_no_dup]
   #   medium → + parity
 
+# --- skill gaps: the parity gate has NO backing capability in this repo (W5) ---
+# Exercises the DRAFT-scaffold emission (forge writes skill-drafts/<name>/SKILL.md).
+skill_gaps:
+  - name: tidy-parity-check
+    kind: verification
+    backing: parity
+    purpose: |
+      Pre/post-refactor output parity harness for the string helpers. The parity
+      gate needs tests/parity_strings.py, which does not exist yet — no installed
+      or reference-library skill provides a behavior-parity check for this repo.
+    trigger: "Use when a refactor task must prove pre/post output parity (max_diff == 0) before its gate can pass"
+    spec: |
+      1. Capture baseline: run slugify+truncate over tests/fixtures/corpus.txt on the
+         pre-refactor commit; write outputs to /tmp/parity-baseline.json.
+      2. Re-run on the working tree; diff against baseline.
+      3. Exit 0 iff max_diff == 0; print the first divergent input otherwise.
+    acceptance: "python tests/parity_strings.py --self-test   # green on an unmodified checkout"
+    consumers: [tidy-worker, lead]
+
 # --- the single shared-default coding profile; dispatched only at fan-out points (W4) ---
 worker:
   model: sonnet

@@ -73,7 +73,11 @@ python3 tools/forge.py tests/fixtures/workflow-tidy/design.yaml    # → /tmp/te
 python3 tools/forge.py tests/fixtures/workflow-drain/design.yaml   # → /tmp/test-team-forge-drain
 ```
 
-Each forges 10 files: 2 profiles + the `/<team>-workflow` launcher + `TASKS.yaml` + thin
-`status.json` + `gen_dashboard.py` + rendered `dashboard.html` + `design.yaml` copy + KB
-README + manifest. Validated: zero unsubstituted `{{}}`, correct ledger seeding, and the
-dashboard renders both empty and populated state.
+Base output is 10 files each: 2 profiles + the `/<team>-workflow` launcher + `TASKS.yaml` +
+thin `status.json` + `gen_dashboard.py` + rendered `dashboard.html` + `design.yaml` copy + KB
+README + manifest. **workflow-tidy forges 11** — it carries one `skill_gaps:` entry
+(`tidy-parity-check`, backing the `parity` gate) that exercises DRAFT-scaffold emission to
+`skill-drafts/<name>/SKILL.md`; workflow-drain has no gaps and stays at 10. Validated: zero
+unsubstituted `{{}}`, correct ledger seeding, the scaffold carries the promotion checklist,
+and the dashboard renders both empty and populated state. Profiles also carry their proposed
+skills in `skills:` frontmatter (preloaded at subagent dispatch).

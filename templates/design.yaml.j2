@@ -69,11 +69,13 @@ roster:
       - <skill-name>
       - team-forge:<bare-name>
       - <plugin>:<skill>
-    model: <enum>                           # OPTIONAL — opus | sonnet | haiku ; default sonnet
+    model: <enum>                           # OPTIONAL — sonnet | opus | haiku | fable | <full-id> | inherit ; omit → inherit (teammate follows the lead)
 
-# Skill loadouts note: Per Claude Code's agent-teams primitive, teammates load
-# ALL project + user skills regardless of frontmatter declaration. The `skills:`
-# field is advisory documentation of intent, not runtime enforcement.
+# Skill loadouts note: Per Claude Code's agent-teams primitive, teammates load ALL project +
+# user skills regardless of frontmatter declaration — the `skills:` and `mcpServers:` fields
+# are NOT applied to a teammate. So the `skills:` field here is advisory documentation of
+# intent, not runtime enforcement. NOTE: `tools`, `disallowedTools`, and `model` frontmatter
+# ARE honored per-teammate — only `skills`/`mcpServers` are ignored.
 
 # ----------------------------------------------------------------------------
 # rehydrate — what the lead reads on /resume.
@@ -181,3 +183,32 @@ asset_discovery:
 
   proposed_loadouts_per_teammate:            # final skills per teammate (also written into roster[].skills)
     <teammate-name>: [<skill>, <skill>]
+
+# ----------------------------------------------------------------------------
+# skill_gaps — capabilities NO existing asset covers; the forge PRODUCES these.
+# ----------------------------------------------------------------------------
+# The complement of asset_discovery: reuse what exists, adapt prior art, FORGE
+# what's missing. Produced skills are the forge's primary deliverable — they
+# outlive the team (WORKFLOW-SCOPING.md). Phase 4 emits one DRAFT scaffold per
+# entry at .claude/team-forge/<team>/skill-drafts/<name>/SKILL.md; a human
+# reviews it against the scaffold's promotion checklist, then promotes it to
+# .claude/skills/<name>/. Until promoted, gates/dispatches that reference it
+# fail-closed (intentional).
+#
+# Quality bar Phase 3 must satisfy per entry ("proper skill per project purpose"):
+#   ONE capability per skill (not a task note) · trigger-first description
+#   ("Use when ...") · a RUNNABLE acceptance check · purpose traceable to
+#   project.domain + brief + the brainstorm's verification posture · name not in
+#   asset_discovery.collision_list · prior art cited when adapting.
+skill_gaps:                                  # OPTIONAL — omit when discovery covered everything
+  - name: <kebab-slug>                       # e.g. tidy-parity-check; collision-checked
+    kind: <enum>                             # verification | domain-procedure | role-capability
+    backing: "<gate-name | role | milestone-id>"   # what invokes this skill
+    purpose: |
+      <the capability this provides + why no existing asset covers it>
+    trigger: "Use when <concrete conditions>"      # becomes the SKILL.md description
+    spec: |
+      <procedure sketch: inputs, outputs, concrete commands>
+    acceptance: "<runnable check proving the skill works>"
+    consumers: [<roster-or-profile-name | lead>]
+    # adapted_from: <reference-library asset>      # OPTIONAL — cite prior art

@@ -1,8 +1,9 @@
 ---
 name: {{agent_name}}
 description: |
-  {{purpose}}
+  {{purpose_frontmatter}}
 model: {{model}}
+{{SKILLS_FRONTMATTER_BLOCK}}
 ---
 
 # {{agent_name}} — {{role}} role on team `{{team}}`
@@ -17,10 +18,17 @@ model: {{model}}
 
 ## Suggested skills
 
-Per Claude Code's agent-teams primitive, teammates inherit all project + user
-skills automatically — there is no per-teammate skill restriction enforced at
-runtime. The list below is the **suggested loadout** the forge proposed for
-this role at design time; treat it as documentation of intent, not enforcement.
+How the `skills:` frontmatter above behaves depends on how you were launched:
+
+- **As a teammate** (agent-teams): `skills` and `mcpServers` frontmatter are **not** applied —
+  you load all project + user skills automatically, like a regular session. The list is then
+  the **suggested loadout** the forge proposed for this role; documentation of intent.
+- **As a dispatched subagent** (e.g. advise-role on-demand calls): the `skills:` frontmatter
+  **is** honored — full skill content is preloaded into your context at dispatch.
+
+Either way, the `tools`, `disallowedTools`, and `model` frontmatter fields **are** honored
+(`SendMessage` and the task tools stay available to teammates even when `tools` restricts
+everything else).
 
 {{SKILLS_LIST_BLOCK}}
 
