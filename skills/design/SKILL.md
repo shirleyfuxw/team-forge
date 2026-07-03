@@ -50,9 +50,13 @@ Run the same asset discovery (skills + agents across the 4 sources, domain-filte
 **Additionally — the workflow centerpiece — discover the GATE VOCABULARY from the codebase's
 verification surface** (W5): read the repo's test suites, CI config, build targets (Makefile),
 and invariants; for each, name a gate (command + criterion). A gate that needs a backing
-capability the repo lacks (e.g. a pre/post-refactor parity harness) is a **skill gap** — the
-forge will *produce* that skill (via `skill-creator`) so a gate can call it. **Skills are the
-product** (WORKFLOW-SCOPING.md): the gap-filling skills are the highest-value output, not the agents.
+capability the repo lacks (e.g. a pre/post-refactor parity harness) is a **skill gap**.
+**Skills are the product** (WORKFLOW-SCOPING.md): the gap-filling skills are the highest-value
+output, not the agents.
+
+Record each gap as a `skill_gaps:` entry in design.yaml (schema + quality bar in
+`templates/design.yaml.j2`) — Phase 4 emits one DRAFT scaffold per entry. Hold each entry to
+the **skill quality bar** below.
 
 ### W-Step 2 — dispatch 3 design-agents (workflow lenses)
 
@@ -77,11 +81,32 @@ the forge seeds `null`/`[]`, never contract literals.
 
 ### W-Step 4 — present + skill-gap plan
 
-Show the user the **task DAG**, the **gate vocabulary**, and **the skills to be produced** (the
-gaps). On approval: produce the gap skills (`skill-creator`, human-reviewed before load-bearing),
-then go to Phase 4 — `team-forge:forge` auto-detects `archetype: workflow`.
+Show the user the **task DAG**, the **gate vocabulary**, and **the skills to be produced**
+(the `skill_gaps` entries, each with its trigger + acceptance). On approval, go to Phase 4 —
+`team-forge:forge` auto-detects `archetype: workflow` and **emits one DRAFT scaffold per gap**
+at `.claude/team-forge/<team>/skill-drafts/<name>/SKILL.md`. The human (optionally with
+`skill-creator` to flesh out the body) reviews each draft against its promotion checklist,
+runs the acceptance check green, then promotes it to `.claude/skills/<name>/`. Until promoted,
+gates that call the skill fail-closed — intentional.
 
 ---
+
+## Skill quality bar — "a proper skill per project purpose" (both archetypes)
+
+A `skill_gaps` entry earns forging only if it passes all five:
+
+1. **One capability, not a task note** — reusable beyond the task that spawned it. "Check
+   pre/post parity for module X" fails; "pre/post-refactor parity harness" passes.
+2. **Trigger-first description** — the `trigger` field states *when to invoke* ("Use when …"),
+   because that description is what future sessions match against. A summary of what the skill
+   is does not trigger.
+3. **Runnable acceptance** — a command that proves the skill works, executable before
+   promotion. No acceptance → no forge.
+4. **Purpose-anchored** — traceable to `project.domain` + `brief` + the brainstorm's
+   verification posture. The verification posture is the richest gap source: every "what does
+   'good' look like" answer with no backing capability is a `kind: verification` gap.
+5. **Discovery-first** — a gap exists only *after* reuse and adapt buckets came up empty; if
+   prior art was adapted, cite it in `adapted_from`.
 
 ## Team archetype — Phase 3 (the roster lenses)
 
@@ -185,6 +210,10 @@ Lead synthesizes the 3 lens outputs:
 4. **tracking.dashboard_panels**: take Lens 3's proposal; verify each panel has supporting state in `state_shape`
 5. **constraints**: take Lens 3's proposal; the brainstorm's "domain-specific facts" should map here
 6. **skill_discovery_results.proposed_loadouts_per_teammate**: derive from Lens 1's roster (each teammate's `skills` field)
+7. **skill_gaps**: from Lens 1's gaps list ("no skill exists for this role/need") + any
+   verification-posture item with no backing capability — filtered through the **Skill quality
+   bar** above. Each surviving gap becomes a full `skill_gaps:` entry (name, kind, backing,
+   trigger, spec, acceptance, consumers); Phase 4 emits its DRAFT scaffold.
 
 If the 3 lens outputs conflict on the role coverage (e.g., Lens 1 says 5 teammates is right, Lens 2 says we need 7) → invoke a 4th agent to resolve, or surface the conflict to the user.
 

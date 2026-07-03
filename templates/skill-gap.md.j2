@@ -1,0 +1,48 @@
+---
+name: {{skill_name}}
+description: |
+  [DRAFT — human review required before load-bearing use] {{trigger}}
+---
+
+<!-- DRAFT skill scaffold forged by team-forge (team: {{team}}).
+     NOT load-bearing until a human reviews it and promotes this directory to
+     <target_repo>/.claude/skills/{{skill_name}}/ . Any gate or dispatch prompt that
+     references this skill fails-closed until promoted — that is intentional. -->
+
+# {{skill_name}} — {{kind}} skill for `{{team}}`
+
+## Purpose
+
+{{purpose}}
+
+**Backing need:** {{backing}} · **Consumers:** {{consumers}} · **Adapted from:** {{adapted_from}}
+
+## When to use
+
+{{trigger}}
+
+## Procedure (draft — flesh out during review)
+
+{{spec}}
+
+## Acceptance check (must run green before promotion)
+
+```
+{{acceptance}}
+```
+
+## Promotion checklist (the quality bar — all boxes before this skill is load-bearing)
+
+- [ ] **One capability, not a task note** — reusable beyond the task that spawned it
+- [ ] **Trigger-first description** — the frontmatter description states *when to invoke*
+      ("Use when …"), not a summary of what the skill is
+- [ ] **Concrete procedure** — commands and paths, not aspirations
+- [ ] **Acceptance runs green** — execute the check above right now, against this repo
+- [ ] **Purpose-anchored** — traceable to the project's domain + verification posture
+      (Phase 1 brainstorm), not invented in the abstract
+- [ ] **Collision-checked** — name not already taken by a project/user/plugin skill
+- [ ] **Prior art cited** — if adapted from a reference library, the source is named above
+
+Promote: move this directory to `.claude/skills/{{skill_name}}/`, remove this DRAFT
+banner + the `[DRAFT …]` prefix from the description, then re-run whatever gate or
+dispatch references it.

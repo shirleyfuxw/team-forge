@@ -69,7 +69,7 @@ For each entry in `rehydrate.respawn_order`:
    - A pointer to the runtime hub: `.claude/team-forge/<team>/`
    - A pointer to the KB: `docs/team-forge/<team>/`
    - A summary of where work was when the prior session ended (1–3 sentences from `events`)
-   - For work-role teammates with an active task in `~/.claude/tasks/<team>/`: their assigned task id
+   - For work-role teammates with an active task on the shared task list (`TaskList`): their assigned task id
 
 **Tracker is FIRST** (per respawn_order convention). It reads its own status.json on
 spawn and reports back any inconsistencies. If tracker reports an issue, **stop and
@@ -77,8 +77,10 @@ tell the user** before spawning the rest.
 
 ### Step 5 — Verify task list state
 
-Read `~/.claude/tasks/<team>/`. The task list is native to agent-teams — it should
-still be there from the prior session. Verify:
+Read the shared task list via the `TaskList` tool. It's native to your session's team and
+persists across `/resume` under a **session-derived** name (`session-<8chars>`, not the team
+slug); retention follows `cleanupPeriodDays`, so it should still be there from the prior
+session. Verify:
 - Pending tasks still pending (no orphans)
 - In-progress tasks: who was assigned? Are those teammates spawned now?
 - Completed tasks: count matches events[]

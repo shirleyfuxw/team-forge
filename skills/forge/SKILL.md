@@ -81,7 +81,12 @@ python3 <team-forge-extension>/tools/forge.py <target_repo>/.claude/team-forge/<
 `forge.py` performs, in order:
 1. **Validation** — schema parse, role coverage (work/verify/advise/tracker/monitor + exactly one orchestrator), comms closure (every `tracking.state_shape[].source` resolves to a roster entry or `"lead"`), 1–5 milestones each with `output` + `go_no_go`. Aborts with a clear message on failure.
 2. **Path computation** — agents_dir, team_skill_dir, hub_dir, kb_dir, evals_dir. Prefix rule: non-shared → `<team>-<name>.md`; `shared_across_teams: true` → `<name>.md`.
-3. **Agent `.md` emission** — one per roster entry, role-specific description + memory-authority + suggested-skills blocks substituted from the role text banks defined in `forge.py`.
+3. **Agent `.md` emission** — one per roster entry, role-specific description + memory-authority + suggested-skills blocks substituted from the role text banks defined in `forge.py`. Skills also land in the agent's `skills:` frontmatter — preloaded when the agent runs as a dispatched subagent; documentation-of-intent when it runs as a teammate.
+3b. **Skill-gap scaffolds** — one DRAFT `SKILL.md` per `skill_gaps:` entry, emitted to
+   `.claude/team-forge/<team>/skill-drafts/<name>/` (NOT directly to `.claude/skills/`).
+   Each carries a promotion checklist; a human reviews, runs the acceptance check green,
+   then promotes the directory to `.claude/skills/<name>/`. This is the forge's primary
+   deliverable — skills outlive the team.
 4. **Team-launcher skill** — `<team>-team/SKILL.md` from `team-launcher.md.j2`.
 5. **Initial `tracker/status.json`** — empty state typed from `tracking.state_shape` + `forge_metadata` (forged_at_iso, design_hash, forge_version).
 6. **Initial `dashboard.html`** — the self-contained interactive shell (`dashboard.html.j2`) with the initial payload (built from `tracking.dashboard_panels` + the empty `status.json`) embedded in its single `{{DASHBOARD_DATA_JSON}}` slot. Same shell the monitor (team) / `gen_dashboard.py` (workflow) rewrite at runtime.
@@ -106,6 +111,8 @@ workflow emission path — you run the exact same command (Step 1), no flag. Wha
   - `.claude/skills/<team>-workflow/SKILL.md` — the lead-loop launcher (`/<team>-workflow`):
     sequential-gated gets the task/gate loop; parallel-drain gets the triage→`pipeline()` drain loop.
   - `.claude/team-forge/<team>/TASKS.yaml` — the live runtime work list (tasks/queue + gates).
+  - `skill-drafts/<name>/SKILL.md` per `skill_gaps:` entry — same DRAFT/promote flow as the
+    team path (step 3b above); a gate calling an unpromoted skill fails-closed by design.
   - `tracker/status.json` — **thin** ledger seeded from `ledger.state_shape` (current_plan→null, etc.).
   - `playground/gen_dashboard.py` + the `dashboard.html` it renders — the render step, **no monitor agent**.
   - `design.yaml` copy + KB README + manifest.

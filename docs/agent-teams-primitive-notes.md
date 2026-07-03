@@ -1,7 +1,73 @@
+# Agent-Teams Primitive — RE-VERIFICATION (2026-07-02)
+
+**Supersedes the 2026-05-31 verification below.** Re-checked against live official
+docs after the Claude Code agent-teams update. Primary sources fetched 2026-07-02:
+
+- https://code.claude.com/docs/en/agent-teams.md  — agent teams (doc states "as of v2.1.178")
+- https://code.claude.com/docs/en/sub-agents.md   — subagent/teammate frontmatter
+
+**Verified by:** Claude Code expert agent + direct doc fetch, cross-checked against the
+running Agent / Task* / SendMessage tool surface.
+
+## TL;DR — what changed since 2026-05-31
+
+1. ⚠️ **Agent teams are now EXPERIMENTAL and OFF by default.** They require
+   `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in settings.json/env. Without it:
+   *"no team is set up at session start, no team directories are written, and Claude
+   does not spawn or propose teammates."* → **the team archetype does not function on a
+   default install.** (agent-teams.md, top warning)
+2. **One implicit team per session; named teams removed.** `TeamCreate`/`TeamDelete`
+   tools no longer exist. `team_name` on the Agent tool is accepted-but-ignored.
+   *"You can't create additional named teams or share a team across sessions."*
+3. **Team/task paths are SESSION-DERIVED, not caller-named.** `team-name` = `session-`
+   + first 8 chars of the session ID. Team config `~/.claude/teams/{team-name}/config.json`
+   is deleted on session exit; task list `~/.claude/tasks/{team-name}/` **persists** across
+   `/resume` (retention governed by `cleanupPeriodDays`). Agents should reach the list via
+   the native `Task*` tools, not by hard-coding a caller-chosen path.
+4. **Per-teammate `tools` + `model` ARE now honored** from the subagent definition; the
+   definition body is appended to the teammate's system prompt. But **`skills` and
+   `mcpServers` frontmatter are NOT applied when a definition runs as a teammate** —
+   teammates load all project/user skills like a normal session. (`SendMessage` + the task
+   tools are always available even when `tools` restricts everything else.)
+5. **New subagent frontmatter fields:** `memory` (user|project|local), `isolation: worktree`,
+   `effort`, `background`, `disallowedTools`, `permissionMode`, `color`, `initialPrompt`.
+   `model` now accepts `fable` and full IDs; **default is `inherit`, not sonnet**.
+6. **"Styles" ≠ agent-teams.** In current Claude Code, "styles" means session-level
+   **output styles** (`~/.claude/output-styles/`); there is no per-agent/per-team `style`
+   field. Orthogonal to rosters. (Note: team-forge's own "Workflow styles" term now collides
+   with this platform term — see WORKFLOW-SCOPING.md.)
+
+## Per-claim status vs. the 2026-05-31 doc
+
+| Original claim | Now | Note |
+|---|---|---|
+| No native per-teammate / shared team memory | **Mostly holds** | Still no *shared team* memory. Per-agent `memory:` frontmatter now exists (`user`→`~/.claude/agent-memory/`). Docs do **not** confirm `memory:` applies to *teammates* (skills/mcpServers explicitly don't) — treat as subagent-only until verified. |
+| Teammates independent context; lead history not carried | **STILL TRUE** | |
+| Sharing via task list + mailbox + file I/O | **STILL TRUE** | `SendMessage` + shared task list + hooks (`TaskCreated`/`TaskCompleted`/`TeammateIdle`) all current. The `team_name` field in those hook payloads is deprecated (carries the session-derived name). |
+| `/resume` + `/rewind` don't restore in-process teammates | **STILL TRUE** | rehydrate flow remains **necessary**. Task list persists; teammate sessions don't. |
+| Team config `~/.claude/teams/{name}/`, tasks `~/.claude/tasks/{name}/` | **CHANGED** | `{name}` is session-derived, not caller-chosen. |
+| "No per-teammate skill restriction enforced" | **PARTLY WRONG** | `tools`/`disallowedTools`/`model` ARE enforced per-teammate. `skills:` frontmatter is genuinely ignored for teammates — so the *skills* half of the claim is now explicitly doc-confirmed. |
+| Feature requests: opt-in per-teammate memory, worktree isolation | **PARTIALLY SHIPPED** | `memory:` + `isolation: worktree` now exist as subagent frontmatter. |
+
+## Impact on team-forge (files to change)
+
+| Break | Severity | Files |
+|---|---|---|
+| team archetype assumes teams are always available | **HIGH** | README + launcher + forge: add a preflight for `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`; document the precondition |
+| team/task paths hard-coded to project slug, not session-derived; teardown deletes now-auto-cleaned dirs | **HIGH** (wrong guidance; native `Task*` tools mitigate) | skills/rehydrate/SKILL.md, skills/teardown/SKILL.md, templates/team-launcher.md.j2, tools/forge.py |
+| model enum `opus\|sonnet\|haiku`, "default sonnet" | LOW | templates/design.yaml.j2, tools/forge.py (add `fable`; note real default is `inherit`) |
+| "skills advisory" note incomplete | LOW | templates/agent.md.j2, templates/design.yaml.j2 (add: `tools`/`model` ARE enforced per-teammate; `skills`/`mcpServers` ignored for teammates) |
+| "styles" naming collision (Workflow styles vs. output styles) | LOW | WORKFLOW-SCOPING.md (glossary note) |
+
+_Frozen `SCOPING.md` (v8.2) also encodes the old path model (lines ~139, ~246) and native
+hook events (~337). Flagged for review; **not edited** here._
+
+---
+
 # Agent-Teams Memory Model Verification
 
 **Date:** 2026-05-31  
-**Status:** Verified against official docs  
+**Status:** ⚠️ SUPERSEDED 2026-07-02 — see the re-verification banner at the top of this file. Findings below are preserved as the historical baseline; corrections are summarized above.  
 **Sources:** Claude Code docs (`code.claude.com/docs`) + Claude API docs (`platform.claude.com`)  
 
 ---

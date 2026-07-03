@@ -100,11 +100,14 @@ If the lead authored gate scripts (parity checks, deletion-safety certs), decide
 
 (See the gate-harness convention in SCOPING.md / WORKFLOW-SCOPING.md.)
 
-### Step 6 — Clear agent memory
+### Step 6 — Native runtime dirs (no action needed)
 
-If teammates accumulated agent-memory under `~/.claude/` for this team (e.g.
-`~/.claude/tasks/<team>/`, `~/.claude/teams/<team>/`), remove those — they are runtime,
-user-global, and meaningless once the team is gone.
+The platform's own team dirs are **session-derived** (`session-<8chars>`), not keyed by the
+team slug, so team-forge can't target them by name — and doesn't need to. The team-config dir
+(`~/.claude/teams/…`) is removed automatically when the session ends, and the shared task list
+(`~/.claude/tasks/…`) self-expires under `cleanupPeriodDays`. Do **not** hand-delete native
+`~/.claude/{teams,tasks}` dirs by team slug. (If a future roster sets per-agent `memory:`,
+clear `~/.claude/agent-memory/<agent-name>/` instead — not used today.)
 
 ### Step 7 — Report + one commit
 

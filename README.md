@@ -8,19 +8,21 @@ Meta-extension for Claude Code that auto-generates project-specific agent teams.
 
 ## What it does
 
-Forges a project-specific multi-agent team — roster, team-launcher skill, observability hub — for any project domain. Each forged team:
+Forges a project-specific agent setup — gap-fill **skill drafts**, roster or workflow loop, launcher skill, observability hub — for any project domain:
 
-- Spawns persistent teammates via Claude Code's `agent-teams` primitive (experimental)
-- Enforces a 5-role coverage rule: **work / verify / advise / tracker / monitor**
-- Includes a runtime dashboard at `.claude/team-forge/<team>/playground/dashboard.html`
-- Survives `/resume` via an explicit rehydrate protocol (tracker is load-bearing)
+- **Skills are the product** — Phase 3 records capabilities no existing asset covers (`skill_gaps`); Phase 4 emits a DRAFT scaffold per gap for human review + promotion to `.claude/skills/`. These outlive the team (see [Skills are the product](#skills-are-the-product)).
+- **Two archetypes**, chosen by a Phase-1 work-shape triage (see [Two archetypes](#two-archetypes)):
+  - `team` — persistent teammates via Claude Code's `agent-teams` primitive (experimental), 5-role coverage (**work / verify / advise / tracker / monitor**), survives `/resume` via an explicit rehydrate protocol (tracker is load-bearing)
+  - `workflow` — a lead-driven task/gate loop with no standing roster; worker profiles dispatched only at fan-out points
+- Runtime dashboard at `.claude/team-forge/<team>/playground/dashboard.html`
 
 team-forge is the wiring; the procedural toolbox (TDD, debugging, planning, brainstorming) is provided by Superpowers and the project's own skills.
 
 ## Requires
 
-- Claude Code v2.1.32 or later
-- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `settings.json` or environment
+- A Claude Code version with experimental agent-teams support
+- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `settings.json` or environment (agent teams are
+  experimental and off by default — this flag is the real gate)
 - For optional deterministic forging: `python3` + `pyyaml`
 
 ## Install
@@ -94,6 +96,9 @@ Claude dispatches 3 forge-design-agents in parallel (roster-correctness lens, co
 - 6-agent roster (orchestrator + work + verify + advise + tracker + monitor)
 - `tracking.state_shape` (repos_processed, rate_limit_remaining, errors_count, etc.)
 - `tracking.dashboard_panels` (milestone_timeline + roster + rate_limit_gauge + error_log)
+- `skill_gaps` — capabilities no discovered asset covers (e.g. a smoke-test harness the repo
+  lacks), each with a trigger-first description, backing gate/role, and a **runnable acceptance
+  check** (the quality bar lives in the design.yaml schema + the design skill)
 - Constraints (GitHub token env var, rate-limit handling, etc.)
 
 **Self-review** (10 criteria) before asking you to approve.
@@ -121,6 +126,7 @@ Claude validates the design, detects whether the target_repo is on a hook-protec
       design.yaml
       manifest.json
       tracker/status.json
+      skill-drafts/<gap-name>/SKILL.md   ← DRAFT per skill_gaps entry (promote after review)
       playground/dashboard.html
       playground/dashboard-data.json
   docs/team-forge/<team>/
@@ -130,6 +136,15 @@ Claude validates the design, detects whether the target_repo is on a hook-protec
     runtime/<milestone-id>/ (empty)
     README.md
 ```
+
+Emitted agent `.md` files carry their `model` and proposed `skills` in frontmatter —
+**preloaded** (full content injected) when the agent runs as a dispatched subagent; agent-teams
+teammates ignore the field and load all project + user skills, so for them it documents intent.
+
+If the design declares `skill_gaps`, each gets a **DRAFT scaffold** under
+`skill-drafts/<name>/SKILL.md` — never emitted straight into `.claude/skills/`. Review it
+against its promotion checklist, run its acceptance check green, then move the directory to
+`.claude/skills/<name>/`. A gate that calls an unpromoted skill fails-closed (intentional).
 
 **Self-review** (10 criteria including manifest ↔ filesystem reconciliation) before reporting success.
 
@@ -162,9 +177,8 @@ The launcher detects `status.json` has prior state and invokes `team-forge:rehyd
 If you've already hand-written a `design.yaml` and just want Phase 4 emission:
 
 ```bash
-python3 ~/8888/team-forge/tools/forge.py
-# Reads /tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml by default
-# Edit the DESIGN_PATH constant at the top to point at your project's design.yaml
+python3 ~/8888/team-forge/tools/forge.py <target_repo>/.claude/team-forge/<team>/design.yaml
+# auto-detects archetype (team vs workflow) from the design.yaml
 ```
 
 Both paths (agent-procedural via the forge skill OR Python script) produce identical output — the templates are logic-free.
@@ -172,9 +186,31 @@ Both paths (agent-procedural via the forge skill OR Python script) produce ident
 ## What ships in this extension
 
 - **8 skills** (`skills/<name>/SKILL.md`): brainstorming, writing-plans, design, forge (Phase 1–4) plus rehydrate, tracker, monitor (runtime) and teardown (the lifecycle close — archive, prune, retire). Each phase skill has an explicit **self-review checklist** before user approval.
-- **4 templates** (`templates/`): design.yaml schema reference, agent.md (with role-specific placeholder blocks), team-launcher.md, dashboard.html — all logic-free `{{VAR}}` substitution
+- **9 templates** (`templates/`): design.yaml schema reference, agent.md, team-launcher.md, dashboard.html + gen_dashboard.py, the two workflow launchers (sequential-gated + parallel-drain), workflow/profile.md, and skill-gap.md (the DRAFT scaffold with its promotion checklist) — all logic-free `{{VAR}}` substitution
 - **Optional Python renderer** (`tools/forge.py`) — deterministic alternative to the agent-procedural path
 - **Slim session-start hook** + plugin manifests + tests/ documentation
+
+## Skills are the product
+
+The highest-value forge output is not the agents — it's the **gap-fill skills** that outlive
+the team ([WORKFLOW-SCOPING.md](./WORKFLOW-SCOPING.md)). The pipeline:
+
+1. **Discover** (Phase 3) — skills + agents across project / user-global / plugins / reference
+   libraries, domain-filtered; bucketed into reuse / adapt / collision / pattern-reference.
+2. **Identify gaps** — a needed capability nothing covers; most often a **gate with no backing
+   harness** (`kind: verification` — gate discovery *is* skill-gap discovery). Recorded as
+   `skill_gaps:` entries in design.yaml, each held to a quality bar: **one capability** (not a
+   task note), **trigger-first description** ("Use when …"), **runnable acceptance check**,
+   purpose anchored in the project's domain + verification posture, discovery-first (prior art
+   cited when adapting).
+3. **Forge drafts** (Phase 4) — one DRAFT scaffold per gap at
+   `.claude/team-forge/<team>/skill-drafts/<name>/SKILL.md`.
+4. **Promote** (human) — review against the scaffold's promotion checklist, run the acceptance
+   check green, move to `.claude/skills/<name>/`. Until promoted, gates that call the skill
+   fail-closed.
+
+Worked example: `tests/fixtures/workflow-tidy/` declares `tidy-parity-check` backing its
+`parity` gate — the forge emits its draft alongside the 10 base files.
 
 ## Reference libraries (prior art, not installed)
 
@@ -218,6 +254,11 @@ team-forge forges one of two archetypes, chosen by a Phase-1 work-shape triage:
 - [x] `workflow` archetype — both shapes (sequential-gated + parallel-drain + recurring)
   implemented in `forge.py` + templates + the Phase-1–4 skill branches; validated end-to-end
   on `tests/fixtures/workflow-{tidy,drain}/`
+- [x] Skills-as-product emission — `skill_gaps` contract block + DRAFT scaffolds with a
+  promotion checklist; proposed loadouts in `skills:` frontmatter (preloaded at subagent dispatch)
+- [x] Re-aligned to the 2026-06 agent-teams platform update — implicit per-session teams,
+  `Task*`-tool task-list access, `model: inherit` default, enforced `tools`/`model` frontmatter
+  ([docs/agent-teams-primitive-notes.md](./docs/agent-teams-primitive-notes.md))
 - [ ] Run the forge skill via Claude (vs the Python renderer) on a real project
 - [ ] Larger forge test (real domain like HERC)
 - [ ] Idempotent regeneration on subsequent forge runs

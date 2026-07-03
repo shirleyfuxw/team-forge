@@ -18,6 +18,10 @@ Three reusable layers that **compose** (a style dispatches profiles that load sk
 | **Subagents** | dispatch *profiles* that carry skills — worker/advisor/reviewer/skeptic, as **shared defaults** (not standing rosters). | `.claude/agents/` |
 | **Workflow styles** | orchestration patterns — lead-loop + gate ledger + the shapes below. | `<team>-workflow/SKILL.md` + `TASKS.yaml` |
 
+> **Terminology:** "styles" here means **orchestration patterns** (a team-forge concept). It is
+> unrelated to Claude Code **output styles** (`~/.claude/output-styles/`, which shift the
+> session's tone/format) — the two systems just share a word.
+
 The product *is* the output layout. **Forging = compose:** pick a style → staff with profiles → equip with skills (discover/reuse + **produce the gaps** via `skill-creator`). Phase 3's existing `skill_gaps` block already does this — promote it to the forge's *primary* deliverable (combiner-infra created `combiner-parity-check` up front precisely because no skill did pre/post-refactor parity).
 
 ## The archetype

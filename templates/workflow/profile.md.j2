@@ -3,6 +3,7 @@ name: {{agent_name}}
 description: |
   {{purpose}}
 model: {{model}}
+{{SKILLS_FRONTMATTER_BLOCK}}
 ---
 
 # {{agent_name}} — {{profile_role}} profile (workflow `{{team}}`)
@@ -24,8 +25,10 @@ default; the **skills** are this project's overlay — the real reusable value.
 {{SKILLS_LIST_BLOCK}}
 
 Your skills carry the project-specific capability (e.g. the gate harness the `gate_set`
-calls). Per Claude Code's primitive you inherit all project + user skills at runtime;
-the list above is the loadout the forge proposed for this profile.
+calls). You are dispatched as a **subagent**, so the `skills:` in your frontmatter are
+**preloaded** — their full content is injected into your context at dispatch (no discovery
+step needed). Unlisted project + user skills stay reachable via the Skill tool, and your
+`tools` and `model` frontmatter are honored.
 
 ## Context on dispatch
 

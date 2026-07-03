@@ -1,3 +1,13 @@
+> ⚠️ **ERRATA (2026-07-02).** This frozen v8.3 doc predates a Claude Code agent-teams update.
+> Its runtime specifics are **superseded** by `docs/agent-teams-primitive-notes.md` (see the
+> re-verification banner there). Notably: the native task/team dirs are now **session-derived**
+> (`session-<8chars>`), not team-slug-keyed — see lines ~139 and ~245-247; the version pin at
+> line 17 is stale (agent teams are experimental, gated only by `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`);
+> and the native hook events (line ~337) still fire, but their `team_name` payload is now
+> session-derived and deprecated. The frozen body below is kept intact as the historical record.
+> The two load-bearing bets — rehydrate-on-`/resume` and the single-writer file-state model —
+> **remain valid**.
+
 # team-forge — scoping (v8.3, frozen + docs/team-forge KB root)
 
 Drafted 2026-05-31 by Shirley + Claude (Opus 4.7).

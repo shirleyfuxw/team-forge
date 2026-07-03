@@ -29,7 +29,7 @@ _NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ
 # ───────── Per-role text banks (mirrors forge SKILL.md) ─────────
 
 ROLE_DESCRIPTIONS = {
-    'work': "You produce primary milestone output. Receive task assignments from the lead via the shared task list at `~/.claude/tasks/{team}/`. Hand work off to verify-role teammates before propagation. Use the mailbox (`SendMessage`) to coordinate with peers.",
+    'work': "You produce primary milestone output. Receive task assignments from the lead via the shared task list — use the `TaskList` / `TaskGet` tools; the list is native to your session's team (do not hard-code a `~/.claude/tasks/...` path). Hand work off to verify-role teammates before propagation. Use `SendMessage` to coordinate with peers.",
     'verify': "You check outputs before they propagate. Read work-role outputs, validate against the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage`, and report status updates to the team's tracker.",
     'advise': "You unblock work agents on hard problems. You are called on-demand via `Agent()` dispatch. Read shared project memory + the team's KB + the rejected-hypotheses corpus (if domain has one). Return structured advice; do not modify durable files.",
     'tracker': "You aggregate project state per the team's `tracking.state_shape` spec from design.yaml. **You are the single-writer for `.claude/team-forge/{team}/tracker/status.json`.** Read verdicts from verify-role teammates and plan outputs from the lead. Append events from `tracking.events_to_log`. Tracker is load-bearing for `/resume` — your status.json is the durable state source. Spawned FIRST on rehydrate.",
@@ -123,6 +123,49 @@ def write_hub_gitignore(hub_dir, team):
         "tracker/status.json\n"
     )
 
+def skills_frontmatter_block(skills):
+    """YAML `skills:` frontmatter list. Preloaded (full content) when the agent runs as a
+    dispatched subagent; ignored-but-documented when it runs as an agent-teams teammate."""
+    if not skills:
+        return ""
+    return "skills:\n" + "\n".join(f"  - {s}" for s in skills)
+
+def render_skill_gap_scaffold(gap, team):
+    """Render templates/skill-gap.md.j2 for one skill_gaps entry — a DRAFT scaffold."""
+    tmpl = (TEMPLATES_DIR / "skill-gap.md.j2").read_text()
+    return substitute_simple(tmpl, {
+        'skill_name': gap['name'],
+        'team': team,
+        'kind': gap.get('kind', 'domain-procedure'),
+        'backing': gap.get('backing', 'unspecified'),
+        'purpose': gap['purpose'].rstrip(),
+        'trigger': str(gap['trigger']).strip(),
+        'spec': (str(gap.get('spec', '')).rstrip() or '<to be written during review>'),
+        'acceptance': str(gap['acceptance']).strip(),
+        'consumers': ", ".join(gap.get('consumers', [])) or 'lead',
+        'adapted_from': gap.get('adapted_from', 'none — blank-page'),
+    })
+
+def emit_skill_gap_scaffolds(design, hub_dir, target_repo, generated):
+    """Emit one DRAFT scaffold per skill_gaps entry into the hub's skill-drafts/.
+    Drafts are NOT emitted into .claude/skills/ — promotion is a human review step."""
+    gaps = design.get('skill_gaps') or []
+    if not gaps:
+        return
+    collisions = set((design.get('asset_discovery') or {}).get('collision_list') or [])
+    team = design['project']['name']
+    for gap in gaps:
+        for req in ('name', 'purpose', 'trigger', 'acceptance'):
+            assert gap.get(req), f"skill_gaps entry missing required field '{req}'"
+        assert gap['name'] not in collisions, \
+            f"skill_gap '{gap['name']}' collides with an existing asset (asset_discovery.collision_list)"
+        d = hub_dir / "skill-drafts" / gap['name']
+        d.mkdir(parents=True, exist_ok=True)
+        out = d / "SKILL.md"
+        out.write_text(render_skill_gap_scaffold(gap, team))
+        generated.append({"path": str(out.relative_to(target_repo)), "kind": "skill_gap_scaffold", "status": "draft"})
+        print(f"✓ skill-gap scaffold {gap['name']} (DRAFT — review, then promote to .claude/skills/)")
+
 def render_agent_md(entry, team, project_basename):
     """Render templates/agent.md.j2 for one roster entry."""
     name = entry['name']
@@ -140,15 +183,20 @@ def render_agent_md(entry, team, project_basename):
     ) if shared else ""
 
     tmpl = (TEMPLATES_DIR / "agent.md.j2").read_text()
+    purpose = entry['purpose'].rstrip()
     return substitute_simple(tmpl, {
         'agent_name': agent_name,
-        'purpose': entry['purpose'].rstrip(),
-        'model': entry.get('model', 'sonnet'),
+        'purpose': purpose,
+        # Continuation lines must stay indented inside the `description: |` block,
+        # or a multi-line purpose breaks the YAML frontmatter (model/skills unparseable).
+        'purpose_frontmatter': purpose.replace('\n', '\n  '),
+        'model': entry.get('model', 'inherit'),
         'role': role,
         'team': team,
         'project_basename': project_basename,
         'ROLE_DESCRIPTION_BLOCK': role_block,
         'SKILLS_LIST_BLOCK': skills_block,
+        'SKILLS_FRONTMATTER_BLOCK': skills_frontmatter_block(skills),
         'MEMORY_AUTHORITY_BLOCK': memory_block,
         'SHARED_AGENT_NOTE_BLOCK': shared_block,
     }), agent_name + ".md"
@@ -223,12 +271,13 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
     return substitute_simple(tmpl, {
         'agent_name': agent_name,
         'purpose': purpose,
-        'model': entry.get('model', 'sonnet'),
+        'model': entry.get('model', 'inherit'),
         'profile_role': profile_role,
         'team': team,
         'project_basename': project_basename,
         'procedure': str(entry.get('procedure', '')).rstrip(),
         'SKILLS_LIST_BLOCK': skills_block,
+        'SKILLS_FRONTMATTER_BLOCK': skills_frontmatter_block(skills),
         'DISPATCH_NOTE': dispatch_note,
         'MEMORY_NOTE': memory_note,
     }), agent_name + ".md"
@@ -382,6 +431,9 @@ def forge_workflow(design):
             generated.append({"path": str((agents_dir / fname).relative_to(target_repo)), "kind": "workflow_profile"})
             print(f"✓ profile {fname}: {md.count(chr(10)) + 1} lines")
 
+    # Skill-gap scaffolds — the primary deliverable (skills outlive the team; W5).
+    emit_skill_gap_scaffolds(design, hub_dir, target_repo, generated)
+
     launcher = render_workflow_drain_launcher(design) if design['shape'] == 'parallel-drain' else render_workflow_launcher(design)
     (skill_dir / "SKILL.md").write_text(launcher)
     generated.append({"path": str((skill_dir / 'SKILL.md').relative_to(target_repo)), "kind": "workflow_launcher_skill"})
@@ -437,6 +489,10 @@ def forge_workflow(design):
     print(f"Team: {team} ({design['shape']}) · {len(generated)} files")
     print(f"Launcher: /{team}-workflow")
     print(f"Dashboard: open {hub_dir / 'playground' / 'dashboard.html'}")
+    if design.get('skill_gaps'):
+        print(f"⚠ {len(design['skill_gaps'])} skill-gap DRAFT(s) in {hub_dir / 'skill-drafts'} — "
+              "review against each scaffold's promotion checklist, then promote to .claude/skills/. "
+              "Gates that call an unpromoted skill fail-closed.")
 
 
 # ───────── Main forge procedure ─────────
@@ -493,6 +549,9 @@ for entry in design['roster']:
     out.write_text(md)
     generated.append({"path": str(out.relative_to(target_repo)), "kind": "agent_md", "from_roster_entry": entry['name']})
     print(f"✓ agent {fname}: {md.count(chr(10)) + 1} lines")
+
+# Step 3b — skill-gap scaffolds (the primary deliverable; drafts pending human promotion)
+emit_skill_gap_scaffolds(design, hub_dir, target_repo, generated)
 
 # Step 4 — team-launcher
 launcher = render_team_launcher(design)
@@ -553,3 +612,6 @@ print(f"Team: {team}")
 print(f"Files generated: {len(generated)}")
 print(f"Dashboard: open {hub_dir / 'playground' / 'dashboard.html'}")
 print(f"Launcher: /<team>-team (after install)")
+if design.get('skill_gaps'):
+    print(f"⚠ {len(design['skill_gaps'])} skill-gap DRAFT(s) in {hub_dir / 'skill-drafts'} — "
+          "review against each scaffold's promotion checklist, then promote to .claude/skills/.")

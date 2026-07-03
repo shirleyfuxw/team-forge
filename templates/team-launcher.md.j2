@@ -15,8 +15,9 @@ team session or rehydrates an existing one.
 ## Prerequisites
 
 Before proceeding:
-- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set
-- Claude Code v2.1.32+
+- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set (agent teams are experimental and off by
+  default — without this flag no team is set up and no teammates can be spawned)
+- A Claude Code version with experimental agent-teams support
 - team-forge extension is installed
 - This project is the correct target_repo: `{{target_repo}}`
 - The target_repo is on a branch that allows writes to `.claude/` (NOT a hook-protected main branch — if it is, tell the user to create a worktree/branch first)
@@ -78,7 +79,7 @@ Use as needed:
 
 For domain work, reference the team's discovered skills (see design.yaml's `skill_discovery_results`).
 
-Manage `~/.claude/tasks/{{team}}/`. Dispatch via mailbox. Arbitrate verdicts.
+Manage the shared task list via the `Task*` tools (`TaskCreate`/`TaskList`/`TaskUpdate`) — it's native to your session's team, not a hand-managed path. Dispatch via `SendMessage`. Arbitrate verdicts.
 Make milestone decisions with the user (do not auto-advance).
 
 ## Memory authority
