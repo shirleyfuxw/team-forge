@@ -45,11 +45,12 @@ For each task (in `depends_on` order), **do the work inline by default**:
    copy. For a non-trivial task, write it to `artifacts/<task-slug>/<subject>-design-<YYYY-MM-DD>.md`
    (descriptive slug + descriptive, dated filename — never `artifacts/t5/design-3.md`; see Naming
    discipline below).
-2. **implement** — inline, in one followable diff. **Dispatch a subagent ONLY when** the task
-   is (a) part of a parallel fan-out, (b) large + self-contained (keep it out of your
-   context), or (c) needs an independent perspective. Then dispatch the **worker** profile
-   (`{{team}}-worker`, own worktree); escalate hard 2+-module questions to **advisor**
-   (`{{team}}-advisor`, on-demand call). Otherwise stay inline.
+2. **implement** — inline, in one followable diff. Reach for heavier machinery ONLY when the task
+   needs it (see "Workflow vs inline" in Step 3): (b) large + self-contained or (c) needs an
+   independent/cold perspective → **one `Agent` dispatch** of the **worker** profile
+   (`{{team}}-worker`, own worktree; escalate hard 2+-module questions to **advisor**
+   `{{team}}-advisor`) — a single `Agent`, NOT a Workflow. (a) genuine N-way parallel fan-out →
+   the **Workflow tool** (Step 3), never a hand-rolled loop of single dispatches. Otherwise stay inline.
    **Provider-outage fallback:** if a dispatch fails because the agent's model tier is globally
    unavailable, retry one tier down (e.g. fable → opus) rather than failing the task — a transient
    provider outage should not stall the loop.
@@ -66,14 +67,26 @@ For each task (in `depends_on` order), **do the work inline by default**:
 
 ## Step 3 — fan-out (bounded bursts, via the Workflow tool)
 
-When a step needs real parallelism or independent verification, call the **Workflow tool**
-for a bounded burst that instantiates the worker/verifier profile N-way — then collapse
-back to this loop:
+**Workflow vs inline — pick the lightest mechanism that fits:**
+
+| Situation | Mechanism |
+|---|---|
+| One task, one diff — the normal case | **Inline.** You do design→implement→gate yourself; no subagent, no Workflow. |
+| ONE piece that's large + self-contained, or needs an independent/cold perspective | **One `Agent` dispatch** (a worker or advisor). Still not a Workflow. |
+| Real N-way parallelism, or a fan-out→synthesize→adversarial-verify over multiple items | **Workflow tool** (a bounded burst). Appears in `/workflows`. |
+
+Invoking this launcher **is** your authorization to call the Workflow tool at the burst points below
+— you don't need to re-ask the user. But trigger it **only** when there's real parallelism to exploit:
+a single item or a trivial task stays inline (a pipeline of one is pure overhead). When you do burst,
+call the **Workflow tool** for a bounded run that instantiates the worker/verifier profile N-way, then
+collapse back to this loop:
 - **parallel build** — N independent tasks/items at once (e.g. a per-module migration).
 - **verification fan-out** — M facet-maps + K adversarial verdicts → synthesize a
   certification doc under `artifacts/<task-slug>/`.
 
-agent-teams is **not** used. Fan-out is the Workflow tool; the steady state is this lead loop.
+Do NOT hand-roll a sequential loop of single dispatches in place of a genuine burst — you lose the
+concurrency and the run won't show in `/workflows`. agent-teams is **not** used: fan-out is the
+Workflow tool; the steady state is this lead loop.
 
 **Adversarial critique is REQUIRED, not optional, on medium/high `blast_radius` tasks.** The
 fan-out → synthesize → **adversarial-critique** → revise loop is what catches load-bearing errors
