@@ -1,28 +1,57 @@
 ---
 name: team-forge:monitor
 description: |
-  Use when you are a monitor-role teammate. You read the tracker's status.json +
-  the narrative KB, and rewrite the user-facing dashboard.html per the team's
-  tracking.dashboard_panels spec. Single-writer for the dashboard files.
+  Use when you are a monitor-role teammate. You keep the user-facing dashboard.html
+  always-current by PULLING authoritative state (git, the task/gate records) and
+  reconciling it against the lead's ledger — you verify, you don't just mirror
+  status.json. Single-writer for the dashboard files.
 ---
 
-# team-forge:monitor — monitor-role pattern
+# team-forge:monitor — monitor-role pattern (authoritative-pull verifier)
 
-> **Optional role.** The default forged team has NO monitor teammate — the forge emits
-> `playground/gen_dashboard.py` instead, and the lead re-runs it after each status.json
-> update (deterministic render, same shell + payload contract). This skill applies only
-> when the design.yaml roster explicitly includes a monitor.
+> **Optional role, both archetypes.** The default forged team has NO monitor teammate — the
+> forge emits `playground/gen_dashboard.py` and the lead re-runs it after each ledger update
+> (deterministic render, same shell + payload contract). This skill applies when the design
+> explicitly asks for a monitor teammate (`ledger.dashboard_owner: monitor_agent`, or a
+> `monitor` in a team roster). A monitor is worth its tokens only when it does something the
+> render step can't: **actively pull authoritative state so the dashboard never depends on the
+> lead remembering to hand-update a rollup field**, plus narrative synthesis and drift alerts.
 
-This skill is for monitor-role teammates. The monitor reads structured state
-from tracker + narrative artifacts from the KB, and rewrites the dashboard HTML.
+## The one rule that makes a monitor worth having
 
-The dashboard shell (`templates/dashboard.html.j2`) is **self-contained**: it
-carries the full design-system CSS and a client-side renderer, and exposes a
-**single** slot, `{{DASHBOARD_DATA_JSON}}`. Your whole job each render is to build
-one **payload** from state and inject it into that slot. You do **not** hand-build
-panel HTML — the shell's renderer draws every panel from the payload. (The workflow
-archetype's `gen_dashboard.py` produces the identical payload from the identical
-shell; the only difference is that here an agent writes it.)
+**Verify, don't mirror.** The lead maintains per-item records well (each `tasks[].status` /
+`commit` / `gate_status`, each event) but routinely lets the *rollup / summary* fields go stale
+— `integration_branch.head_sha` frozen at the first commit, `current_milestone` left `null`,
+`budget` at 0. If you just echo those fields into the dashboard you reproduce the staleness.
+Instead, **derive every rollup from an authoritative source** and reconcile it against what the
+lead wrote. The ledger is an input to verify, not the source of truth for rollups.
+
+### Authoritative sources (pull these every render)
+
+| Dashboard value | Do NOT trust | Pull from (authoritative) |
+|---|---|---|
+| `integration_branch.head_sha` | `status.json` copy | `git rev-parse --short <branch>` (name from `status.json.integration_branch.name`) |
+| `integration_branch.pr_url` | (low-churn) | `gh pr view <branch> --json url -q .url` if `gh` is available; else the ledger value |
+| `current_task` | stale pointer | first `tasks[]` entry whose `status ∉ {done, completed}` |
+| `current_milestone` | stale/`null` pointer | the milestone owning `current_task` (map via `design.yaml` milestones→tasks), or the earliest milestone with an unfinished task |
+| task progress / counts | — | derive from `tasks[]` (the lead keeps these current) |
+| `budget` / token spend | stale copy | the ledger value **plus** a drift note if it looks unmoved while tasks completed |
+
+`git`/`gh` calls are best-effort: run them from the repo tree, guard failures, and fall back to
+the ledger value (never crash a render). This is the exact derivation `gen_dashboard.py` now does
+for `head_sha`/`current_task` — you are its agent-shaped superset that also handles PR/milestone
+and emits drift.
+
+### Reconcile + flag drift
+
+After deriving, compare each derived value against the lead's `status.json` value. On a
+mismatch:
+1. Render the **derived** (authoritative) value — it's what's true.
+2. Add a `drift` entry to the payload (`{field, ledger_value, derived_value}`) so the dashboard
+   shows a "ledger behind reality" banner.
+3. `SendMessage` the lead a one-line drift notice (e.g. *"integration_branch.head_sha in the
+   ledger is 4b15397e — branch HEAD is a6482752; refresh your rollups"*). The lead is
+   single-writer for `status.json`; you surface, they fix.
 
 ## Your authority
 
@@ -30,14 +59,16 @@ You are the **single-writer** for:
 - `.claude/team-forge/<team>/playground/dashboard.html`
 - `.claude/team-forge/<team>/playground/dashboard-data.json`
 
-You may NOT write to tracker (read-only) or KB narrative artifacts (read-only).
+You may NOT write `tracker/status.json` (read-only) or KB narrative artifacts (read-only). You
+correct the ledger only indirectly, by messaging the lead.
 
 ## What you read
 
-- `.claude/team-forge/<team>/tracker/status.json` (every render, never cache)
-- `.claude/team-forge/<team>/design.yaml` (for `tracking.dashboard_panels`, `roster`, `milestones`, `project`)
-- `docs/team-forge/<team>/brainstorms/<current>.md` (path from status.json)
-- `docs/team-forge/<team>/team-plans/<current>.md`
+- `.claude/team-forge/<team>/tracker/status.json` (every render, never cache) — per-item records + events
+- `.claude/team-forge/<team>/design.yaml` — `archetype`, panels, `milestones`↔`tasks`, `project`, `roster`
+- `.claude/team-forge/<team>/TASKS.yaml` (workflow) — the live task/gate list
+- **git** in the target repo — `rev-parse` the integration branch for the true HEAD
+- `docs/team-forge/<team>/{brainstorms,team-plans}/<current>.md` (paths from status.json)
 - The dashboard shell at `<team-forge-extension>/templates/dashboard.html.j2`
 
 ## What you write
@@ -47,93 +78,63 @@ You may NOT write to tracker (read-only) or KB narrative artifacts (read-only).
 
 ## When to render
 
-You are triggered by:
-- The tracker sending `TRACKER_UPDATED` via mailbox
-- The lead requesting a refresh
-- Initial spawn (render once at startup)
-
-Do NOT poll. Wait for explicit triggers.
+Triggered by: the lead (or tracker) sending an update signal, a ledger change, or initial spawn.
+Do NOT poll on a fixed timer. **Do render on every task-completion / commit / milestone-crossing
+signal** — those are exactly the moments a rollup goes stale.
 
 ## Procedure (per render)
 
-### Step 1 — Read fresh state
+### Step 1 — Read fresh state + pull authoritative sources
 
-1. Read `tracker/status.json`
-2. Read `design.yaml`: extract `project`, `tracking.dashboard_panels`, `roster`, `milestones`
-3. Resolve `current_brainstorm` + `current_team_plan` paths from status.json
+1. Read `tracker/status.json` and `design.yaml` (+ `TASKS.yaml` for a workflow).
+2. Pull the authoritative sources in the table above (git HEAD, `gh` PR, derive current_task/milestone).
+3. Reconcile derived vs. ledger; collect any `drift` entries.
 
-### Step 2 — Build the unified payload
+### Step 2 — Build the unified payload (archetype-aware)
 
-Compose this nested object (it becomes `dashboard-data.json` verbatim). This is the
-**exact same shape** that `tools/forge.py::build_team_payload` produces at forge time —
-that function is the canonical reference; keep this in sync with it.
+Build the **same payload shape** the forge's `tools/forge.py` builds — that is the canonical
+contract; the shell's client-side renderer draws every panel from it. Use the ARCHETYPE from
+design.yaml:
 
-```json
-{
-  "meta": {
-    "team": "<design.project.name>",
-    "project_display_name": "<design.project.display_name>",
-    "project_basename": "<design.project.target_repo_basename>",
-    "domain": "<design.project.domain>",
-    "archetype": "team",
-    "overall_status": "<computed: initial|running|completed>",
-    "current_milestone": "<status.json or null>",
-    "current_cohort_id": "<status.json or null>",
-    "token_spend_cumulative_k": <status.json or 0>,
-    "last_update_iso": "<now, ISO-8601 Z>"
-  },
-  "panels": [<design.tracking.dashboard_panels, in order>],
-  "milestones": [{ "id", "name", "output", "status" }],
-  "roster": [{ "name", "role", "status" }],
-  "pointers": { "brainstorm": "<current_brainstorm or null>", "team_plan": "<current_team_plan or null>" },
-  "events": [<last 30 of status.json.events, oldest→newest>]
-}
-```
+- **workflow** — mirror `build_payload_workflow` / `gen_dashboard.py`: `meta` (with the *derived*
+  `current_task`), `panels`, `tasks`, `gate_results`, `integration_branch` (with the *derived*
+  `head_sha`/`pr_url`), `tickets`, `queue`, `events[-30:]`, plus your `drift` list.
+- **team** — mirror `build_team_payload`: `meta` (derived `current_milestone`), `panels`,
+  `milestones` (status computed from `milestone_completed` events), `roster`, `pointers`,
+  `events[-30:]`, plus `drift`.
 
-Derived values (these mirror `tools/forge.py::build_team_payload` exactly):
-- A milestone is **done** when a `milestone_completed` event names it. Those events SHOULD
-  carry a `milestone_id` field (the tracker writes it); if absent, fall back to position —
-  with sequential milestones, everything before `current_milestone` is done.
-- `milestones[].status`: `completed` if the milestone is done (per above); `running` if
-  `current_milestone == this.id`; else `pending`.
-- `meta.overall_status`: `initial` if no events; `completed` if the final milestone is done
-  (or, lacking `milestone_id`, you are on the final milestone and there are ≥ N
-  `milestone_completed` events for N milestones); otherwise `running`.
-- `roster[].status`: `idle` (no per-teammate signal yet; future: derive from heartbeats).
-- Each event keeps `{ ts, actor, kind, summary }` (milestone events additionally carry
-  `milestone_id`). The renderer renders events newest-first and handles empty lists itself —
-  pass the list as-is.
-
-Panel ids you don't have data for are fine — list them in `panels` anyway; the renderer
-shows a labeled empty-state for any panel it can't fill.
+Panel ids you have no data for stay listed — the renderer shows a labeled empty state.
 
 ### Step 3 — Inject into the shell
 
 1. Read `templates/dashboard.html.j2`.
-2. Serialize the payload to JSON. **Escape `<` as `<`** so a `</script>` inside any
-   string field can't close the inline script tag early:
+2. Serialize the payload and **escape `<` as `<`** so a `</script>` inside any string can't
+   close the inline script early:
    `data = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c")`
-3. Replace the single `{{DASHBOARD_DATA_JSON}}` slot with that JSON. No other
-   substitution — every visible value comes from the payload.
+3. Replace the single `{{DASHBOARD_DATA_JSON}}` slot with that JSON. No other substitution.
+
+> Shortcut: if you have no narrative/drift to add beyond the structured panels, you MAY just run
+> `python3 .../playground/gen_dashboard.py` — it now derives `head_sha`/`current_task` itself.
+> Build the payload by hand only when you're adding drift banners or narrative a script can't.
 
 ### Step 4 — Write atomically
 
-1. Write the rendered HTML to a temp file `<dashboard.html>.tmp`
-2. `mv` it over the real `dashboard.html`
-3. Write the payload JSON to `dashboard-data.json` (overwrite is fine)
+1. Write rendered HTML to `<dashboard.html>.tmp`, then `mv` it over `dashboard.html`.
+2. Write the payload to `dashboard-data.json`.
 
-### Step 5 — Acknowledge
+### Step 5 — Acknowledge + surface drift
 
-Send `MONITOR_RENDERED` to whoever triggered you (tracker or lead).
+Send the trigger source a render ack. If you found drift, `SendMessage` the lead the one-line
+notice(s) so they refresh `status.json`.
 
 ## Performance notes
 
-- Skip rendering if the payload's hash matches the last render's. Cache that hash in your
-  agent context (or diff against `dashboard-data.json`).
-- Implement a 30-second debounce for rapid-fire triggers unless flagged `priority: high`.
+- Skip the render if the payload hash matches the last one (diff against `dashboard-data.json`).
+- Debounce rapid-fire triggers ~30s unless flagged `priority: high`.
 
 ## Failure modes
 
-- **status.json missing/unreadable** → tell the lead via mailbox; do NOT render an old dashboard (stale = misleading)
-- **Shell render fails** → write the payload to `dashboard-data.json` for debugging; write a minimal error-page HTML to dashboard.html
-- **Disk full** → fail loudly to the lead
+- **status.json missing/unreadable** → tell the lead; do NOT render a stale dashboard.
+- **git/gh unavailable** → fall back to the ledger value for that field, and note it (can't verify), never crash.
+- **Shell render fails** → dump the payload to `dashboard-data.json`; write a minimal error page to dashboard.html.
+- **Persistent drift the lead ignores** → keep rendering the derived truth + banner; the dashboard must show reality even if the ledger lags.

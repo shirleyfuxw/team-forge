@@ -47,7 +47,11 @@ the exact failure this section prevents — continue instead.
 
 If any fails, **stop and tell the user**.
 
-## Step 1 — load the ledger (this IS resume; no rehydrate)
+## Observability (dashboard ownership)
+
+{{OBSERVABILITY_BLOCK}}
+
+## Step 1 — load the ledger (this IS resume)
 
 Read `.claude/team-forge/{{team}}/TASKS.yaml` and `.claude/team-forge/{{team}}/tracker/status.json`.
 
@@ -56,9 +60,10 @@ Read `.claude/team-forge/{{team}}/TASKS.yaml` and `.claude/team-forge/{{team}}/t
   `status.json.current_plan`, set `current_task` to the first task with satisfied
   `depends_on`, then enter the loop.
 - **Resume**: find the first task whose `status != done`; resume there (re-run its
-  `gate_set` if it was mid-flight). No teammates to respawn — the two files are the whole state.
+  `gate_set` if it was mid-flight). The two files are the whole state — **respawn only the
+  monitor teammate if one is configured** (see Observability), nothing else.
 
-Re-render the dashboard: `python3 .claude/team-forge/{{team}}/playground/gen_dashboard.py`.
+Refresh the dashboard (see **Observability**).
 
 ## Step 2 — the task/gate loop
 
@@ -83,9 +88,15 @@ For each task (in `depends_on` order), **do the work inline by default**:
    descriptive name (`parity-check.py`) — tracked, not an ad-hoc playground script.
 4. **commit** on `{{integration_branch}}`. The commit log is the story — write the message
    in the task's human-readable NAME, never its ID (`T5`). The reader has no ID decoder.
-5. **update the ledger** — set the task `status: done` + `gate_status` + `commit` in
-   `status.json` (keep it a THIN index), append a `task_completed` event, re-run
-   `gen_dashboard.py`.
+5. **update the ledger — per-task AND rollup fields** — set the task `status: done` +
+   `gate_status` + `commit`, append a `task_completed` event, AND refresh the summary/rollup
+   fields the dashboard panels read (these are separate from the per-task record and are the ones
+   most often left stale): `current_task` ← next eligible task; `current_milestone` when you cross
+   a milestone boundary; `integration_branch.pr_url` when a PR opens; `budget` /
+   `token_spend_cumulative_k`. (`integration_branch.head_sha` you do NOT hand-maintain — the
+   renderer derives it live from git.) Keep `status.json` a THIN index. Then **refresh the
+   dashboard** (see **Observability**) and glance at the panels — a summary panel that didn't
+   move means an un-updated rollup field, not a render bug.
 6. **loop** to the next task whose `depends_on` are all `done`.
 
 ## Step 3 — fan-out (bounded bursts, via the Workflow tool)

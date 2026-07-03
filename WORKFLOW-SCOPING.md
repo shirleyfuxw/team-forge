@@ -64,7 +64,10 @@ queue:  {eligibility, triage, wave_size, routes}                                
 gates:  {<name>: <command/criterion>}        # vocabulary DISCOVERED from the codebase (test/CI/invariants), not shipped; gaps → produced skills
 worker: {model: sonnet, isolation: worktree, procedure: design→TDD→gate, skills, escalation: advisor}  # shared default
 fan_out:[{when, shape, n, synthesize_to}]    # optional Workflow bursts
-ledger: {state_shape: [current_plan, plan_history, ...], events: [...,replanned], dashboard_panels}  # lead-written, thin. current_plan/plan_history are RUNTIME fields (forge seeds null/[]), not contract literals (W7)
+ledger: {state_shape: [current_plan, plan_history, ...], events: [...,replanned], dashboard_panels,
+         dashboard_owner: render_step|monitor_agent,   # default render_step (lead runs gen_dashboard.py). monitor_agent -> forge emits a
+         monitor: {name: monitor, model: inherit}}      #   standing monitor teammate that PULLS git/task state + flags drift (see skills/monitor). optional.
+# lead-written, thin. current_plan/plan_history are RUNTIME fields (forge seeds null/[]), not contract literals (W7)
 ```
 
 ## Output layout (committed)
