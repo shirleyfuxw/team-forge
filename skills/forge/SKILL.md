@@ -79,7 +79,7 @@ python3 <team-forge-extension>/tools/forge.py <target_repo>/.claude/team-forge/<
 ```
 
 `forge.py` performs, in order:
-1. **Validation** — schema parse, role coverage (work/verify/advise/tracker/monitor + exactly one orchestrator), comms closure (every `tracking.state_shape[].source` resolves to a roster entry or `"lead"`), 1–5 milestones each with `output` + `go_no_go`. Aborts with a clear message on failure.
+1. **Validation** — schema parse, role coverage (work/verify/advise + exactly one orchestrator; tracker/monitor are OPTIONAL — absent means lead-written ledger + render-step dashboard), comms closure (every `tracking.state_shape[].source` resolves to a roster entry or `"lead"`), 1–5 milestones each with `output` + `go_no_go`. Aborts with a clear message on failure.
 2. **Path computation** — agents_dir, team_skill_dir, hub_dir, kb_dir, evals_dir. Prefix rule: non-shared → `<team>-<name>.md`; `shared_across_teams: true` → `<name>.md`.
 3. **Agent `.md` emission** — one per roster entry, role-specific description + memory-authority + suggested-skills blocks substituted from the role text banks defined in `forge.py`. Skills also land in the agent's `skills:` frontmatter — preloaded when the agent runs as a dispatched subagent; documentation-of-intent when it runs as a teammate.
 3b. **Skill-gap scaffolds** — one DRAFT `SKILL.md` per `skill_gaps:` entry, emitted to
@@ -102,7 +102,7 @@ the emission logic and the per-role text banks.
 `forge.py` **auto-detects** `archetype: workflow` at the top of design.yaml and takes the
 workflow emission path — you run the exact same command (Step 1), no flag. What differs:
 
-- **Validation** — instead of 5-role coverage, it checks: a valid `shape`
+- **Validation** — instead of the team role-coverage rule, it checks: a valid `shape`
   (`sequential-gated` | `parallel-drain`), a `gates` vocabulary, a `worker` profile, a
   `ledger.state_shape`, and either (sequential-gated) an **acyclic task DAG** with every
   task's `gate_set ⊆ gates` and `dispatch ∈ {inline, worker}`, or (parallel-drain) a `queue` block.

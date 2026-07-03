@@ -8,6 +8,11 @@ description: |
 
 # team-forge:monitor — monitor-role pattern
 
+> **Optional role.** The default forged team has NO monitor teammate — the forge emits
+> `playground/gen_dashboard.py` instead, and the lead re-runs it after each status.json
+> update (deterministic render, same shell + payload contract). This skill applies only
+> when the design.yaml roster explicitly includes a monitor.
+
 This skill is for monitor-role teammates. The monitor reads structured state
 from tracker + narrative artifacts from the KB, and rewrites the dashboard HTML.
 

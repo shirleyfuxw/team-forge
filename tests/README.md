@@ -18,7 +18,11 @@ logic-free `{{VAR}}` + named placeholder template format, so either is valid.
 ## What it validated
 
 ✓ Schema is parseable as plain YAML
-✓ Role-coverage validation (work + verify + advise + tracker + monitor + orchestrator)
+✓ Role-coverage validation (work + verify + advise + orchestrator required; tracker/monitor
+  OPTIONAL — a roster without them gets a lead-written ledger + an emitted `gen_dashboard.py`
+  render step, mirroring the workflow archetype. The greeter fixture includes both, exercising
+  the standing-agent path; the render-step path is exercised by forging a variant with the
+  tracker/monitor entries removed)
 ✓ Comms-closure validation (state_shape.source resolves to roster entries or "lead")
 ✓ Per-role text bank substitution (5 distinct roles produced correct role descriptions, memory authority blocks)
 ✓ Skill loadout substitution (some teammates with skills, some empty)

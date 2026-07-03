@@ -167,9 +167,11 @@ design pass independently. They DO NOT see each other's output until Step 4.
 
 #### Lens 1: roster-correctness
 
-> "Read the brainstorm + team-plan. Propose a roster with at least one teammate per role
-> (work / verify / advise / tracker / monitor). For each teammate: name, role, purpose
-> (one paragraph), skills (from this catalog: <skill catalog>). Special focus: are
+> "Read the brainstorm + team-plan. Propose a roster with at least one teammate per required
+> role (work / verify / advise). Add tracker/monitor teammates ONLY if the tracking load
+> justifies standing agents (high event volume, long-running cohorts) — the default is a
+> lead-written ledger + a deterministic dashboard render step. For each teammate: name, role,
+> purpose (one paragraph), skills (from this catalog: <skill catalog>). Special focus: are
 > there gaps where a role can't be filled because no skill exists for it? Flag
 > aggressively."
 
@@ -178,7 +180,7 @@ Returns: roster proposal + gaps list. **Before inventing any teammate, check the
 #### Lens 2: comms + coverage
 
 > "Read the brainstorm + team-plan + this draft roster. Validate:
-> - Role coverage (all 5 roles covered)
+> - Role coverage (work/verify/advise + orchestrator; tracker/monitor only if justified)
 > - Comms closure (every reference resolvable)
 > - Hard dependencies (do milestones actually have prerequisites the roster can fulfill?)
 > Propose a tracking.state_shape (fields + their source agents) and tracking.events_to_log.
@@ -225,7 +227,7 @@ Render the template at `<team-forge-extension>/templates/design.yaml.j2` with:
 - `roster` from synthesis above
 - `rehydrate` block:
   - `durable_state` derived from the universal team-forge layout (see SCOPING.md)
-  - `respawn_order`: [tracker first; advise + shared verifiers next; work last; monitor last]
+  - `respawn_order`: [tracker first IF present; advise + shared verifiers next; work next; monitor last IF present]
 - `tracking` block from synthesis
 - `constraints` from synthesis
 - `skill_discovery_results` from Step 1 + Step 4 synthesis

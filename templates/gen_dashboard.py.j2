@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Dashboard renderer for the {{team}} workflow.
+"""Dashboard renderer for `{{team}}` ({{archetype}} archetype).
 Reads ../tracker/status.json, builds the unified dashboard payload, and injects it into
-the shared team-forge shell (baked in below as SHELL). Deterministic render step that
-replaces the team archetype's monitor agent — the SAME warm-ivory interactive shell, just
-written by a script instead of an agent. Re-run after each status.json update:
+the shared team-forge shell (baked in below as SHELL). Deterministic render step — the
+SAME warm-ivory interactive shell a monitor agent would write, produced by a script
+instead of a standing agent. Re-run after each status.json update:
     python3 gen_dashboard.py
 """
 import json, datetime
@@ -17,7 +17,10 @@ TEAM = "{{team}}"
 TITLE = "{{project_display_name}}"
 BASENAME = "{{project_basename}}"
 DOMAIN = "{{domain}}"
+ARCHETYPE = "{{archetype}}"
 PANEL_IDS = {{DASHBOARD_PANELS_JSON}}
+MILESTONES = {{MILESTONES_JSON}}    # design-time facts baked in (team archetype; [] for workflow)
+ROSTER = {{ROSTER_JSON}}
 # The shared shell (CSS + client-side renderer) baked in as a constant, so this script is
 # self-contained and never depends on the team-forge extension being present at runtime.
 SHELL = {{DASHBOARD_SHELL_JSON}}
@@ -30,8 +33,12 @@ def load():
     return json.loads(STATUS.read_text()) if STATUS.exists() else {}
 
 
-def build_payload(d):
-    """The unified dashboard payload — same shape the agent-team monitor produces."""
+def _now_iso():
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def build_payload_workflow(d):
+    """The unified dashboard payload — workflow archetype."""
     events = d.get("events") or []
     tasks = d.get("tasks") or []
     if not events:
@@ -47,7 +54,7 @@ def build_payload(d):
             "team": TEAM, "project_display_name": TITLE, "project_basename": BASENAME,
             "domain": DOMAIN, "archetype": "workflow", "overall_status": overall,
             "current_task": d.get("current_task"), "token_spend_cumulative_k": spend,
-            "last_update_iso": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "last_update_iso": _now_iso(),
         },
         "panels": PANEL_IDS,
         "tasks": tasks,
@@ -57,6 +64,55 @@ def build_payload(d):
         "queue": {k: d.get("queue_" + k, 0) for k in QUEUE_KEYS},
         "events": events[-30:],
     }
+
+
+def build_payload_team(d):
+    """The unified dashboard payload — agent-team archetype (rosters with no monitor
+    teammate use this render step instead; same payload shape the monitor produces)."""
+    events = d.get("events") or []
+    ids = [m["id"] for m in MILESTONES]
+    cur = d.get("current_milestone")
+    cur_idx = ids.index(cur) if cur in ids else None
+    done_ids = {e.get("milestone_id") or e.get("milestone")
+                for e in events if e.get("kind") == "milestone_completed"}
+    done_ids.discard(None)
+    n_completed = sum(1 for e in events if e.get("kind") == "milestone_completed")
+    final_id = ids[-1] if ids else None
+    if not events:
+        overall = "initial"
+    elif final_id in done_ids or (cur_idx == len(ids) - 1 and n_completed >= len(ids) and ids):
+        overall = "completed"
+    else:
+        overall = "running"
+
+    def ms_status(mid, idx):
+        if mid in done_ids:
+            return "completed"
+        if cur_idx is None:
+            return "pending"
+        if idx < cur_idx:
+            return "completed"
+        return "running" if idx == cur_idx else "pending"
+
+    return {
+        "meta": {
+            "team": TEAM, "project_display_name": TITLE, "project_basename": BASENAME,
+            "domain": DOMAIN, "archetype": "team", "overall_status": overall,
+            "current_milestone": cur, "current_cohort_id": d.get("current_cohort_id"),
+            "token_spend_cumulative_k": d.get("token_spend_cumulative_k", 0),
+            "last_update_iso": _now_iso(),
+        },
+        "panels": PANEL_IDS,
+        "milestones": [{"id": m["id"], "name": m["name"], "output": m.get("output", ""),
+                        "status": ms_status(m["id"], i)} for i, m in enumerate(MILESTONES)],
+        "roster": ROSTER,
+        "pointers": {"brainstorm": d.get("current_brainstorm"),
+                     "team_plan": d.get("current_team_plan")},
+        "events": events[-30:],
+    }
+
+
+build_payload = build_payload_team if ARCHETYPE == "team" else build_payload_workflow
 
 
 def render():

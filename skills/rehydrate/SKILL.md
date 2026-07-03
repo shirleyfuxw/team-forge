@@ -71,9 +71,10 @@ For each entry in `rehydrate.respawn_order`:
    - A summary of where work was when the prior session ended (1–3 sentences from `events`)
    - For work-role teammates with an active task on the shared task list (`TaskList`): their assigned task id
 
-**Tracker is FIRST** (per respawn_order convention). It reads its own status.json on
-spawn and reports back any inconsistencies. If tracker reports an issue, **stop and
-tell the user** before spawning the rest.
+**If the roster has a tracker teammate, it is FIRST** (per respawn_order convention). It
+reads its own status.json on spawn and reports back any inconsistencies; if it reports an
+issue, **stop and tell the user** before spawning the rest. **Rosters without a tracker**
+(the default): you already read status.json in Step 2 — you own it; no tracker to spawn.
 
 ### Step 5 — Verify task list state
 
@@ -91,7 +92,8 @@ If task list is gone or corrupt, ask the user whether to:
 
 ### Step 6 — Log the rehydrate event
 
-Tell the tracker (via mailbox) to append a `rehydrate` event:
+Append a `rehydrate` event to status.json — via the tracker (mailbox) if the roster has
+one, otherwise write it yourself as the ledger owner:
 
 ```json
 {
@@ -102,9 +104,12 @@ Tell the tracker (via mailbox) to append a `rehydrate` event:
 }
 ```
 
-### Step 7 — Trigger monitor
+### Step 7 — Refresh the dashboard
 
-Tell the monitor (via mailbox) to refresh the dashboard. It will pick up the new
+If the roster has a monitor teammate: tell it (via mailbox) to refresh the dashboard.
+Otherwise run the render step yourself:
+`python3 .claude/team-forge/<team>/playground/gen_dashboard.py`.
+Either path will pick up the new
 event and update `playground/dashboard.html`.
 
 ### Step 8 — Report status to user

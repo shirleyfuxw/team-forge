@@ -12,7 +12,7 @@ Forges a project-specific agent setup — gap-fill **skill drafts**, roster or w
 
 - **Skills are the product** — Phase 3 records capabilities no existing asset covers (`skill_gaps`); Phase 4 emits a DRAFT scaffold per gap for human review + promotion to `.claude/skills/`. These outlive the team (see [Skills are the product](#skills-are-the-product)).
 - **Two archetypes**, chosen by a Phase-1 work-shape triage (see [Two archetypes](#two-archetypes)):
-  - `team` — persistent teammates via Claude Code's `agent-teams` primitive (experimental), 5-role coverage (**work / verify / advise / tracker / monitor**), survives `/resume` via an explicit rehydrate protocol (tracker is load-bearing)
+  - `team` — persistent teammates via Claude Code's `agent-teams` primitive (experimental), role coverage **work / verify / advise** (+ the lead); survives `/resume` via an explicit rehydrate protocol. **tracker / monitor are optional** — by default the lead writes `status.json` and a forged `gen_dashboard.py` render step owns the dashboard (same machinery as the workflow archetype); add them as standing teammates only when tracking load justifies it
   - `workflow` — a lead-driven task/gate loop with no standing roster; worker profiles dispatched only at fan-out points
 - Runtime dashboard at `.claude/team-forge/<team>/playground/dashboard.html`
 
@@ -93,7 +93,8 @@ Now use team-forge:design to produce the design.yaml.
 
 Claude dispatches 3 forge-design-agents in parallel (roster-correctness lens, comms+coverage lens, domain-fit lens), reconciles their outputs, and runs **asset discovery** — skills + agents across project, user-global, installed plugins, and any configured reference libraries (e.g. ECC), domain-filtered to this project — proposing reuse/adapt candidates. Produces `design.yaml` covering:
 
-- 6-agent roster (orchestrator + work + verify + advise + tracker + monitor)
+- 6-agent roster (orchestrator + work + verify + advise + tracker + monitor — tracker/monitor
+  are optional; omit them and the lead owns `status.json` + the `gen_dashboard.py` render)
 - `tracking.state_shape` (repos_processed, rate_limit_remaining, errors_count, etc.)
 - `tracking.dashboard_panels` (milestone_timeline + roster + rate_limit_gauge + error_log)
 - `skill_gaps` — capabilities no discovered asset covers (e.g. a smoke-test harness the repo
