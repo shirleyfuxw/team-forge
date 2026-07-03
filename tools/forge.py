@@ -12,7 +12,10 @@ except ImportError:
     print("ERROR: pyyaml not installed. Run: pip3 install pyyaml")
     sys.exit(1)
 
-EXT_DIR = Path("/Users/shirleyfu/8888/team-forge")
+# Extension root derived from this file's location (tools/forge.py → repo root), so the
+# forge reads the templates sitting next to it — works from any clone/worktree/checkout
+# and removes the previously hardcoded absolute path.
+EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # design.yaml path: first CLI arg, else the test fixture
 _DEFAULT_DESIGN = "/tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml"
@@ -49,6 +52,62 @@ def substitute_simple(text, vars):
     for k, v in vars.items():
         text = text.replace('{{' + k + '}}', str(v))
     return text
+
+def json_for_script(obj):
+    """JSON for embedding inside an inline <script>. Escaping `<` prevents a `</script>`
+    in any string field from closing the tag early (the only HTML-context hazard)."""
+    return json.dumps(obj, ensure_ascii=False).replace('<', '\\u003c')
+
+def build_team_payload(design, status):
+    """The unified dashboard payload for the agent-team archetype, built from design.yaml
+    + a status dict (the initial status at forge time; the live status at monitor time).
+    The shell's client-side renderer consumes exactly this shape — see monitor SKILL.md."""
+    project = design['project']
+    events = status.get('events') or []
+    milestones = design.get('milestones', [])
+    ids = [m['id'] for m in milestones]
+    current_milestone = status.get('current_milestone')
+    cur_idx = ids.index(current_milestone) if current_milestone in ids else None
+    # A milestone is "done" when a milestone_completed event names it (preferred:
+    # `milestone_id`; tolerate a bare `milestone`). Lacking that field, fall back to
+    # position: with sequential milestones, everything before the active one is done.
+    done_ids = {e.get('milestone_id') or e.get('milestone')
+                for e in events if e.get('kind') == 'milestone_completed'}
+    done_ids.discard(None)
+    n_completed = sum(1 for e in events if e.get('kind') == 'milestone_completed')
+    final_id = ids[-1] if ids else None
+    if not events:
+        overall = 'initial'
+    elif final_id in done_ids or (cur_idx == len(ids) - 1 and n_completed >= len(ids) and ids):
+        overall = 'completed'
+    else:
+        overall = 'running'
+    def ms_status(mid, idx):
+        if mid in done_ids:
+            return 'completed'
+        if cur_idx is None:
+            return 'pending'
+        if idx < cur_idx:
+            return 'completed'
+        return 'running' if idx == cur_idx else 'pending'
+    return {
+        'meta': {
+            'team': project['name'], 'project_display_name': project['display_name'],
+            'project_basename': project.get('target_repo_basename') or Path(project['target_repo']).name,
+            'domain': project['domain'], 'archetype': 'team', 'overall_status': overall,
+            'current_milestone': current_milestone,
+            'current_cohort_id': status.get('current_cohort_id'),
+            'token_spend_cumulative_k': status.get('token_spend_cumulative_k', 0),
+            'last_update_iso': _NOW,
+        },
+        'panels': design['tracking']['dashboard_panels'],
+        'milestones': [{'id': m['id'], 'name': m['name'], 'output': m.get('output', ''),
+                        'status': ms_status(m['id'], i)} for i, m in enumerate(milestones)],
+        'roster': [{'name': e['name'], 'role': e['role'], 'status': 'idle'} for e in design['roster']],
+        'pointers': {'brainstorm': status.get('current_brainstorm'),
+                     'team_plan': status.get('current_team_plan')},
+        'events': (events or [])[-30:],
+    }
 
 def write_hub_gitignore(hub_dir, team):
     """Emit .claude/team-forge/<team>/.gitignore so runtime state is uniformly ephemeral.
@@ -176,53 +235,20 @@ def initial_status_json(design):
         'forge_metadata': {
             'forged_at_iso': _NOW,
             'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-            'forge_version': '0.3.0',
+            'forge_version': '0.4.0',
         }
     })
     return state
 
-def render_dashboard(design):
-    tmpl = (TEMPLATES_DIR / "dashboard.html.j2").read_text()
-    project = design['project']
-    team = project['name']
-    panels = design['tracking']['dashboard_panels']
-    milestones = design['milestones']
-    roster = design['roster']
-
-    # Build PANELS_HTML
-    panels_html = []
-    for p in panels:
-        if p == 'milestone_timeline':
-            rows = []
-            for m in milestones:
-                rows.append(f'<div class="milestone-row"><div class="milestone-label">{m["id"]}</div><div class="milestone-body"><div class="ms-name">{m["name"]} <span class="pill pending">pending</span></div><div class="ms-desc">{m["output"]}</div></div></div>')
-            panels_html.append('<div class="panel"><div class="panel-title">Milestone timeline</div><div class="panel-intro">Project milestones with status pills.</div><div class="timeline">' + "".join(rows) + '</div></div>')
-        elif p == 'team_roster_and_status':
-            rows = []
-            for t in roster:
-                rows.append(f'<tr><td class="agent-name">{t["name"]}</td><td><span class="role-tag {t["role"]}">{t["role"]}</span></td><td><span class="pill idle">idle</span></td></tr>')
-            panels_html.append(f'<div class="panel"><div class="panel-title">Team roster</div><div class="panel-intro">{len(roster)} teammates.</div><table class="roster-table">' + "".join(rows) + '</table></div>')
-        elif p == 'current_pointers':
-            panels_html.append('<div class="panel"><div class="panel-title">Current pointers</div><div style="font-size: 13px; line-height: 1.7;"><div><span style="color:var(--gray-500)">Brainstorm:</span> <code>—</code></div><div><span style="color:var(--gray-500)">Team plan:</span> <code>—</code></div></div></div>')
-        else:
-            title = p.replace('_', ' ').title()
-            panels_html.append(f'<div class="panel"><div class="panel-title">{title}</div><div class="empty-state">Awaiting data. Monitor populates this from tracker events.</div></div>')
-
-    events_html = '<div class="empty-state">No events yet. The team is just starting.</div>'
-
-    return substitute_simple(tmpl, {
-        'team': team,
-        'project_display_name': project['display_name'],
-        'project_basename': project['target_repo_basename'],
-        'domain': project['domain'],
-        'current_milestone': '—',
-        'current_cohort_id': '—',
-        'token_spend_cumulative_k': '0',
-        'overall_status': 'initial',
-        'last_update_iso': _NOW,
-        'PANELS_HTML': "\n      ".join(panels_html),
-        'EVENTS_HTML': events_html,
-    })
+def render_dashboard(design, status=None):
+    """Render the self-contained interactive dashboard for the agent-team archetype by
+    injecting the unified payload into the shared shell. The shell carries all CSS + the
+    client-side renderer; the only substitution is the embedded data. At forge time `status`
+    is the initial status.json; the monitor agent reuses the same shell + payload contract
+    at runtime (see skills/monitor/SKILL.md)."""
+    shell = (TEMPLATES_DIR / "dashboard.html.j2").read_text()
+    payload = build_team_payload(design, status or {})
+    return substitute_simple(shell, {'DASHBOARD_DATA_JSON': json_for_script(payload)}), payload
 
 # ───────── Workflow archetype (the second fork) ─────────
 
@@ -301,12 +327,20 @@ def render_workflow_drain_launcher(design):
 
 
 def render_gen_dashboard(design):
+    """Emit the workflow archetype's runtime renderer. It bakes the SAME shared shell as the
+    team archetype (read here, embedded as a constant so the emitted script is self-contained
+    and never depends on the extension being present at runtime). At runtime gen_dashboard.py
+    builds the unified payload from status.json and injects it into that shell."""
     tmpl = (TEMPLATES_DIR / "gen_dashboard.py.j2").read_text()
     project = design['project']
+    shell = (TEMPLATES_DIR / "dashboard.html.j2").read_text()
     return substitute_simple(tmpl, {
         'team': project['name'],
         'project_display_name': project['display_name'],
+        'project_basename': project.get('target_repo_basename') or Path(project['target_repo']).name,
+        'domain': project['domain'],
         'DASHBOARD_PANELS_JSON': json.dumps(design['ledger']['dashboard_panels']),
+        'DASHBOARD_SHELL_JSON': json.dumps(shell),  # valid Python str literal too
     })
 
 
@@ -323,7 +357,7 @@ def initial_status_json_workflow(design):
     state['forge_metadata'] = {
         'forged_at_iso': _NOW,
         'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-        'forge_version': '0.3.0', 'archetype': 'workflow', 'shape': design.get('shape'),
+        'forge_version': '0.4.0', 'archetype': 'workflow', 'shape': design.get('shape'),
     }
     return state
 
@@ -444,7 +478,7 @@ def forge_workflow(design):
     print("✓ KB README.md")
 
     manifest = {
-        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.3.0",
+        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.4.0",
         "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
         "forged_at_iso": _NOW, "generated_files": generated,
     }
@@ -533,13 +567,13 @@ out.write_text(json.dumps(status, indent=2))
 generated.append({"path": str(out.relative_to(target_repo)), "kind": "tracker_initial_state"})
 print(f"✓ tracker/status.json: {len(status)} top-level keys")
 
-# Step 6 — initial dashboard
-dash = render_dashboard(design)
+# Step 6 — initial dashboard (self-contained interactive shell + embedded payload)
+dash, dash_payload = render_dashboard(design, status)
 out = hub_dir / "playground" / "dashboard.html"
 out.write_text(dash)
 generated.append({"path": str(out.relative_to(target_repo)), "kind": "initial_dashboard"})
-(hub_dir / "playground" / "dashboard-data.json").write_text("{}\n")
-print(f"✓ dashboard.html: {dash.count(chr(10)) + 1} lines")
+(hub_dir / "playground" / "dashboard-data.json").write_text(json.dumps(dash_payload, indent=2) + "\n")
+print(f"✓ dashboard.html: {dash.count(chr(10)) + 1} lines (self-contained, interactive)")
 
 # Step 8 — KB README
 kb_readme = f"""# {project['display_name']} — `{team}` agent team KB
@@ -564,7 +598,7 @@ print(f"✓ KB README.md")
 # Step 9 — manifest.json
 manifest = {
     "team": team,
-    "forge_version": "0.3.0",
+    "forge_version": "0.4.0",
     "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
     "forged_at_iso": _NOW,
     "generated_files": generated,

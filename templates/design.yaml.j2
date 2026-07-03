@@ -116,11 +116,16 @@ tracking:
     - team_plan_revised
     - rehydrate
     - <domain-specific>
-  dashboard_panels:                         # monitor renders these in dashboard.html
+  dashboard_panels:                         # the dashboard shell renders these, in order
     - milestone_timeline
     - team_roster_and_status
     - current_pointers                      # current brainstorm + team-plan
     - recent_events
+    # The self-contained shell ships ONE renderer shared by both archetypes. Its panel
+    # registry covers: milestone_timeline, team_roster_and_status, current_pointers,
+    # recent_events (team) + task_timeline, gate_matrix, integration_branch_status,
+    # queue_state, ticket_table (workflow). Any other id renders a labeled empty-state —
+    # safe to list a <domain-specific> panel before a renderer exists for it.
     - <domain-specific>
 
 # ----------------------------------------------------------------------------
