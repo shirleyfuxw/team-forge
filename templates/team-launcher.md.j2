@@ -46,7 +46,10 @@ Read `.claude/team-forge/{{team}}/tracker/status.json`.
 
 1. Read `.claude/team-forge/{{team}}/design.yaml`
 2. Read initial brainstorm at `docs/team-forge/{{team}}/brainstorms/<the-one-file>.md`
-3. Read initial team-plan at `docs/team-forge/{{team}}/team-plans/team-plan-v1.md`
+3. Read initial team-plan at `docs/team-forge/{{team}}/team-plans/<the-one-file>.md` — on a
+   fresh bootstrap Phase 2 wrote exactly one dated plan (`<slug>-plan-<YYYY-MM-DD>.md`); its
+   path is also recorded in `design.yaml` and becomes the tracker's `current_team_plan`. Do
+   NOT assume a fixed `team-plan-v1.md` name.
 4. Spawn all roster teammates per `design.yaml.rehydrate.respawn_order`. Each spawn prompt includes:
    - Role: one of work/verify/advise/tracker/monitor
    - Team name: `{{team}}`
@@ -91,9 +94,13 @@ You are the single-writer for `docs/team-forge/{{team}}/{brainstorms,team-plans,
 
 Milestone IDs (`m1`, `phase-b`) are **internal-ledger-only** (status.json + design.yaml). Outward
 surfaces use the milestone's human-readable NAME: commit messages, PR titles, code comments, and KB
-doc filenames/headers. Narrative artifacts get content-descriptive names — `<subject>-<artifact-kind>.md`
-(`verification-walkthrough.md`, `migration-plan.md`), never `design-3.md`; artifact directories are
-descriptive slugs, never `artifacts/m1/`. If an ID must appear on a durable surface, carry a glossary.
+doc filenames/headers. Narrative artifacts get content-descriptive names that carry a **date marker** —
+`<subject>-<artifact-kind>-<YYYY-MM-DD>.md` (`verification-walkthrough-2026-07-02.md`,
+`migration-plan-2026-07-02.md`), never a generic/undated `design-3.md`; a team accumulates several such
+docs over its life, so the date keeps them distinguishable and orderable. Artifact directories are
+descriptive slugs, never `artifacts/m1/`. **Fixed-name machine contracts are exempt** (`design.yaml`,
+`status.json`, `manifest.json`, `dashboard.html`, KB `README.md`) — they are read by fixed name and there
+is exactly one. If an ID must appear on a durable surface, carry a glossary.
 
 ## Domain-specific constraints
 

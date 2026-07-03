@@ -83,7 +83,7 @@ Claude refines milestones interactively:
 
 Each milestone gets: hard_dependencies, interface_to_next, expected_team_size, next_phase_check, iteration shape.
 
-Writes `team-plans/team-plan-v1.md`. **Self-review** (9 criteria including cyclic-dependency check) before asking approval.
+Writes a dated, content-descriptive plan (`team-plans/<slug>-plan-<YYYY-MM-DD>.md`, e.g. `combiner-v3-rewrite-plan-2026-07-02.md`). **Self-review** (9 criteria including cyclic-dependency check) before asking approval.
 
 ### Step 3 — Design (Phase 3)
 

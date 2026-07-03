@@ -5,7 +5,7 @@ description: |
   a brief), OR when the lead needs to revise the team-plan because the project
   pivoted. Agent-team-aware planning with active interrogation about hard
   dependencies, interfaces between milestones, and per-milestone expected team
-  size. Writes a team-plan-v<n>.md to the KB.
+  size. Writes a dated, content-descriptive plan (`<slug>-plan-<YYYY-MM-DD>.md`) to the KB.
 ---
 
 # team-forge:writing-plans — Phase 2 (or runtime plan revision)
@@ -19,18 +19,35 @@ sizes — NOT a detailed task list (the shared task list handles that at runtime
 - **Phase 2 of a fresh team-forge run** — right after brainstorming
 - **Runtime, mid-project** — when the scope shifts significantly enough that the
   current team-plan no longer maps to reality
+- **Post-completion / follow-on** — the project's milestones are all done, but a new
+  round of improvement, hardening, or extension work is warranted. This is a *new* dated
+  plan whose slug names the new focus (e.g. `-improvements-`, `-hardening-`), NOT a
+  revision of the finished one.
 
 ## Inputs
 
 - The brainstorm document (the latest `brainstorms/brainstorm-<session-id>.md`)
 - The user (interactive)
-- If runtime: the current `team-plans/team-plan-v<latest>.md` to revise from
+- If runtime: the current team-plan (the tracker's `current_team_plan` pointer) to revise from
 
 ## What you produce
 
-A markdown file at `docs/team-forge/<team>/team-plans/team-plan-v<n>.md`
-where `<n>` increments from the last team-plan (e.g., `team-plan-v1.md` on first
-write, `team-plan-v2.md` on the next revision).
+A markdown file at `docs/team-forge/<team>/team-plans/<slug>-plan-<YYYY-MM-DD>.md`,
+where `<slug>` is a short content-descriptive slug (the project/team slug for the first
+plan; the *focus* for a later plan — e.g. `hardening`, `phase2`, `perf-improvements`) and
+`<YYYY-MM-DD>` is today's date. Examples:
+
+- First plan:            `combiner-v3-rewrite-plan-2026-07-02.md`
+- Post-completion round: `combiner-v3-rewrite-improvements-2026-08-15.md`
+
+**Naming rules:**
+- **Meaningful + dated, never generic.** Never write `team-plan-v1.md`. The name must
+  describe the plan's subject/focus AND carry the date it was cut.
+- **Same-day revision collision:** if that exact filename already exists, append `-v2`,
+  `-v3`, … (`…-2026-07-02-v2.md`). A revision on a later day just uses the new date.
+- **"Current" is tracked, not encoded in the name.** The tracker's `current_team_plan` +
+  `team_plan_history` are the source of truth for which plan is live and the revision
+  order — the filename needs no global version counter.
 
 ## Procedure
 
@@ -57,7 +74,7 @@ list as implementation reveals the true shape (W7) — it is a hypothesis, not a
 (eligibility query, triage/routing predicate, wave size, routes) and, if recurring, the
 schedule + cycle box + `unattended` flag.
 
-Write the task list (or queue spec) into `team-plans/team-plan-v<n>.md` — it becomes the
+Write the task list (or queue spec) into `team-plans/<slug>-plan-<YYYY-MM-DD>.md` (see the naming rules above) — it becomes the
 proto-`TASKS.yaml`. Then go to **Step 6** (tracker update) and **Step 7** (confirm). Skip
 Steps 1–5.
 
@@ -111,10 +128,10 @@ don't need that — the agent-teams shared task list IS the per-iteration planni
 
 ### Step 5 — Write the team-plan document
 
-Create `docs/team-forge/<team>/team-plans/team-plan-v<n>.md`:
+Create `docs/team-forge/<team>/team-plans/<slug>-plan-<YYYY-MM-DD>.md` (naming rules above):
 
 ```markdown
-# <Project name> — Team Plan v<n>
+# <Project name> — Team Plan (<YYYY-MM-DD>)
 
 Written <ISO-timestamp> by the lead (`<orchestrator-name>`). Derived from
 `brainstorms/brainstorm-<session-id>.md`.
@@ -167,7 +184,8 @@ Phase 3 will need to decide these.)
 
 ## Revision notes
 
-(If this is v2+, list what changed since v<n-1> and why.)
+(If this plan revises or follows on from an earlier one, name the prior plan file and
+list what changed and why. The tracker's `team_plan_history` holds the full ordering.)
 ```
 
 ### Step 6 — Update the tracker
