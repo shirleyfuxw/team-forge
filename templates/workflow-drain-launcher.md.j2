@@ -46,6 +46,10 @@ Read `.claude/team-forge/{{team}}/TASKS.yaml` (the `queue` + `gates`) and `track
   `status.json.tickets[]`), before new triage.
 - Log `cycle_started`; refresh the dashboard (see **Observability**).
 
+> **Staleness check.** This launcher + `gen_dashboard.py` are baked from forge time. If the team-forge
+> templates moved since, run `tools/forge.py --check .claude/team-forge/{{team}}/design.yaml`; on drift,
+> `--resync` regenerates the template-derived files and preserves your ledger + artifacts.
+
 ## Step 2 — triage the queue
 
 1. Run the `queue.eligibility` query → the eligible item set.
