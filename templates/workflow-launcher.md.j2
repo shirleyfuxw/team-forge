@@ -42,8 +42,8 @@ Re-render the dashboard: `python3 .claude/team-forge/{{team}}/playground/gen_das
 For each task (in `depends_on` order), **do the work inline by default**:
 
 1. **design-before-code** — a short DRY/SOLID pass. Reject a design that re-introduces a
-   copy. For a non-trivial task, write it to `artifacts/<task-slug>/<subject>-design.md`
-   (descriptive slug + descriptive filename — never `artifacts/t5/design-3.md`; see Naming
+   copy. For a non-trivial task, write it to `artifacts/<task-slug>/<subject>-design-<YYYY-MM-DD>.md`
+   (descriptive slug + descriptive, dated filename — never `artifacts/t5/design-3.md`; see Naming
    discipline below).
 2. **implement** — inline, in one followable diff. **Dispatch a subagent ONLY when** the task
    is (a) part of a parallel fan-out, (b) large + self-contained (keep it out of your
@@ -85,7 +85,8 @@ without a critic pass is not "verified."
 ## Step 4 — re-plan (design is a living artifact — W7)
 
 When a gate result or an implementation discovery invalidates the plan:
-1. Write a new plan version `team-plans/team-plan-v<n>.md` with a one-line **why**.
+1. Write a new dated plan `team-plans/<slug>-plan-<YYYY-MM-DD>.md` with a one-line **why**
+   (same-day re-cut → append `-v2`; the slug names the plan's focus, never generic).
 2. Re-cut **only the not-yet-done** tasks + their gates in `TASKS.yaml`; preserve gated/committed work.
 3. Update `status.json`: `current_plan` ← new path, append the old to `plan_history`, log a `replanned` event.
 4. Review the re-cut (design-before-code, at the plan level) before resuming.
@@ -104,7 +105,10 @@ and nowhere else. Every outward surface uses the task's human-readable NAME:
 
 - **commit messages, PR titles** — name the work, not the ID.
 - **code comments** — never write `# honour T5 write-only-first`; describe the behaviour.
-- **artifact filenames** — `<subject>-<artifact-kind>.md` (`migration-plan.md`), never `design-3.md`.
+- **artifact filenames** — content-descriptive **+ dated**: `<subject>-<artifact-kind>-<YYYY-MM-DD>.md`
+  (`migration-plan-2026-07-02.md`), never a generic/undated `design-3.md`. Successive docs stay
+  distinguishable. **Fixed-name contracts are exempt** (`design.yaml`, `status.json`, `TASKS.yaml`,
+  `manifest.json`, `dashboard.html`) — resolved by fixed name.
 - **artifact directories** — descriptive slug (`artifacts/post-process-runner/`), never `artifacts/t5/`.
 
 If an ID must appear on a durable surface for cross-reference, include a one-line glossary so the

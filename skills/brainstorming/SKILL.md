@@ -30,10 +30,28 @@ where `<session-id>` is an ISO timestamp or a slug like `phase1-initial` or `piv
 
 ## Procedure
 
-### Step 0 — Triage the archetype (team vs workflow)
+### Step 0 — Survey the existing team KB, then triage the archetype
 
-Before anything else, decide which forge archetype fits — it changes what Phases 2–4 produce.
-Ask the **work-shape** question (the real distinguisher is *not* "is it parallel"):
+**0a — Survey the existing team KB (do this first).** Before eliciting anything, read what the
+team already has, so you build on prior work instead of duplicating or contradicting it:
+
+- List `docs/team-forge/<team>/` — `brainstorms/`, `team-plans/`, `artifacts/`, `runtime/` — and
+  read the tracker's `status.json` (`.claude/team-forge/<team>/tracker/status.json`) for
+  `current_brainstorm`, `current_team_plan`, and the `*_history` arrays.
+- Read the **current** brainstorm + team-plan (the tracker's pointers) and skim the most recent
+  narrative artifacts (design walkthroughs, verification walkthroughs, decision records).
+- Extract: decisions already made, work already done/verified, open questions already raised, and
+  the archetype already in play.
+- **Duplication + correctness check** — answer explicitly before writing anything new:
+  - Is this understanding/goal already captured by an existing brainstorm? Revise *that* lineage
+    (link it in `## Revisions`); don't start a parallel one.
+  - Does the new direction **contradict a prior decision**? A pivot must be explicit — surface the
+    conflict to the user and reconcile; never silently overwrite a prior stance.
+  - What can be reused as-is vs. what genuinely needs fresh thinking?
+- If the KB is empty (truly fresh project) → note "fresh project, no prior KB" and proceed.
+
+**0b — Triage the archetype (team vs workflow).** Decide which forge archetype fits — it changes
+what Phases 2–4 produce. Ask the **work-shape** question (the real distinguisher is *not* "is it parallel"):
 
 > "As the work proceeds, do the agents each hold distinct, evolving context they defend
 > across rounds (a research debate, competing approaches) — or is it a stream of tasks/items

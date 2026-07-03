@@ -14,6 +14,30 @@
 > owns the dashboard. Add standing tracker/monitor teammates only when tracking load justifies
 > them. Rationale: post-workflow-archetype review found the two roles were ~40% of a roster
 > re-doing what lead file-writes + a deterministic render produce for ~zero tokens.
+>
+> **KB doc filenames now dated + content-descriptive (2026-07-02):** the frozen body specifies a
+> generic `team-plan-v<n>.md` (KB layout ~line 231; naming-discipline carve-out ~line 279).
+> Superseded — the rule now applies to **every accumulating narrative doc** in a team's KB
+> (`docs/team-forge/<team>/…`): the filename must be a meaningful, content-descriptive slug that
+> carries a time marker, never a generic/undated name. A team accumulates *several* of these over
+> its life, so each must be self-distinguishing.
+> - **Team-plans:** `<slug>-plan-<YYYY-MM-DD>.md` (e.g. `combiner-v3-rewrite-plan-2026-07-02.md`),
+>   never `team-plan-v1`. Same-day revision → append `-v2`. A **post-completion improvement round
+>   is a *new* dated plan** whose slug names its focus (`…-improvements-2026-08-15.md`), not a
+>   version bump on the finished plan.
+> - **Brainstorms:** already dated (`brainstorm-<YYYY-MM-DD>.md`) — unchanged.
+> - **Design / exploration narratives & other artifacts** (design walkthroughs, verification
+>   walkthroughs, section conclusions, decision records): content-descriptive slug + a date (or,
+>   for per-iteration docs, the iter-id). Dating them keeps multiple docs distinguishable/orderable.
+> - **Exception — fixed-name machine contracts stay fixed:** exactly-one, machine-read files are
+>   NOT dated or renamed: `design.yaml`, `status.json`, `TASKS.yaml`, `manifest.json`,
+>   `dashboard.html`/`dashboard-data.json`, and the KB `README.md`. Consumers (forge.py, tracker,
+>   monitor, launchers) resolve these by fixed name; the tracker's current-pointers + history arrays
+>   carry ordering, so narrative filenames need no global version counter.
+>
+> This retires the "acceptable exception" carve-out for `team-plan-v1.md` and generalizes
+> naming-discipline rule #3. The team/workflow launchers no longer assume a fixed bootstrap plan
+> filename — they read the one plan file present (or the tracker/`design.yaml` pointer).
 
 # team-forge — scoping (v8.3, frozen + docs/team-forge KB root)
 

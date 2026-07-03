@@ -82,7 +82,9 @@ You own `status.json` (thin) + `runtime/` + `artifacts/`. Workers write only the
 
 Item/ticket IDs are **internal-ledger-only** (`status.json`, `TASKS.yaml`). PR titles, commit
 messages, and code comments describe the item in human terms, never by ID. Cycle report files are
-content-descriptive; if an ID is needed on a durable surface, carry a glossary.
+content-descriptive **+ dated** (`<subject>-<YYYY-MM-DD>.md`) so successive cycle reports stay
+distinguishable; fixed-name contracts (`status.json`, `TASKS.yaml`) are exempt. If an ID is needed on a
+durable surface, carry a glossary.
 
 ## Domain constraints
 
