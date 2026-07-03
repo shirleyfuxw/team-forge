@@ -74,6 +74,11 @@ Invoke `team-forge:rehydrate` skill. It will:
 4. Spawn all roster teammates with full context restored
 5. Resume coordination from where the prior session left off
 
+> **Staleness check.** This launcher, the agent files, and `gen_dashboard.py` are baked from forge
+> time. If the team-forge templates moved since, run `tools/forge.py --check
+> .claude/team-forge/{{team}}/design.yaml`; on drift, `--resync` regenerates the template-derived
+> files (agents, launcher, renderer) and preserves your tracker state + KB.
+
 ## Step 4 — coordinate ongoing work
 
 Use as needed:

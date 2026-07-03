@@ -65,6 +65,11 @@ Read `.claude/team-forge/{{team}}/TASKS.yaml` and `.claude/team-forge/{{team}}/t
 
 Refresh the dashboard (see **Observability**).
 
+> **Staleness check.** This launcher + `gen_dashboard.py` are baked copies from forge time. If the
+> team-forge templates have since moved, they lag. Run team-forge's `tools/forge.py --check
+> .claude/team-forge/{{team}}/design.yaml`; on drift, `--resync` regenerates the template-derived
+> files and preserves your `status.json` / `TASKS.yaml` / artifacts.
+
 ## Step 2 — the task/gate loop
 
 For each task (in `depends_on` order), **do the work inline by default**:

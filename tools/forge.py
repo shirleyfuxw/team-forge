@@ -17,12 +17,22 @@ except ImportError:
 # and removes the previously hardcoded absolute path.
 EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
-# design.yaml path: first CLI arg, else the test fixture
+# Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
+# skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
+FORGE_VERSION = "0.6.0"
+# design.yaml path: first positional CLI arg, else the test fixture.
+# Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
+# (report drift, read-only).
 _DEFAULT_DESIGN = "/tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml"
-DESIGN_PATH = Path(sys.argv[1] if len(sys.argv) > 1 else _DEFAULT_DESIGN)
+_ARGV = sys.argv[1:]
+_FLAGS = {a for a in _ARGV if a.startswith("--")}
+_POS = [a for a in _ARGV if not a.startswith("--")]
+RESYNC = "--resync" in _FLAGS
+CHECK = "--check" in _FLAGS
+DESIGN_PATH = Path(_POS[0] if _POS else _DEFAULT_DESIGN)
 if not DESIGN_PATH.exists():
     print(f"ERROR: design.yaml not found at {DESIGN_PATH}")
-    print("Usage: python3 forge.py <path-to-design.yaml>")
+    print("Usage: python3 forge.py <path-to-design.yaml> [--resync | --check]")
     sys.exit(1)
 _NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -259,7 +269,7 @@ def initial_status_json(design):
         'forge_metadata': {
             'forged_at_iso': _NOW,
             'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-            'forge_version': '0.5.1',
+            'forge_version': FORGE_VERSION,
         }
     })
     return state
@@ -421,7 +431,7 @@ def initial_status_json_workflow(design):
     state['forge_metadata'] = {
         'forged_at_iso': _NOW,
         'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-        'forge_version': '0.5.1', 'archetype': 'workflow', 'shape': design.get('shape'),
+        'forge_version': FORGE_VERSION, 'archetype': 'workflow', 'shape': design.get('shape'),
     }
     return state
 
@@ -565,7 +575,7 @@ def forge_workflow(design):
     print("✓ KB README.md")
 
     manifest = {
-        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.5.1",
+        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": FORGE_VERSION,
         "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
         "forged_at_iso": _NOW, "generated_files": generated,
     }
@@ -583,6 +593,76 @@ def forge_workflow(design):
               "Gates that call an unpromoted skill fail-closed.")
 
 
+# ───────── Re-sync: propagate template/skill updates into an already-forged team ─────────
+# Template-derived files are frozen copies (self-contained by design). --resync regenerates
+# ONLY these from the current templates + the team's own design.yaml, preserving all runtime
+# state (status.json, TASKS.yaml, artifacts, promoted skill-drafts). Everything not listed here
+# is runtime/human-owned and is left untouched.
+
+def _regen_content(design, team, basename, fmeta):
+    """Regenerated text for a template-derived manifest entry, or None to preserve the file."""
+    kind = fmeta.get('kind')
+    if kind == 'team_launcher_skill':
+        return render_team_launcher(design)
+    if kind == 'workflow_launcher_skill':
+        return (render_workflow_drain_launcher(design) if design.get('shape') == 'parallel-drain'
+                else render_workflow_launcher(design))
+    if kind == 'dashboard_renderer':
+        return render_gen_dashboard(design)
+    if kind == 'agent_md':
+        e = next((r for r in design.get('roster', []) if r['name'] == fmeta.get('from_roster_entry')), None)
+        return render_agent_md(e, team, basename)[0] if e else None
+    if kind == 'workflow_profile':
+        role = 'advisor' if fmeta.get('path', '').endswith('-advisor.md') else 'worker'
+        return render_workflow_profile(design[role], role, team, basename)[0] if role in design else None
+    if kind == 'monitor_agent':
+        mon = (design.get('ledger') or {}).get('monitor') or {}
+        e = {'name': mon.get('name', 'monitor'), 'role': 'monitor',
+             'model': mon.get('model', 'inherit'),
+             'skills': mon.get('skills', ['team-forge:monitor']),
+             'purpose': mon.get('purpose', f"Keep the {team} dashboard always-current by pulling authoritative state.")}
+        return render_agent_md(e, team, basename)[0]
+    return None   # tracker/ledger state, TASKS.yaml, design copy, skill-drafts, README, gitignore → preserve
+
+
+def resync(design, target_repo, team, basename, do_write):
+    """Regenerate template-derived files from the CURRENT templates, preserving runtime state.
+    do_write=False is --check (report drift only)."""
+    manifest_path = target_repo / f".claude/team-forge/{team}/manifest.json"
+    if not manifest_path.exists():
+        print(f"✗ no manifest at {manifest_path} — team not forged here. Run a full forge first.")
+        sys.exit(1)
+    manifest = json.loads(manifest_path.read_text())
+    old_ver = manifest.get('forge_version', '?')
+    changed, absent = [], []
+    for fmeta in manifest.get('generated_files', []):
+        content = _regen_content(design, team, basename, fmeta)
+        if content is None:
+            continue                                    # runtime/human-owned → preserve
+        p = target_repo / fmeta['path']
+        if not p.exists():
+            absent.append(fmeta['path']); continue      # deleted/promoted → don't recreate
+        if p.read_text() != content:
+            changed.append(fmeta['path'])
+            if do_write:
+                p.write_text(content)
+    print(f"Team {team}: forged at {old_ver}, current templates {FORGE_VERSION} — "
+          f"{'STALE' if old_ver != FORGE_VERSION else 'version matches'}")
+    if do_write:
+        manifest['forge_version'] = FORGE_VERSION
+        manifest['resynced_at_iso'] = _NOW
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+        print(f"✓ resync: regenerated {len(changed)} template-derived file(s); runtime state preserved.")
+    else:
+        print(f"{'⚠ ' if changed else '✓ '}{len(changed)} template-derived file(s) would change on --resync:")
+    for c in changed:
+        print(f"   ↻ {c}")
+    for a in absent:
+        print(f"   – {a} (absent — skipped; re-forge or promote manually if needed)")
+    if not changed and old_ver == FORGE_VERSION:
+        print("   (already current)")
+
+
 # ───────── Main forge procedure ─────────
 
 design = yaml.safe_load(DESIGN_PATH.read_text())
@@ -593,6 +673,11 @@ target_repo = Path(project['target_repo'])
 # from target_repo when absent so paths never depend on the config field being set (retro #1687, item 3).
 basename = project.get('target_repo_basename') or Path(project['target_repo']).name
 project['target_repo_basename'] = basename   # normalize so all downstream reads succeed
+
+# Re-sync / drift-check: regenerate template-derived files in place (preserve runtime), then exit.
+if RESYNC or CHECK:
+    resync(design, target_repo, team, basename, do_write=RESYNC)
+    sys.exit(0)
 
 # Fork on archetype: workflow takes the lead-loop path and exits; default is the team path.
 if design.get('archetype') == 'workflow':
@@ -696,7 +781,7 @@ print(f"✓ KB README.md")
 # Step 9 — manifest.json
 manifest = {
     "team": team,
-    "forge_version": "0.5.1",
+    "forge_version": FORGE_VERSION,
     "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
     "forged_at_iso": _NOW,
     "generated_files": generated,
