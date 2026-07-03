@@ -51,9 +51,30 @@ plan; the *focus* for a later plan — e.g. `hardening`, `phase2`, `perf-improve
 
 ## Procedure
 
+### Step 0 — Survey the existing team KB (both archetypes, do this first)
+
+Before refining anything, read what the team already has, so the plan builds on prior work
+instead of duplicating or contradicting it:
+
+- List `docs/team-forge/<team>/{team-plans,brainstorms,artifacts,runtime}/` and read the tracker's
+  `status.json` for `current_team_plan` + `team_plan_history` (and `current_brainstorm`).
+- Read the **current** team-plan (if any) and the **current** brainstorm; skim recent narrative
+  artifacts (design walkthroughs, verification walkthroughs, decision records) for work already
+  done or gated.
+- **Duplication + correctness check** — answer explicitly before writing anything new:
+  - Is a milestone/task you're about to add **already covered** by an existing plan or a done
+    artifact? Reference/build on it — don't re-plan completed work.
+  - Does the new plan **contradict a prior decision or a gated result**? Surface the conflict and
+    reconcile with the user; a re-plan preserves gated/committed work, it doesn't silently discard it.
+  - For a **post-completion / follow-on** plan: scope it to the *new* work only, citing what the
+    prior plan already delivered.
+- If there is no prior plan (fresh Phase 2) → note it and proceed from the brainstorm.
+
+Record what you're building on (or superseding) in the plan's `## Revision notes`.
+
 > **Archetype branch.** If Phase 1 set `archetype: workflow`, follow **"Workflow archetype —
 > the task list"** below *instead of* the milestone Steps 1–5 (then do Steps 6–7). The
-> milestone procedure is the `team` path.
+> milestone procedure is the `team` path. Step 0 above runs first either way.
 
 ### Workflow archetype — the task list (the proto-TASKS.yaml)
 
