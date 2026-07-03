@@ -255,7 +255,7 @@ def initial_status_json(design):
         'forge_metadata': {
             'forged_at_iso': _NOW,
             'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-            'forge_version': '0.4.0',
+            'forge_version': '0.5.0',
         }
     })
     return state
@@ -390,7 +390,7 @@ def initial_status_json_workflow(design):
     state['forge_metadata'] = {
         'forged_at_iso': _NOW,
         'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-        'forge_version': '0.4.0', 'archetype': 'workflow', 'shape': design.get('shape'),
+        'forge_version': '0.5.0', 'archetype': 'workflow', 'shape': design.get('shape'),
     }
     return state
 
@@ -511,7 +511,7 @@ def forge_workflow(design):
     print("✓ KB README.md")
 
     manifest = {
-        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.4.0",
+        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.5.0",
         "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
         "forged_at_iso": _NOW, "generated_files": generated,
     }
@@ -641,7 +641,7 @@ print(f"✓ KB README.md")
 # Step 9 — manifest.json
 manifest = {
     "team": team,
-    "forge_version": "0.4.0",
+    "forge_version": "0.5.0",
     "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
     "forged_at_iso": _NOW,
     "generated_files": generated,
