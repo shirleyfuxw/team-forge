@@ -190,9 +190,24 @@ asset_discovery:
 # The complement of asset_discovery: reuse what exists, adapt prior art, FORGE
 # what's missing. Produced skills are the forge's primary deliverable — they
 # outlive the team (WORKFLOW-SCOPING.md). Phase 4 emits one DRAFT scaffold per
-# entry at .claude/team-forge/<team>/skill-drafts/<name>/SKILL.md; a human
-# reviews it against the scaffold's promotion checklist, then promotes it to
-# .claude/skills/<name>/. Until promoted, gates/dispatches that reference it
+# entry at .claude/team-forge/<team>/skill-drafts/<name>/SKILL.md.
+#
+# WHY promotion to .claude/skills/<name>/ is a human go/no-go (not automatic):
+#   1. The acceptance check CANNOT pass at forge time — for verification gaps
+#      the skill's backing artifact doesn't exist yet (the skill is what
+#      creates it; e.g. tidy-parity-check's acceptance runs the very harness
+#      the skill builds). At emission every draft is definitionally unverified.
+#   2. Self-certification is circular — the same process that wrote the skill
+#      wrote its acceptance check. Auto-promoting on green would let a
+#      too-weak acceptance certify a wrong gate harness: silently-wrong
+#      verification, the worst failure mode for a gate-backed skill.
+#   3. Promoted skills load into EVERY future session — a skill description is
+#      matched against all sessions in the repo; a vague trigger misfires
+#      forever. Drafts staged in the hub are invisible until promoted.
+# It is the same interaction as every other phase gate (brainstorm, plan,
+# design.yaml all end in a human approve/reject): the LEAD does the legwork
+# (runs the acceptance check, fills the promotion checklist), the human just
+# approves. Until promoted, gates/dispatches that reference the skill
 # fail-closed (intentional).
 #
 # Quality bar Phase 3 must satisfy per entry ("proper skill per project purpose"):
