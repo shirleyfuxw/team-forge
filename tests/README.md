@@ -80,7 +80,10 @@ python3 tools/forge.py tests/fixtures/workflow-drain/design.yaml   # → /tmp/te
 
 Each forges 10 files: 2 profiles + the `/<team>-workflow` launcher + `TASKS.yaml` + thin
 `status.json` + `gen_dashboard.py` + rendered `dashboard.html` + `design.yaml` copy + KB
-README + manifest. Validated: zero unsubstituted `{{}}`, correct ledger seeding, and the
+README + manifest — workflow-tidy forges 11, the extra being its skill-gap DRAFT scaffold
+(`skill-drafts/tidy-parity-check/SKILL.md`). On re-forge, a gap whose skill already exists
+promoted under `.claude/skills/<name>/` is skipped (with a console note) instead of
+re-emitting the draft. Validated: zero unsubstituted `{{}}`, correct ledger seeding, and the
 dashboard renders both empty and populated state.
 
 ## Dashboard contract check (`check_dashboard.py`)

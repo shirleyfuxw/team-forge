@@ -159,6 +159,10 @@ def emit_skill_gap_scaffolds(design, hub_dir, target_repo, generated):
             assert gap.get(req), f"skill_gaps entry missing required field '{req}'"
         assert gap['name'] not in collisions, \
             f"skill_gap '{gap['name']}' collides with an existing asset (asset_discovery.collision_list)"
+        # A re-forge after promotion must not re-emit drafts for skills that already graduated.
+        if (target_repo / ".claude" / "skills" / gap['name'] / "SKILL.md").exists():
+            print(f"skill-gap {gap['name']}: already promoted at .claude/skills/{gap['name']}/ — skipping draft")
+            continue
         d = hub_dir / "skill-drafts" / gap['name']
         d.mkdir(parents=True, exist_ok=True)
         out = d / "SKILL.md"
@@ -255,7 +259,7 @@ def initial_status_json(design):
         'forge_metadata': {
             'forged_at_iso': _NOW,
             'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-            'forge_version': '0.5.0',
+            'forge_version': '0.5.1',
         }
     })
     return state
@@ -390,7 +394,7 @@ def initial_status_json_workflow(design):
     state['forge_metadata'] = {
         'forged_at_iso': _NOW,
         'design_hash': hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
-        'forge_version': '0.5.0', 'archetype': 'workflow', 'shape': design.get('shape'),
+        'forge_version': '0.5.1', 'archetype': 'workflow', 'shape': design.get('shape'),
     }
     return state
 
@@ -511,7 +515,7 @@ def forge_workflow(design):
     print("✓ KB README.md")
 
     manifest = {
-        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.5.0",
+        "team": team, "archetype": "workflow", "shape": design['shape'], "forge_version": "0.5.1",
         "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
         "forged_at_iso": _NOW, "generated_files": generated,
     }
@@ -522,8 +526,9 @@ def forge_workflow(design):
     print(f"Team: {team} ({design['shape']}) · {len(generated)} files")
     print(f"Launcher: /{team}-workflow")
     print(f"Dashboard: open {hub_dir / 'playground' / 'dashboard.html'}")
-    if design.get('skill_gaps'):
-        print(f"⚠ {len(design['skill_gaps'])} skill-gap DRAFT(s) in {hub_dir / 'skill-drafts'} — "
+    drafts_emitted = sum(1 for g in generated if g.get('kind') == 'skill_gap_scaffold')
+    if drafts_emitted:
+        print(f"⚠ {drafts_emitted} skill-gap DRAFT(s) in {hub_dir / 'skill-drafts'} — "
               "review against each scaffold's promotion checklist, then promote to .claude/skills/. "
               "Gates that call an unpromoted skill fail-closed.")
 
@@ -641,7 +646,7 @@ print(f"✓ KB README.md")
 # Step 9 — manifest.json
 manifest = {
     "team": team,
-    "forge_version": "0.5.0",
+    "forge_version": "0.5.1",
     "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
     "forged_at_iso": _NOW,
     "generated_files": generated,
@@ -655,6 +660,7 @@ print(f"Team: {team}")
 print(f"Files generated: {len(generated)}")
 print(f"Dashboard: open {hub_dir / 'playground' / 'dashboard.html'}")
 print(f"Launcher: /<team>-team (after install)")
-if design.get('skill_gaps'):
-    print(f"⚠ {len(design['skill_gaps'])} skill-gap DRAFT(s) in {hub_dir / 'skill-drafts'} — "
+_drafts_emitted = sum(1 for g in generated if g.get('kind') == 'skill_gap_scaffold')
+if _drafts_emitted:
+    print(f"⚠ {_drafts_emitted} skill-gap DRAFT(s) in {hub_dir / 'skill-drafts'} — "
           "review against each scaffold's promotion checklist, then promote to .claude/skills/.")
