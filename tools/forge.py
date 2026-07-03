@@ -30,16 +30,16 @@ _NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ
 
 ROLE_DESCRIPTIONS = {
     'work': "You produce primary milestone output. Receive task assignments from the lead via the shared task list — use the `TaskList` / `TaskGet` tools; the list is native to your session's team (do not hard-code a `~/.claude/tasks/...` path). Hand work off to verify-role teammates before propagation. Use `SendMessage` to coordinate with peers.",
-    'verify': "You check outputs before they propagate. Read work-role outputs, validate against the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage`, and report status updates to the team's tracker.",
+    'verify': "You check outputs before they propagate. Read work-role outputs, validate against the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage`, and report status updates to the team's ledger owner (the tracker teammate if the roster has one, otherwise the lead).",
     'advise': "You unblock work agents on hard problems. You are called on-demand via `Agent()` dispatch. Read shared project memory + the team's KB + the rejected-hypotheses corpus (if domain has one). Return structured advice; do not modify durable files.",
     'tracker': "You aggregate project state per the team's `tracking.state_shape` spec from design.yaml. **You are the single-writer for `.claude/team-forge/{team}/tracker/status.json`.** Read verdicts from verify-role teammates and plan outputs from the lead. Append events from `tracking.events_to_log`. Tracker is load-bearing for `/resume` — your status.json is the durable state source. Spawned FIRST on rehydrate.",
     'monitor': "You read the tracker's status.json + the narrative artifacts under `docs/team-forge/{team}/`. **You are the single-writer for `.claude/team-forge/{team}/playground/dashboard.html`.** Rewrite the dashboard per `tracking.dashboard_panels`. Trigger on every meaningful state change.",
-    'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. **You are the single-writer for `docs/team-forge/{team}/` narrative state.**",
+    'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. **You are the single-writer for `docs/team-forge/{team}/` narrative state.** If the roster has no tracker/monitor teammates (the default), you also own `.claude/team-forge/{team}/tracker/status.json` and re-render the dashboard (`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`) after each update.",
 }
 MEMORY_AUTHORITY = {
     'tracker': "You write only to `.claude/team-forge/{team}/tracker/status.json`.",
     'monitor': "You write only to `.claude/team-forge/{team}/playground/dashboard.html` and `dashboard-data.json`.",
-    'orchestrator': "You write to `docs/team-forge/{team}/{{brainstorms,team-plans,artifacts,runtime}}/`.",
+    'orchestrator': "You write to `docs/team-forge/{team}/{{brainstorms,team-plans,artifacts,runtime}}/`. Rosters without a tracker/monitor teammate: you also own `tracker/status.json` and the dashboard render (`gen_dashboard.py`).",
     'work': "You write to ephemeral worktrees only. No durable writes.",
     'verify': "You write to ephemeral worktrees only. No durable writes.",
     'advise': "You write to ephemeral worktrees only. No durable writes.",
@@ -201,6 +201,15 @@ def render_agent_md(entry, team, project_basename):
         'SHARED_AGENT_NOTE_BLOCK': shared_block,
     }), agent_name + ".md"
 
+def roster_roles(design):
+    """All roles present in the roster, including combined_roles."""
+    roles = set()
+    for e in design['roster']:
+        if e.get('role'):
+            roles.add(e['role'])
+        roles.update(e.get('combined_roles') or [])
+    return roles
+
 def render_team_launcher(design):
     tmpl = (TEMPLATES_DIR / "team-launcher.md.j2").read_text()
     project = design['project']
@@ -210,7 +219,18 @@ def render_team_launcher(design):
     team = project['name']
     orch_name = orchestrator['name'] if orchestrator.get('shared_across_teams') else f"{team}-{orchestrator['name']}"
     constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
+    roles = roster_roles(design)
+    ledger_lines = []
+    if 'tracker' in roles:
+        ledger_lines.append("The tracker teammate is the single-writer for `tracker/status.json`.")
+    else:
+        ledger_lines.append(f"**You** are the single-writer for `.claude/team-forge/{team}/tracker/status.json` (no tracker teammate in this roster).")
+    if 'monitor' in roles:
+        ledger_lines.append("The monitor teammate is the single-writer for the dashboard files.")
+    else:
+        ledger_lines.append(f"After each status.json update, re-render the dashboard: `python3 .claude/team-forge/{team}/playground/gen_dashboard.py` (no monitor teammate — the render step owns the dashboard).")
     return substitute_simple(tmpl, {
+        'LEDGER_OWNERSHIP_BLOCK': "\n".join(ledger_lines),
         'team': team,
         'project_display_name': project['display_name'],
         'project_name': project['name'],
@@ -327,19 +347,32 @@ def render_workflow_drain_launcher(design):
 
 
 def render_gen_dashboard(design):
-    """Emit the workflow archetype's runtime renderer. It bakes the SAME shared shell as the
-    team archetype (read here, embedded as a constant so the emitted script is self-contained
-    and never depends on the extension being present at runtime). At runtime gen_dashboard.py
-    builds the unified payload from status.json and injects it into that shell."""
+    """Emit the deterministic runtime dashboard renderer (either archetype). It bakes the
+    shared shell as a constant so the emitted script is self-contained and never depends on
+    the extension being present at runtime. At runtime gen_dashboard.py builds the unified
+    payload from status.json and injects it into that shell. Workflow teams always get it;
+    agent-teams get it when the roster has no monitor teammate (the render step replaces
+    the standing agent — design-time facts like milestones/roster are baked in)."""
     tmpl = (TEMPLATES_DIR / "gen_dashboard.py.j2").read_text()
     project = design['project']
     shell = (TEMPLATES_DIR / "dashboard.html.j2").read_text()
+    is_workflow = design.get('archetype') == 'workflow'
+    panels = (design['ledger'] if is_workflow else design['tracking'])['dashboard_panels']
+    milestones = [] if is_workflow else [
+        {'id': m['id'], 'name': m['name'], 'output': m.get('output', '')}
+        for m in design.get('milestones', [])]
+    roster = [] if is_workflow else [
+        {'name': e['name'], 'role': e.get('role') or '+'.join(e.get('combined_roles') or []), 'status': 'idle'}
+        for e in design['roster']]
     return substitute_simple(tmpl, {
         'team': project['name'],
         'project_display_name': project['display_name'],
         'project_basename': project.get('target_repo_basename') or Path(project['target_repo']).name,
         'domain': project['domain'],
-        'DASHBOARD_PANELS_JSON': json.dumps(design['ledger']['dashboard_panels']),
+        'archetype': 'workflow' if is_workflow else 'team',
+        'DASHBOARD_PANELS_JSON': json.dumps(panels),
+        'MILESTONES_JSON': json.dumps(milestones),
+        'ROSTER_JSON': json.dumps(roster),
         'DASHBOARD_SHELL_JSON': json.dumps(shell),  # valid Python str literal too
     })
 
@@ -511,9 +544,11 @@ if design.get('archetype') == 'workflow':
     forge_workflow(design)
     sys.exit(0)
 
-# Validate (Step 1)
-required_roles = {'work', 'verify', 'advise', 'tracker', 'monitor', 'orchestrator'}
-present_roles = set(e['role'] for e in design['roster'])
+# Validate (Step 1) — tracker/monitor are OPTIONAL roles: the default is a lead-written
+# ledger + a deterministic dashboard render step (gen_dashboard.py), mirroring the
+# workflow archetype. Add them to the roster only when tracking load justifies standing agents.
+required_roles = {'work', 'verify', 'advise', 'orchestrator'}
+present_roles = roster_roles(design)
 missing = required_roles - present_roles
 assert not missing, f"Role coverage failed: missing {missing}"
 roster_names = set(e['name'] for e in design['roster'])
@@ -574,6 +609,14 @@ out.write_text(dash)
 generated.append({"path": str(out.relative_to(target_repo)), "kind": "initial_dashboard"})
 (hub_dir / "playground" / "dashboard-data.json").write_text(json.dumps(dash_payload, indent=2) + "\n")
 print(f"✓ dashboard.html: {dash.count(chr(10)) + 1} lines (self-contained, interactive)")
+
+# Step 6b — no monitor teammate → emit the deterministic runtime renderer instead
+# (the lead re-runs it after each status.json update; same render step as workflow).
+if 'monitor' not in present_roles:
+    gd_path = hub_dir / "playground" / "gen_dashboard.py"
+    gd_path.write_text(render_gen_dashboard(design))
+    generated.append({"path": str(gd_path.relative_to(target_repo)), "kind": "dashboard_renderer"})
+    print("✓ gen_dashboard.py (no monitor in roster — the render step owns dashboard re-renders)")
 
 # Step 8 — KB README
 kb_readme = f"""# {project['display_name']} — `{team}` agent team KB

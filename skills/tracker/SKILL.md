@@ -8,6 +8,11 @@ description: |
 
 # team-forge:tracker — tracker-role generic pattern
 
+> **Optional role.** The default forged team has NO tracker teammate — the lead writes
+> `tracker/status.json` directly (single-writer), mirroring the workflow archetype's ledger.
+> This skill applies only when the design.yaml roster explicitly includes a tracker
+> (justified by high event volume or long-running cohorts).
+
 This skill is for tracker-role teammates. The tracker is the team's structured
 state aggregator. It listens to verifier verdicts + lead plan-outputs, normalizes
 them into the team's declared state shape, and writes to a single JSON file.

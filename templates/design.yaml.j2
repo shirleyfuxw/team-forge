@@ -12,9 +12,13 @@
 # enum values.
 #
 # Universal validation Phase 3 MUST satisfy:
-#   ROLE COVERAGE      — at least one teammate per role: work, verify, advise,
-#                        tracker, monitor. Combined roles allowed via
-#                        `combined_roles: [...]` on a teammate.
+#   ROLE COVERAGE      — at least one teammate per role: work, verify, advise
+#                        (+ exactly one orchestrator). tracker and monitor are
+#                        OPTIONAL: the default is a lead-written ledger + a
+#                        deterministic dashboard render step (gen_dashboard.py,
+#                        as in the workflow archetype); add them only when the
+#                        tracking load justifies standing agents. Combined roles
+#                        allowed via `combined_roles: [...]` on a teammate.
 #   COMMS CLOSURE      — every roster reference in `tracking.state_shape[].source`
 #                        and `constraints[]` must exist in `roster` or be "lead".
 #   SHARED-AGENT NAMING — entries with `shared_across_teams: true` keep unprefixed
@@ -60,7 +64,8 @@ milestones:
 # Optional: shared_across_teams (default false), combined_roles, model.
 roster:
   - name: <slug>                            # filename without .md
-    role: <enum>                            # work | verify | advise | tracker | monitor | orchestrator
+    role: <enum>                            # work | verify | advise | orchestrator (required roles)
+                                            # | tracker | monitor (OPTIONAL — see ROLE COVERAGE above)
     # combined_roles: [<role>, <role>]      # OPTIONAL — for one-shot/small teams
     purpose: |
       <prose paragraph describing what this teammate owns>
@@ -89,16 +94,18 @@ rehydrate:
     - docs/team-forge/<team>/team-plans/<current>.md
     - docs/team-forge/<team>/artifacts/<milestone-id>/*.md
     - docs/team-forge/<team>/runtime/<milestone-id>/*.md   # optional
-  respawn_order: [tracker, <other-roles-in-order>, monitor]
-                                            # tracker MUST be first (rehydrate source of truth)
-                                            # monitor MUST be last (depends on others being up)
+  respawn_order: [<roles-in-order>]         # IF the roster has a tracker it MUST be first
+                                            # (rehydrate source of truth); a monitor MUST be
+                                            # last (depends on others). Without them the lead
+                                            # reads status.json directly — no special ordering.
 
 # ----------------------------------------------------------------------------
 # tracking — per-project end-to-end tracking spec.
 # ----------------------------------------------------------------------------
-# Tracker agent reads this at runtime. Monitor agent reads dashboard_panels.
-# Phase 4 emits initial empty status.json from state_shape + initial rendered
-# dashboard.html from dashboard_panels.
+# The ledger owner maintains status.json per state_shape — the tracker teammate if the
+# roster has one, otherwise the lead. dashboard_panels drive the shell render — written
+# by the monitor teammate if present, otherwise by the emitted gen_dashboard.py render
+# step. Phase 4 emits the initial status.json + rendered dashboard.html either way.
 tracking:
   state_shape:                              # fields in tracker/status.json
     - id: <field-name>

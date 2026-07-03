@@ -7,6 +7,13 @@
 > session-derived and deprecated. The frozen body below is kept intact as the historical record.
 > The two load-bearing bets — rehydrate-on-`/resume` and the single-writer file-state model —
 > **remain valid**.
+>
+> **Decision #5 revised (2026-07-02):** tracker + monitor are now **OPTIONAL** roster roles,
+> not required. The default converges on the workflow archetype's state machinery — the lead
+> writes `tracker/status.json` (single-writer) and a forged `gen_dashboard.py` render step
+> owns the dashboard. Add standing tracker/monitor teammates only when tracking load justifies
+> them. Rationale: post-workflow-archetype review found the two roles were ~40% of a roster
+> re-doing what lead file-writes + a deterministic render produce for ~zero tokens.
 
 # team-forge — scoping (v8.3, frozen + docs/team-forge KB root)
 
