@@ -6,7 +6,7 @@ SAME warm-ivory interactive shell a monitor agent would write, produced by a scr
 instead of a standing agent. Re-run after each status.json update:
     python3 gen_dashboard.py
 """
-import json, datetime
+import json, datetime, subprocess
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent              # .../team-forge/{{team}}/playground
@@ -37,6 +37,30 @@ def _now_iso():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _git(*args):
+    """Best-effort git in this repo tree; None on any failure — the renderer must never crash."""
+    try:
+        r = subprocess.run(["git", "-C", str(HERE), *args],
+                           capture_output=True, text=True, timeout=5)
+        return r.stdout.strip() if r.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def _integration_branch(d):
+    """Branch status for the `integration_branch_status` panel. `head_sha` is DERIVED live from
+    git (the authoritative HEAD of the named branch) so the panel can't go stale when the lead
+    forgets to hand-update it after each commit; the stored value is only a fallback. `name` +
+    `pr_url` stay lead-written (set once, low-churn)."""
+    ib = dict(d.get("integration_branch") or {})
+    name = ib.get("name")
+    if name:
+        live = _git("rev-parse", "--short", name)   # None if the branch/repo isn't resolvable here
+        if live:
+            ib["head_sha"] = live
+    return ib
+
+
 def build_payload_workflow(d):
     """The unified dashboard payload — workflow archetype."""
     events = d.get("events") or []
@@ -49,17 +73,21 @@ def build_payload_workflow(d):
         overall = "running"
     budget = d.get("budget") or {}
     spend = d.get("token_spend_cumulative_k") or budget.get("spent_k") or 0
+    # current_task: prefer the lead's pointer, else derive the first not-done task so the panel
+    # is right even when the rollup pointer wasn't advanced (diligence-independent, like head_sha).
+    cur_task = d.get("current_task") or next(
+        (t.get("id") for t in tasks if str(t.get("status")) not in ("done", "completed")), None)
     return {
         "meta": {
             "team": TEAM, "project_display_name": TITLE, "project_basename": BASENAME,
             "domain": DOMAIN, "archetype": "workflow", "overall_status": overall,
-            "current_task": d.get("current_task"), "token_spend_cumulative_k": spend,
+            "current_task": cur_task, "token_spend_cumulative_k": spend,
             "last_update_iso": _now_iso(),
         },
         "panels": PANEL_IDS,
         "tasks": tasks,
         "gate_results": d.get("gate_results") or [],
-        "integration_branch": d.get("integration_branch") or {},
+        "integration_branch": _integration_branch(d),
         "tickets": d.get("tickets") or [],
         "queue": {k: d.get("queue_" + k, 0) for k in QUEUE_KEYS},
         "events": events[-30:],

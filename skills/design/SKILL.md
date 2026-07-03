@@ -70,6 +70,10 @@ the **skill quality bar** below.
   (default procedure + project skill overlay), the `ledger` (state_shape — incl. the
   `current_plan`/`plan_history` runtime fields — events, dashboard_panels), the `fan_out`
   points (where the lead bursts via the Workflow tool), and (parallel-drain) the `recurring` block.
+  **Declare a `fan_out` point ONLY where there is genuine N-way parallelism or a multi-item
+  fan-out→synthesize→verify** — single/sequential tasks stay inline (the lead codes them, or one
+  `Agent` dispatch for an isolated piece), never a Workflow. Over-declaring `fan_out` makes the
+  runtime burst where an inline step would do; the parallel-drain wave is the one always-Workflow point.
 
 ### W-Step 3 — synthesize + compose the workflow design.yaml
 
