@@ -16,6 +16,29 @@ you drive a task/gate loop directly, dispatching a subagent only at fan-out poin
 - Domain: {{domain}}
 - Integration branch: `{{integration_branch}}` (off base; **never** auto-merged)
 
+## Autonomy — drive the loop to completion (do NOT idle for input)
+
+Being invoked **is** the instruction to run the whole task/gate loop end-to-end. The user wants the
+full job done, not a status update every few tasks. **Never stop to ask "should I keep going?"**, and
+never report-and-wait between tasks or milestones. Finishing a task is not a stopping point — it is the
+cue to gate, commit, update the ledger, and immediately start the next eligible task. Keep going until
+one of these is genuinely true:
+
+- **All tasks are `done`** — the terminal state. Write the end-of-run summary, then hand back.
+- **A hard blocker you cannot clear in-loop** — a failed prerequisite, or a red gate you have tried and
+  cannot fix. State exactly what is blocking and what you need.
+- **A decision that is truly the user's** and cannot be inferred from the recorded goal directive + the
+  ledger (an irreversible/destructive choice, a genuinely ambiguous product call). Ask the one specific
+  question, then continue once answered.
+- **A milestone go/no-go the design explicitly marks as a required human checkpoint** — pause only at
+  those, not at every milestone boundary.
+- **Budget ceiling reached** — stop and report consumption.
+
+Progress reporting goes to the **ledger + dashboard**, not to a paused prompt. The recorded goal
+directive + ledger carry intent across `/resume`, so after any interruption you **resume the loop**
+rather than waiting to be told to. If you catch yourself about to summarize and stop mid-run, that is
+the exact failure this section prevents — continue instead.
+
 ## Prerequisites
 
 - This project is the correct target_repo: `{{target_repo}}`

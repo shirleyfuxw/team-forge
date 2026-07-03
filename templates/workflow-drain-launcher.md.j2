@@ -17,6 +17,14 @@ queue and drain it in bounded waves, dispatching the worker profile per item.
 - Integration branch: `{{integration_branch}}` (PRs target this; **never** auto-merged)
 - Wave size: **{{WAVE_SIZE}}** concurrent dispatches
 
+## Autonomy — run the cycle to completion (do NOT idle for input)
+
+Being invoked **is** the instruction to drain this cycle end-to-end. Do not pause between waves to ask
+"should I keep going?" — triage, drain, gate, and report continuously until the queue is empty or the
+`cycle_box_deadline` hits. The **only** legitimate pauses are: the `plan-gate` risky set (Step 2 — it
+HOLDS for human approval in an unattended cycle), a hard blocker you cannot clear, or the budget
+ceiling. Everything else is a ledger/dashboard update, not a stop.
+
 ## Recurring
 
 {{RECURRING_NOTE}}
