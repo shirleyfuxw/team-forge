@@ -83,7 +83,11 @@ Use as needed:
 For domain work, reference the team's discovered skills (see design.yaml's `skill_discovery_results`).
 
 Manage the shared task list via the `Task*` tools (`TaskCreate`/`TaskList`/`TaskUpdate`) — it's native to your session's team, not a hand-managed path. Dispatch via `SendMessage`. Arbitrate verdicts.
-Make milestone decisions with the user (do not auto-advance).
+
+**Drive milestones to their gate, don't idle for input.** Within a milestone, keep the work moving
+continuously — never report-and-wait for a "keep going" between tasks. Pause **only** at a milestone's
+declared human go/no-go (`next_phase_check`): don't auto-advance *past* it, but don't stop *before*
+reaching it either. Being invoked means the user wants the milestone driven to completion.
 
 ## Memory authority
 

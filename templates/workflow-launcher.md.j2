@@ -16,6 +16,29 @@ you drive a task/gate loop directly, dispatching a subagent only at fan-out poin
 - Domain: {{domain}}
 - Integration branch: `{{integration_branch}}` (off base; **never** auto-merged)
 
+## Autonomy — drive the loop to completion (do NOT idle for input)
+
+Being invoked **is** the instruction to run the whole task/gate loop end-to-end. The user wants the
+full job done, not a status update every few tasks. **Never stop to ask "should I keep going?"**, and
+never report-and-wait between tasks or milestones. Finishing a task is not a stopping point — it is the
+cue to gate, commit, update the ledger, and immediately start the next eligible task. Keep going until
+one of these is genuinely true:
+
+- **All tasks are `done`** — the terminal state. Write the end-of-run summary, then hand back.
+- **A hard blocker you cannot clear in-loop** — a failed prerequisite, or a red gate you have tried and
+  cannot fix. State exactly what is blocking and what you need.
+- **A decision that is truly the user's** and cannot be inferred from the recorded goal directive + the
+  ledger (an irreversible/destructive choice, a genuinely ambiguous product call). Ask the one specific
+  question, then continue once answered.
+- **A milestone go/no-go the design explicitly marks as a required human checkpoint** — pause only at
+  those, not at every milestone boundary.
+- **Budget ceiling reached** — stop and report consumption.
+
+Progress reporting goes to the **ledger + dashboard**, not to a paused prompt. The recorded goal
+directive + ledger carry intent across `/resume`, so after any interruption you **resume the loop**
+rather than waiting to be told to. If you catch yourself about to summarize and stop mid-run, that is
+the exact failure this section prevents — continue instead.
+
 ## Prerequisites
 
 - This project is the correct target_repo: `{{target_repo}}`
@@ -24,7 +47,11 @@ you drive a task/gate loop directly, dispatching a subagent only at fan-out poin
 
 If any fails, **stop and tell the user**.
 
-## Step 1 — load the ledger (this IS resume; no rehydrate)
+## Observability (dashboard ownership)
+
+{{OBSERVABILITY_BLOCK}}
+
+## Step 1 — load the ledger (this IS resume)
 
 Read `.claude/team-forge/{{team}}/TASKS.yaml` and `.claude/team-forge/{{team}}/tracker/status.json`.
 
@@ -33,9 +60,10 @@ Read `.claude/team-forge/{{team}}/TASKS.yaml` and `.claude/team-forge/{{team}}/t
   `status.json.current_plan`, set `current_task` to the first task with satisfied
   `depends_on`, then enter the loop.
 - **Resume**: find the first task whose `status != done`; resume there (re-run its
-  `gate_set` if it was mid-flight). No teammates to respawn — the two files are the whole state.
+  `gate_set` if it was mid-flight). The two files are the whole state — **respawn only the
+  monitor teammate if one is configured** (see Observability), nothing else.
 
-Re-render the dashboard: `python3 .claude/team-forge/{{team}}/playground/gen_dashboard.py`.
+Refresh the dashboard (see **Observability**).
 
 ## Step 2 — the task/gate loop
 
@@ -45,11 +73,12 @@ For each task (in `depends_on` order), **do the work inline by default**:
    copy. For a non-trivial task, write it to `artifacts/<task-slug>/<subject>-design-<YYYY-MM-DD>.md`
    (descriptive slug + descriptive, dated filename — never `artifacts/t5/design-3.md`; see Naming
    discipline below).
-2. **implement** — inline, in one followable diff. **Dispatch a subagent ONLY when** the task
-   is (a) part of a parallel fan-out, (b) large + self-contained (keep it out of your
-   context), or (c) needs an independent perspective. Then dispatch the **worker** profile
-   (`{{team}}-worker`, own worktree); escalate hard 2+-module questions to **advisor**
-   (`{{team}}-advisor`, on-demand call). Otherwise stay inline.
+2. **implement** — inline, in one followable diff. Reach for heavier machinery ONLY when the task
+   needs it (see "Workflow vs inline" in Step 3): (b) large + self-contained or (c) needs an
+   independent/cold perspective → **one `Agent` dispatch** of the **worker** profile
+   (`{{team}}-worker`, own worktree; escalate hard 2+-module questions to **advisor**
+   `{{team}}-advisor`) — a single `Agent`, NOT a Workflow. (a) genuine N-way parallel fan-out →
+   the **Workflow tool** (Step 3), never a hand-rolled loop of single dispatches. Otherwise stay inline.
    **Provider-outage fallback:** if a dispatch fails because the agent's model tier is globally
    unavailable, retry one tier down (e.g. fable → opus) rather than failing the task — a transient
    provider outage should not stall the loop.
@@ -59,21 +88,39 @@ For each task (in `depends_on` order), **do the work inline by default**:
    descriptive name (`parity-check.py`) — tracked, not an ad-hoc playground script.
 4. **commit** on `{{integration_branch}}`. The commit log is the story — write the message
    in the task's human-readable NAME, never its ID (`T5`). The reader has no ID decoder.
-5. **update the ledger** — set the task `status: done` + `gate_status` + `commit` in
-   `status.json` (keep it a THIN index), append a `task_completed` event, re-run
-   `gen_dashboard.py`.
+5. **update the ledger — per-task AND rollup fields** — set the task `status: done` +
+   `gate_status` + `commit`, append a `task_completed` event, AND refresh the summary/rollup
+   fields the dashboard panels read (these are separate from the per-task record and are the ones
+   most often left stale): `current_task` ← next eligible task; `current_milestone` when you cross
+   a milestone boundary; `integration_branch.pr_url` when a PR opens; `budget` /
+   `token_spend_cumulative_k`. (`integration_branch.head_sha` you do NOT hand-maintain — the
+   renderer derives it live from git.) Keep `status.json` a THIN index. Then **refresh the
+   dashboard** (see **Observability**) and glance at the panels — a summary panel that didn't
+   move means an un-updated rollup field, not a render bug.
 6. **loop** to the next task whose `depends_on` are all `done`.
 
 ## Step 3 — fan-out (bounded bursts, via the Workflow tool)
 
-When a step needs real parallelism or independent verification, call the **Workflow tool**
-for a bounded burst that instantiates the worker/verifier profile N-way — then collapse
-back to this loop:
+**Workflow vs inline — pick the lightest mechanism that fits:**
+
+| Situation | Mechanism |
+|---|---|
+| One task, one diff — the normal case | **Inline.** You do design→implement→gate yourself; no subagent, no Workflow. |
+| ONE piece that's large + self-contained, or needs an independent/cold perspective | **One `Agent` dispatch** (a worker or advisor). Still not a Workflow. |
+| Real N-way parallelism, or a fan-out→synthesize→adversarial-verify over multiple items | **Workflow tool** (a bounded burst). Appears in `/workflows`. |
+
+Invoking this launcher **is** your authorization to call the Workflow tool at the burst points below
+— you don't need to re-ask the user. But trigger it **only** when there's real parallelism to exploit:
+a single item or a trivial task stays inline (a pipeline of one is pure overhead). When you do burst,
+call the **Workflow tool** for a bounded run that instantiates the worker/verifier profile N-way, then
+collapse back to this loop:
 - **parallel build** — N independent tasks/items at once (e.g. a per-module migration).
 - **verification fan-out** — M facet-maps + K adversarial verdicts → synthesize a
   certification doc under `artifacts/<task-slug>/`.
 
-agent-teams is **not** used. Fan-out is the Workflow tool; the steady state is this lead loop.
+Do NOT hand-roll a sequential loop of single dispatches in place of a genuine burst — you lose the
+concurrency and the run won't show in `/workflows`. agent-teams is **not** used: fan-out is the
+Workflow tool; the steady state is this lead loop.
 
 **Adversarial critique is REQUIRED, not optional, on medium/high `blast_radius` tasks.** The
 fan-out → synthesize → **adversarial-critique** → revise loop is what catches load-bearing errors

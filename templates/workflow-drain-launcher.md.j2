@@ -17,6 +17,14 @@ queue and drain it in bounded waves, dispatching the worker profile per item.
 - Integration branch: `{{integration_branch}}` (PRs target this; **never** auto-merged)
 - Wave size: **{{WAVE_SIZE}}** concurrent dispatches
 
+## Autonomy — run the cycle to completion (do NOT idle for input)
+
+Being invoked **is** the instruction to drain this cycle end-to-end. Do not pause between waves to ask
+"should I keep going?" — triage, drain, gate, and report continuously until the queue is empty or the
+`cycle_box_deadline` hits. The **only** legitimate pauses are: the `plan-gate` risky set (Step 2 — it
+HOLDS for human approval in an unattended cycle), a hard blocker you cannot clear, or the budget
+ceiling. Everything else is a ledger/dashboard update, not a stop.
+
 ## Recurring
 
 {{RECURRING_NOTE}}
@@ -25,6 +33,10 @@ queue and drain it in bounded waves, dispatching the worker profile per item.
 
 - Correct target_repo `{{target_repo}}`; branch allows `.claude/` writes; `python3` available.
 
+## Observability (dashboard ownership)
+
+{{OBSERVABILITY_BLOCK}}
+
 ## Step 1 — open the cycle (this IS resume)
 
 Read `.claude/team-forge/{{team}}/TASKS.yaml` (the `queue` + `gates`) and `tracker/status.json`.
@@ -32,8 +44,7 @@ Read `.claude/team-forge/{{team}}/TASKS.yaml` (the `queue` + `gates`) and `track
 - Stamp `current_cycle_id` (e.g. `cycle-<date>-NNN`) and `cycle_box_deadline` from the box.
 - **Carry-over:** any item left `in_review` from a prior cycle re-attaches first (read it from
   `status.json.tickets[]`), before new triage.
-- Log `cycle_started`; re-render the dashboard:
-  `python3 .claude/team-forge/{{team}}/playground/gen_dashboard.py`.
+- Log `cycle_started`; refresh the dashboard (see **Observability**).
 
 ## Step 2 — triage the queue
 
@@ -46,8 +57,15 @@ Read `.claude/team-forge/{{team}}/TASKS.yaml` (the `queue` + `gates`) and `track
 
 ## Step 3 — drain in waves (the Workflow tool's `pipeline()`)
 
-Drain the full-drain set in waves of ≤ **{{WAVE_SIZE}}**. Call the **Workflow tool** to
-`pipeline(items, drain, gate)` — each item independently:
+Draining a multi-item wave is a genuine N-way fan-out, so it **must** run on the **Workflow tool** —
+call `pipeline(items, drain, gate)`, each item independently. Invoking this launcher is your
+authorization to trigger it (no need to re-ask); the run is monitorable via `/workflows`. Do NOT
+silently degrade to a sequential for-loop of inline dispatches — that loses the wave concurrency and
+the run won't appear in `/workflows`.
+
+**Single-item wave → inline.** If triage leaves only ONE eligible item, skip the Workflow burst and
+drain it inline (one worker dispatch) — a pipeline of one is pure overhead. Two or more independent
+items → the Workflow pipeline. Drain in waves of ≤ **{{WAVE_SIZE}}**, each item independently:
 - **drain** — dispatch the **worker** profile (`{{team}}-worker`, own worktree) per item;
   escalate hard 2+-module questions to **advisor** (`{{team}}-advisor`). On a provider-unavailable
   failure, retry one model tier down (e.g. fable → opus) before marking the item blocked.
@@ -63,7 +81,7 @@ cycle (NOT blocked, NOT done). Log `cycle_box_hit`.
 ## Step 4 — report + persist (+ rotate)
 
 Update `status.json` (thin): per-item `stage` / `pr_url` / `gate_status`, the `queue_*`
-counts, `budget`. Re-render the dashboard. Write a short cycle report under
+counts, `budget`. Refresh the dashboard (see **Observability**). Write a short cycle report under
 `artifacts/<cycle-id>/`. **Rotate:** archive this cycle's detail to `runtime/<cycle-id>/`;
 keep the live `status.json` to the current cycle. Log `cycle_completed`.
 
@@ -76,7 +94,7 @@ If the routing predicate or gate vocabulary proves wrong mid-cycle, re-cut them 
 ## Memory authority (single-writer)
 
 You own `status.json` (thin) + `runtime/` + `artifacts/`. Workers write only their worktrees.
-`gen_dashboard.py` renders the dashboard mechanically.
+The dashboard is refreshed per **Observability** (the render step, or a monitor teammate if configured).
 
 ## Naming discipline (IDs stay internal)
 

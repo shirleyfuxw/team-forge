@@ -33,7 +33,7 @@ ROLE_DESCRIPTIONS = {
     'verify': "You check outputs before they propagate. Read work-role outputs, validate against the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage`, and report status updates to the team's ledger owner (the tracker teammate if the roster has one, otherwise the lead).",
     'advise': "You unblock work agents on hard problems. You are called on-demand via `Agent()` dispatch. Read shared project memory + the team's KB + the rejected-hypotheses corpus (if domain has one). Return structured advice; do not modify durable files.",
     'tracker': "You aggregate project state per the team's `tracking.state_shape` spec from design.yaml. **You are the single-writer for `.claude/team-forge/{team}/tracker/status.json`.** Read verdicts from verify-role teammates and plan outputs from the lead. Append events from `tracking.events_to_log`. Tracker is load-bearing for `/resume` — your status.json is the durable state source. Spawned FIRST on rehydrate.",
-    'monitor': "You read the tracker's status.json + the narrative artifacts under `docs/team-forge/{team}/`. **You are the single-writer for `.claude/team-forge/{team}/playground/dashboard.html`.** Rewrite the dashboard per `tracking.dashboard_panels`. Trigger on every meaningful state change.",
+    'monitor': "You keep the dashboard always-current by PULLING authoritative state — `git rev-parse` the integration branch for the true HEAD, the `tasks[]`/gate records for progress + current task/milestone — and reconciling it against the lead's `status.json`. **Verify, don't mirror:** the lead lets rollup fields (head_sha, current_milestone, budget) go stale, so derive them; render the derived truth; and `SendMessage` the lead any drift you find. **You are the single-writer for `.claude/team-forge/{team}/playground/dashboard.html`** (per `dashboard_panels`). Trigger on every meaningful state change. Full procedure: the `team-forge:monitor` skill.",
     'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. **You are the single-writer for `docs/team-forge/{team}/` narrative state.** If the roster has no tracker/monitor teammates (the default), you also own `.claude/team-forge/{team}/tracker/status.json` and re-render the dashboard (`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`) after each update.",
 }
 MEMORY_AUTHORITY = {
@@ -307,6 +307,31 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
     }), agent_name + ".md"
 
 
+def observability_block(design):
+    """Who owns the dashboard at runtime — a monitor teammate, or the lead + render step.
+    Injected into the workflow launchers as {{OBSERVABILITY_BLOCK}}."""
+    team = design['project']['name']
+    if design.get('ledger', {}).get('dashboard_owner') == 'monitor_agent':
+        agent = f"{team}-{(design['ledger'].get('monitor') or {}).get('name', 'monitor')}"
+        return (
+            f"A **monitor teammate** (`{agent}`) owns the dashboard — do NOT run `gen_dashboard.py` yourself.\n"
+            f"- **Spawn** `{agent}` at launch; **rehydrate** it on `/resume` (respawn with context).\n"
+            "- After each ledger update (task done / commit / milestone crossing), **trigger** it via "
+            "`SendMessage`. It PULLS authoritative state (git HEAD of the integration branch, the "
+            "`tasks[]`/gate records), reconciles against your `status.json`, rewrites the dashboard, and "
+            "messages back any **drift** — a rollup field you left stale (`integration_branch.head_sha`, "
+            "`current_milestone`, `budget`). Fix the flagged fields in `status.json`.\n"
+            "- It is single-writer for `dashboard.html` / `dashboard-data.json`; you stay single-writer for `status.json`."
+        )
+    return (
+        f"No monitor teammate — **you** own the dashboard. After each ledger update run "
+        f"`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`. It DERIVES "
+        "`integration_branch.head_sha` (via `git rev-parse`) and `current_task` (from the task "
+        "records), so those panels stay correct even if you didn't hand-update the rollup — but you "
+        "must still refresh `current_milestone` / `integration_branch.pr_url` / `budget` in `status.json` yourself."
+    )
+
+
 def render_workflow_launcher(design):
     tmpl = (TEMPLATES_DIR / "workflow-launcher.md.j2").read_text()
     project = design['project']
@@ -320,6 +345,7 @@ def render_workflow_launcher(design):
         'domain': project['domain'],
         'integration_branch': project.get('integration_branch', '(unset)'),
         'CONSTRAINTS_BULLET_LIST': constraints_block,
+        'OBSERVABILITY_BLOCK': observability_block(design),
     })
 
 
@@ -347,6 +373,7 @@ def render_workflow_drain_launcher(design):
         'WAVE_SIZE': str(design.get('queue', {}).get('wave_size', 4)),
         'RECURRING_NOTE': recurring_note,
         'CONSTRAINTS_BULLET_LIST': constraints_block,
+        'OBSERVABILITY_BLOCK': observability_block(design),
     })
 
 
@@ -404,6 +431,8 @@ def validate_workflow(design):
     assert design.get('gates'), "no gates block"
     assert 'worker' in design, "no worker profile"
     assert design.get('ledger', {}).get('state_shape'), "no ledger.state_shape"
+    dbo = design.get('ledger', {}).get('dashboard_owner', 'render_step')
+    assert dbo in ('render_step', 'monitor_agent'), f"bad ledger.dashboard_owner: {dbo!r} (render_step|monitor_agent)"
     gate_names = set(design['gates'].keys())
     if design['shape'] == 'sequential-gated':
         tasks = design.get('tasks')
@@ -504,6 +533,27 @@ def forge_workflow(design):
     else:
         generated.append({"path": str((hub_dir / 'playground' / 'dashboard.html').relative_to(target_repo)), "kind": "initial_dashboard"})
         print("✓ dashboard.html rendered via gen_dashboard.py")
+
+    # Optional monitor teammate — ledger.dashboard_owner == 'monitor_agent'. gen_dashboard.py is
+    # still emitted above: the monitor uses it as its deterministic renderer and adds live
+    # authoritative-pull (git HEAD, task records) + drift alerts on top (see skills/monitor).
+    if design.get('ledger', {}).get('dashboard_owner') == 'monitor_agent':
+        mon = design['ledger'].get('monitor') or {}
+        entry = {
+            'name': mon.get('name', 'monitor'),
+            'role': 'monitor',
+            'model': mon.get('model', 'inherit'),
+            'skills': mon.get('skills', ['team-forge:monitor']),
+            'purpose': mon.get('purpose',
+                f"Keep the {team} dashboard always-current: pull authoritative state (git HEAD of "
+                f"{project.get('integration_branch', 'the integration branch')}, the task/gate "
+                "records), reconcile against the lead's status.json, rewrite the dashboard, and "
+                "flag any stale-rollup drift back to the lead."),
+        }
+        md, fname = render_agent_md(entry, team, basename)
+        (agents_dir / fname).write_text(md)
+        generated.append({"path": str((agents_dir / fname).relative_to(target_repo)), "kind": "monitor_agent"})
+        print(f"✓ monitor agent {fname}")
 
     kb_readme = (f"# {project['display_name']} — `{team}` workflow KB\n\n"
                  f"Workflow archetype ({design['shape']}). Work list + gates: "
