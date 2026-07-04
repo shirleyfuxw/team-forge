@@ -88,9 +88,11 @@ For each task (in `depends_on` order), **do the work inline by default**:
      this inline OR via a worker/`Agent` dispatch — every in-session subagent inherits *this* session
      and its permissions, so editing what the session loaded causes hook conflicts + partial state. See
      the **Self-modifying tasks** box in Step 3 for the handoff.
-   - **`worker` / heavier machinery** — inline in one followable diff by default; reach for a worker
-     ONLY when the task needs it (see "Workflow vs inline" in Step 3): (b) large + self-contained or
-     (c) needs an independent/cold perspective → **one `Agent` dispatch** of the **worker** profile
+   - **`worker` / heavier machinery** — inline in one followable diff by default; but **bias toward a
+     worker dispatch** (even without parallelism) when the task is (b) large/noisy → **context isolation**,
+     or (b′) repetitive/similar → the worker's `memory: project` **compounds**, or (c) needs an
+     independent/cold perspective (see "Workflow vs inline" + the bias note in Step 3) → **one `Agent`
+     dispatch** of the **worker** profile
      (`{{team}}-worker`, own worktree; escalate hard 2+-module questions to **advisor**
      `{{team}}-advisor`) — a single `Agent`, NOT a Workflow. (a) genuine N-way parallel fan-out →
      the **Workflow tool** (Step 3), never a hand-rolled loop of single dispatches. Otherwise stay inline.
@@ -129,6 +131,22 @@ For each task (in `depends_on` order), **do the work inline by default**:
 | Real N-way parallelism, or a fan-out→synthesize→adversarial-verify over multiple items | **Workflow tool** (a bounded burst). Appears in `/workflows`. |
 | A **`fresh_session`** task — edits `.claude/agents/**`, `.claude/skills/**`, hooks, or `settings.json` | **Neither.** No subagent can do it (they inherit this session). **Hand off to a fresh session** — see box below. |
 
+**Bias toward dispatching a worker — even with zero parallelism — when ANY of these hold.** The
+profiles are cheap and carry real leverage; the default pull toward inline under-uses them:
+- **Context isolation** — the task will flood *your* window with reads/logs/build output you'll never
+  reference again. Offload it so your context stays clean for orchestration; a cluttered lead makes
+  worse dispatch + gate calls. (This is the single most under-pulled trigger.)
+- **Repetitive / similar work** — like tasks the worker has done before. Route it through the worker so
+  its `memory: project` **compounds** — it recalls the codebase's patterns/gotchas and sharpens each
+  dispatch. Inline work leaves nothing behind for next time.
+- **Independent verification** — the check must come from a *cold* agent, not you re-reading your own
+  diff (see the critique rule below).
+
+**Still inline by default for the coupled serial spine** (task B needs A's result): dispatching there is
+pure overhead — the worker starts cold, re-derives what you already hold, and there's no parallelism to
+amortize it. Isolation / repetition / verification are the reasons to break out; tight coupling is the
+reason to stay inline.
+
 **Self-modifying tasks (`dispatch: fresh_session`) — you hand off, you don't dispatch.** A task that
 edits the agent/skill/hook/settings files *this* session has loaded cannot be done by any in-session
 agent — inline or worker/`Agent`, they all inherit this session's loaded config + permissions, so the
@@ -158,8 +176,10 @@ Workflow tool; the steady state is this lead loop.
 fan-out → synthesize → **adversarial-critique** → revise loop is what catches load-bearing errors
 (silent signal-flips, double-applies, silent-success-on-failed-write) — cosmetics survive without it,
 real bugs don't. For any non-trivial change, run at least one critic pass whose explicit job is to
-REFUTE the result before you propagate; record its verdict in the certification doc. A green gate set
-without a critic pass is not "verified."
+REFUTE the result before you propagate — and **dispatch it as a cold agent** (the **advisor**, or a
+worker on a refute-only brief), **never you re-reading your own diff**: as the producer you're primed to
+see it pass (producer ≠ verifier). Record its verdict in the certification doc. A green gate set without
+a *dispatched, independent* critic pass is not "verified."
 
 ## Step 4 — re-plan (design is a living artifact — W7)
 
