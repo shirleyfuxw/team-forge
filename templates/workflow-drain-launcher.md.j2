@@ -76,6 +76,10 @@ items → the Workflow pipeline. Drain in waves of ≤ **{{WAVE_SIZE}}**, each i
   it carries forward what earlier items taught it — nothing for you to harvest. Escalate hard
   2+-module questions to **advisor** (`{{team}}-advisor`). On a provider-unavailable failure, retry one
   model tier down (e.g. fable → opus) before marking it blocked.
+  - **Self-modifying item guard:** an item that edits `.claude/agents/**`, `.claude/skills/**`, hooks,
+    or `settings.json` **cannot** be worker-drained — an in-session subagent races the config this
+    session loaded. Pull it from the wave, mark it `blocked_on: fresh_session_handoff`, and hand it to a
+    freshly-launched full-permission session (like a sequential `fresh_session` task); drain the rest.
 - **gate** — run the item's `gate_set` (mandatory under unattended; never PR on red).
 - on green → open a PR against `{{integration_branch}}`; set the item `stage: pr_ready`.
 

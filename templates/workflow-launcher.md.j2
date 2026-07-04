@@ -32,6 +32,9 @@ one of these is genuinely true:
   question, then continue once answered.
 - **A milestone go/no-go the design explicitly marks as a required human checkpoint** — pause only at
   those, not at every milestone boundary.
+- **A `fresh_session` task with nothing else eligible** — a self-modifying task you can't self-serve
+  (Step 3) and no other task has its `depends_on` satisfied. Prepare the handoff, then pause for the
+  fresh session. If other tasks ARE eligible, keep draining them and only surface the handoff.
 - **Budget ceiling reached** — stop and report consumption.
 
 Progress reporting goes to the **ledger + dashboard**, not to a paused prompt. The recorded goal
@@ -78,12 +81,19 @@ For each task (in `depends_on` order), **do the work inline by default**:
    copy. For a non-trivial task, write it to `artifacts/<task-slug>/<subject>-design-<YYYY-MM-DD>.md`
    (descriptive slug + descriptive, dated filename — never `artifacts/t5/design-3.md`; see Naming
    discipline below).
-2. **implement** — inline, in one followable diff. Reach for heavier machinery ONLY when the task
-   needs it (see "Workflow vs inline" in Step 3): (b) large + self-contained or (c) needs an
-   independent/cold perspective → **one `Agent` dispatch** of the **worker** profile
-   (`{{team}}-worker`, own worktree; escalate hard 2+-module questions to **advisor**
-   `{{team}}-advisor`) — a single `Agent`, NOT a Workflow. (a) genuine N-way parallel fan-out →
-   the **Workflow tool** (Step 3), never a hand-rolled loop of single dispatches. Otherwise stay inline.
+2. **implement** — first read the task's **`dispatch`** field in `TASKS.yaml` (`inline` default /
+   `worker` / `fresh_session`):
+   - **`fresh_session`** — a **self-modifying** task: it edits files the running session loads and
+     depends on (`.claude/agents/**`, `.claude/skills/**`, hooks, `settings.json`). You **cannot** do
+     this inline OR via a worker/`Agent` dispatch — every in-session subagent inherits *this* session
+     and its permissions, so editing what the session loaded causes hook conflicts + partial state. See
+     the **Self-modifying tasks** box in Step 3 for the handoff.
+   - **`worker` / heavier machinery** — inline in one followable diff by default; reach for a worker
+     ONLY when the task needs it (see "Workflow vs inline" in Step 3): (b) large + self-contained or
+     (c) needs an independent/cold perspective → **one `Agent` dispatch** of the **worker** profile
+     (`{{team}}-worker`, own worktree; escalate hard 2+-module questions to **advisor**
+     `{{team}}-advisor`) — a single `Agent`, NOT a Workflow. (a) genuine N-way parallel fan-out →
+     the **Workflow tool** (Step 3), never a hand-rolled loop of single dispatches. Otherwise stay inline.
    **When you DO dispatch** (Agent or Workflow), hand the subagent a **scoped brief** — the task + the
    exact artifacts to read — not "go read the KB". The worker/advisor keep their own **native persistent
    memory** across dispatches (`.claude/agent-memory/{{team}}-worker|advisor/`), so you do NOT harvest
@@ -117,6 +127,19 @@ For each task (in `depends_on` order), **do the work inline by default**:
 | One task, one diff — the normal case | **Inline.** You do design→implement→gate yourself; no subagent, no Workflow. |
 | ONE piece that's large + self-contained, or needs an independent/cold perspective | **One `Agent` dispatch** (a worker or advisor). Still not a Workflow. |
 | Real N-way parallelism, or a fan-out→synthesize→adversarial-verify over multiple items | **Workflow tool** (a bounded burst). Appears in `/workflows`. |
+| A **`fresh_session`** task — edits `.claude/agents/**`, `.claude/skills/**`, hooks, or `settings.json` | **Neither.** No subagent can do it (they inherit this session). **Hand off to a fresh session** — see box below. |
+
+**Self-modifying tasks (`dispatch: fresh_session`) — you hand off, you don't dispatch.** A task that
+edits the agent/skill/hook/settings files *this* session has loaded cannot be done by any in-session
+agent — inline or worker/`Agent`, they all inherit this session's loaded config + permissions, so the
+edit races the very files in play. For such a task you:
+1. **Prepare** — write the scoped brief to `artifacts/<task-slug>/` and set up the target branch/worktree.
+2. **Record** — mark the task `blocked_on: fresh_session_handoff` in `status.json` (a legitimate stop,
+   like the plan-gate — you physically cannot self-serve it), log the event.
+3. **Keep moving if you can** — if other tasks have satisfied `depends_on`, continue the loop on them;
+   only pause the whole run if *everything* is blocked on this handoff.
+4. **Hand off** — tell the user exactly what to launch: a fresh Claude session in a split window with
+   full permissions, pointed at the brief + branch. Resume the task (gate → commit → ledger) once it lands.
 
 Invoking this launcher **is** your authorization to call the Workflow tool at the burst points below
 — you don't need to re-ask the user. But trigger it **only** when there's real parallelism to exploit:
