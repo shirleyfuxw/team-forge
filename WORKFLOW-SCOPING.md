@@ -50,6 +50,7 @@ The product *is* the output layout. **Forging = compose:** pick a style → staf
 - **W5 — Gates are codebase-derived, scaled to `blast_radius`.** The *machinery* is general (named gates, blast-radius scaling, advance-only-on-green); the *vocabulary* is **discovered per project from the detailed codebase** — its test suites, CI, build targets, invariants — never a fixed list team-forge ships. A gate needs a backing capability; where none exists (e.g. no pre/post-refactor parity harness), the forge **produces the skill** that backs it → gate discovery *is* skill-gap discovery for verification.
 - **W6 — Resume is trivial.** Read the ledger; no rehydrate / `respawn_order`.
 - **W7 — Design is a living artifact; re-plan is first-class.** Refactor design is a hypothesis the code keeps correcting (herc-cleanup rejected `SharedCombinerBase`, split numeric bugs out of parity-gated commits, re-cut into two layers). `TASKS.yaml` + the plan doc are **versioned**, not frozen Phase-3 output: the lead can re-plan mid-loop — new plan version + one-line *why* (the `team_plan_history` pattern, inherited), re-cut only the not-yet-done tasks + gates, preserve gated work, review before executing.
+- **W8 — Subagent memory is Claude Code native, not hand-rolled.** A dispatched worker/advisor is stateless per call, but persistence is a platform feature — use it. Forge emits `memory: project` frontmatter on the worker + advisor profiles → Claude Code gives each a private `.claude/agent-memory/<name>/` directory, auto-injects its `MEMORY.md`, and enables Read/Write/Edit so the agent **self-curates** codebase patterns, gotchas, and ruled-out approaches across dispatches. This is why a recurring drain stops re-deriving each wave: the worker carries its own memory forward. The lead hands each dispatch a **scoped brief** (task + exact artifacts) but does NOT harvest anything back — there is no team-level memory store. Scope overridable per roster entry (`user|project|local`). *Accepted limitation:* native memory is per-agent-siloed (name-derived dir, not poolable), so there's no cross-agent shared dead-end corpus; cross-agent knowledge travels via the lead's KB + briefs. Verified against code.claude.com/docs/en/sub-agents#enable-persistent-memory (`FORGE_VERSION` 0.7.0).
 
 ## Contract — `design.yaml` with `archetype: workflow`
 
@@ -82,6 +83,7 @@ ledger: {state_shape: [current_plan, plan_history, ...], events: [...,replanned]
                      playground/{dashboard.html, gen_dashboard.py},  ← ephemeral (gitignored)
                      .gitignore}                                 ← ignores playground/ + tracker/status.json
 docs/team-forge/<team>/{brainstorms, team-plans, artifacts/<task-slug>, README.md}
+agents/<team>-worker.md, -advisor.md → memory: project → .claude/agent-memory/<name>/  ← native per-agent memory (self-curated)
 ```
 
 **Lead gate-harness home (retro #1687, item 10).** Producer≠verifier parity scripts and other

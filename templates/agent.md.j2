@@ -4,6 +4,7 @@ description: |
   {{purpose_frontmatter}}
 model: {{model}}
 {{SKILLS_FRONTMATTER_BLOCK}}
+{{MEMORY_FRONTMATTER_BLOCK}}
 ---
 
 # {{agent_name}} — {{role}} role on team `{{team}}`
@@ -34,14 +35,25 @@ everything else).
 
 ## Context on spawn
 
-Your spawn prompt (from the team-launcher skill) provides:
-- Your role: `{{role}}`
-- Your team: `{{team}}`
-- Pointer to runtime hub: `.claude/team-forge/{{team}}/`
-- Pointer to KB: `docs/team-forge/{{team}}/`
-- Your current task assignment from the shared task list (if any)
+Your spawn/dispatch prompt hands you a **scoped brief** — your task + the exact artifacts to
+read. Read what it names; don't crawl the whole KB. Derive any other paths from role + team:
+- Your role: `{{role}}` · team: `{{team}}`
+- Runtime hub: `.claude/team-forge/{{team}}/` · KB: `docs/team-forge/{{team}}/`
 
-Derive all your read paths from your role + team + universal team-forge layout.
+If the brief is thin or a pointer is missing, ask the lead — don't guess-crawl the tree.
+
+## Persistent memory
+
+If your frontmatter above sets `memory:` (dispatched roles like advise do; standing teammates
+do **not** — Claude Code ignores `memory:` on the teammate path), Claude Code gives you a private
+persistent directory that survives across conversations and **auto-injects its `MEMORY.md` into
+your prompt**, with Read/Write/Edit enabled so you curate it yourself:
+- **Before you start:** consult it for patterns, gotchas, and approaches you've already ruled out.
+- **When you finish:** record what a future call would want — a decision + why, a dead-end + why,
+  a gotcha, a reusable helper. Keep `MEMORY.md` a concise index; push detail to topic files.
+
+This is **your own** memory (auto-managed, no lead harvesting) — distinct from the team's durable
+KB, which only the lead writes. If you have no `memory:`, you rely on the brief + this KB per call.
 
 ## Memory authority (single-writer rules)
 
