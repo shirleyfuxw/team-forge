@@ -50,11 +50,10 @@ Read `.claude/team-forge/{{team}}/tracker/status.json`.
    fresh bootstrap Phase 2 wrote exactly one dated plan (`<slug>-plan-<YYYY-MM-DD>.md`); its
    path is also recorded in `design.yaml` and becomes the tracker's `current_team_plan`. Do
    NOT assume a fixed `team-plan-v1.md` name.
-4. Spawn all roster teammates per `design.yaml.rehydrate.respawn_order`. Each spawn prompt includes:
-   - Role: one of work/verify/advise/tracker/monitor
-   - Team name: `{{team}}`
-   - Project name: `{{project_name}}`
-   - Initial task brief or context pointer
+4. Spawn all roster teammates per `design.yaml.rehydrate.respawn_order`. Each spawn prompt carries a
+   **scoped brief** — you assemble it, the teammate doesn't crawl for it:
+   - Role: one of work/verify/advise/tracker/monitor · Team: `{{team}}` · Project: `{{project_name}}`
+   - The teammate's specific task + the exact artifacts it should read (not "go read the KB").
    - **Provider-outage fallback:** if a teammate's model tier is globally unavailable at spawn,
      fall back one tier (e.g. fable → opus) rather than failing the launch.
 5. Update tracker `status.json`:
@@ -94,9 +93,17 @@ continuously — never report-and-wait for a "keep going" between tasks. Pause *
 declared human go/no-go (`next_phase_check`): don't auto-advance *past* it, but don't stop *before*
 reaching it either. Being invoked means the user wants the milestone driven to completion.
 
+**Per-agent memory is native, not yours to curate.** The **advise** role (dispatched on-demand) has its
+own persistent agent memory — Claude Code auto-injects and lets it self-manage `.claude/agent-memory/{{team}}-<name>/`.
+Standing **work/verify** teammates get **no** per-agent memory (Claude Code ignores `memory:` on the
+teammate path), so their durable context is *this KB + the shared task list* — keep those current and
+hand a good scoped brief on each (re)spawn. You do not harvest anyone's memory.
+
 ## Memory authority
 
 You are the single-writer for `docs/team-forge/{{team}}/{brainstorms,team-plans,artifacts,runtime}/`.
+A dispatched teammate with native `memory:` (e.g. advise) curates its **own** `.claude/agent-memory/…`
+directory — that is not yours and you do not write it.
 {{LEDGER_OWNERSHIP_BLOCK}}
 
 ## Naming discipline (IDs stay internal)

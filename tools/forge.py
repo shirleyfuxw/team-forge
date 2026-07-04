@@ -19,7 +19,7 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.6.0"
+FORGE_VERSION = "0.7.0"
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
 # (report drift, read-only).
@@ -41,10 +41,10 @@ _NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ
 ROLE_DESCRIPTIONS = {
     'work': "You produce primary milestone output. Receive task assignments from the lead via the shared task list — use the `TaskList` / `TaskGet` tools; the list is native to your session's team (do not hard-code a `~/.claude/tasks/...` path). Hand work off to verify-role teammates before propagation. Use `SendMessage` to coordinate with peers.",
     'verify': "You check outputs before they propagate. Read work-role outputs, validate against the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage`, and report status updates to the team's ledger owner (the tracker teammate if the roster has one, otherwise the lead).",
-    'advise': "You unblock work agents on hard problems. You are called on-demand via `Agent()` dispatch. Read shared project memory + the team's KB + the rejected-hypotheses corpus (if domain has one). Return structured advice; do not modify durable files.",
+    'advise': "You unblock work agents on hard problems. You are called on-demand via `Agent()` dispatch. **Consult your persistent agent memory first** — Claude Code injects your `MEMORY.md` (native `memory:` frontmatter): it's where you recorded patterns and ruled-out approaches from past calls, so you don't re-walk them — then read the KB slice the dispatch names. Return structured advice, and **update your memory** with what you learned. Make no writes to the team's durable KB.",
     'tracker': "You aggregate project state per the team's `tracking.state_shape` spec from design.yaml. **You are the single-writer for `.claude/team-forge/{team}/tracker/status.json`.** Read verdicts from verify-role teammates and plan outputs from the lead. Append events from `tracking.events_to_log`. Tracker is load-bearing for `/resume` — your status.json is the durable state source. Spawned FIRST on rehydrate.",
     'monitor': "You keep the dashboard always-current by PULLING authoritative state — `git rev-parse` the integration branch for the true HEAD, the `tasks[]`/gate records for progress + current task/milestone — and reconciling it against the lead's `status.json`. **Verify, don't mirror:** the lead lets rollup fields (head_sha, current_milestone, budget) go stale, so derive them; render the derived truth; and `SendMessage` the lead any drift you find. **You are the single-writer for `.claude/team-forge/{team}/playground/dashboard.html`** (per `dashboard_panels`). Trigger on every meaningful state change. Full procedure: the `team-forge:monitor` skill.",
-    'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. **You are the single-writer for `docs/team-forge/{team}/` narrative state.** If the roster has no tracker/monitor teammates (the default), you also own `.claude/team-forge/{team}/tracker/status.json` and re-render the dashboard (`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`) after each update.",
+    'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. Hand each teammate a scoped brief (its task + the exact artifacts to read), not the whole KB. **You are the single-writer for `docs/team-forge/{team}/` narrative state.** If the roster has no tracker/monitor teammates (the default), you also own `.claude/team-forge/{team}/tracker/status.json` and re-render the dashboard (`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`) after each update.",
 }
 MEMORY_AUTHORITY = {
     'tracker': "You write only to `.claude/team-forge/{team}/tracker/status.json`.",
@@ -52,7 +52,7 @@ MEMORY_AUTHORITY = {
     'orchestrator': "You write to `docs/team-forge/{team}/{{brainstorms,team-plans,artifacts,runtime}}/`. Rosters without a tracker/monitor teammate: you also own `tracker/status.json` and the dashboard render (`gen_dashboard.py`).",
     'work': "You write to ephemeral worktrees only. No durable writes.",
     'verify': "You write to ephemeral worktrees only. No durable writes.",
-    'advise': "You write to ephemeral worktrees only. No durable writes.",
+    'advise': "You write to your ephemeral worktree plus your own **persistent agent-memory directory** (native `memory:` frontmatter — Claude Code auto-manages it). You make no writes to the team's durable KB.",
 }
 
 # ───────── Helpers ─────────
@@ -140,6 +140,17 @@ def skills_frontmatter_block(skills):
         return ""
     return "skills:\n" + "\n".join(f"  - {s}" for s in skills)
 
+def memory_frontmatter_block(scope):
+    """YAML `memory:` frontmatter → Claude Code's native per-agent persistent-memory directory
+    (`.claude/agent-memory/<name>/` for `project`; auto-injected MEMORY.md + auto-managed). Applies
+    to DISPATCHED subagents; ignored when the definition runs as an agent-teams teammate (only
+    tools/model apply there). Empty when scope is falsy, so teammate-only roles omit it."""
+    return f"memory: {scope}" if scope else ""
+
+# Roles that run as DISPATCHED subagents (not standing teammates) → native `memory:` takes effect.
+# Default scope `project` = committable `.claude/agent-memory/<name>/`, shareable via VCS.
+DISPATCHED_MEMORY_ROLES = {'advise'}
+
 def render_skill_gap_scaffold(gap, team):
     """Render templates/skill-gap.md.j2 for one skill_gaps entry — a DRAFT scaffold."""
     tmpl = (TEMPLATES_DIR / "skill-gap.md.j2").read_text()
@@ -196,6 +207,10 @@ def render_agent_md(entry, team, project_basename):
         "You are `shared_across_teams: true`. Forged into the target project's `.claude/agents/` once and reused unmodified by sibling teams. Do not assume team-specific context — behavior must hold across every team that spawns you."
     ) if shared else ""
 
+    # Native persistent memory only for dispatched roles (advise); teammate roles omit it
+    # (Claude Code ignores `memory:` on the teammate path). An explicit entry.memory overrides.
+    mem_scope = entry.get('memory', 'project' if role in DISPATCHED_MEMORY_ROLES else None)
+
     tmpl = (TEMPLATES_DIR / "agent.md.j2").read_text()
     purpose = entry['purpose'].rstrip()
     return substitute_simple(tmpl, {
@@ -211,6 +226,7 @@ def render_agent_md(entry, team, project_basename):
         'ROLE_DESCRIPTION_BLOCK': role_block,
         'SKILLS_LIST_BLOCK': skills_block,
         'SKILLS_FRONTMATTER_BLOCK': skills_frontmatter_block(skills),
+        'MEMORY_FRONTMATTER_BLOCK': memory_frontmatter_block(mem_scope),
         'MEMORY_AUTHORITY_BLOCK': memory_block,
         'SHARED_AGENT_NOTE_BLOCK': shared_block,
     }), agent_name + ".md"
@@ -296,11 +312,17 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
         dispatch_note = ("One dispatch per task, in your own git worktree. Dispatched ONLY at fan-out points: "
                          "(a) parallel build, (b) a large self-contained task kept out of the lead's context, or "
                          "(c) independent-perspective verification. On the sequential spine the lead works inline — you stay dormant.")
-        memory_note = "You write only to your ephemeral worktree. The lead owns status.json + artifacts."
+        memory_note = ("Your ephemeral worktree, plus your own **persistent agent memory** (native "
+                       f"`memory: project` → `.claude/agent-memory/{agent_name}/`, auto-managed by Claude "
+                       "Code). Consult its `MEMORY.md` for codebase patterns/gotchas before you start; "
+                       "update it when you finish. The lead owns status.json + artifacts.")
     else:  # advisor
         purpose = "Shared-default advisor profile. On-demand call to unblock the lead on hard 2+ module questions."
         dispatch_note = "An on-demand call (not a standing teammate). The lead calls you to unblock a hard 2+ module question; you return advice and stop."
-        memory_note = "Read-only. Return structured advice; make no durable writes."
+        memory_note = ("Read-only on the codebase — no durable writes to the team KB. But consult and "
+                       "update your own **persistent agent memory** (native `memory: project` → "
+                       f"`.claude/agent-memory/{agent_name}/`) so past advice and ruled-out approaches "
+                       "compound across calls. Return structured advice.")
     tmpl = (TEMPLATES_DIR / "workflow" / "profile.md.j2").read_text()
     return substitute_simple(tmpl, {
         'agent_name': agent_name,
@@ -312,6 +334,7 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
         'procedure': str(entry.get('procedure', '')).rstrip(),
         'SKILLS_LIST_BLOCK': skills_block,
         'SKILLS_FRONTMATTER_BLOCK': skills_frontmatter_block(skills),
+        'MEMORY_FRONTMATTER_BLOCK': memory_frontmatter_block(entry.get('memory', 'project')),
         'DISPATCH_NOTE': dispatch_note,
         'MEMORY_NOTE': memory_note,
     }), agent_name + ".md"
@@ -716,6 +739,12 @@ for m in design['milestones']:
 generated = []
 write_hub_gitignore(hub_dir, team)
 generated.append({"path": str((hub_dir / '.gitignore').relative_to(target_repo)), "kind": "hub_gitignore"})
+
+# Stash the design contract in the hub (parity with the workflow path) so --check / --resync
+# and the launcher's staleness note resolve `.claude/team-forge/<team>/design.yaml`.
+shutil.copyfile(DESIGN_PATH, hub_dir / "design.yaml")
+generated.append({"path": str((hub_dir / "design.yaml").relative_to(target_repo)), "kind": "design_contract"})
+print("✓ design.yaml stashed in hub")
 
 # Step 3 — agent .md files
 for entry in design['roster']:

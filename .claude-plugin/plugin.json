@@ -1,7 +1,7 @@
 {
   "name": "team-forge",
   "description": "Meta-extension for Claude Code that forges project-specific multi-agent setups from a 5-phase human-in-the-loop lifecycle (brainstorm → plan → design → forge → teardown). Two archetypes: agent-team (persistent roster on the agent-teams primitive, with rehydrate) and workflow (lead-driven task/gate loop for coding-heavy sequential or fan-out work). Forges agents, skills, a launcher, and an observability hub into the target project.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "author": {
     "name": "Shirley Fu",
     "email": "shirleyfu24@gmail.com"

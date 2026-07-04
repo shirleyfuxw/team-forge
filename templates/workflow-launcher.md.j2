@@ -84,7 +84,10 @@ For each task (in `depends_on` order), **do the work inline by default**:
    (`{{team}}-worker`, own worktree; escalate hard 2+-module questions to **advisor**
    `{{team}}-advisor`) — a single `Agent`, NOT a Workflow. (a) genuine N-way parallel fan-out →
    the **Workflow tool** (Step 3), never a hand-rolled loop of single dispatches. Otherwise stay inline.
-   **Provider-outage fallback:** if a dispatch fails because the agent's model tier is globally
+   **When you DO dispatch** (Agent or Workflow), hand the subagent a **scoped brief** — the task + the
+   exact artifacts to read — not "go read the KB". The worker/advisor keep their own **native persistent
+   memory** across dispatches (`.claude/agent-memory/{{team}}-worker|advisor/`), so you do NOT harvest
+   learnings back — they self-curate. **Provider-outage fallback:** if a dispatch fails because the agent's model tier is globally
    unavailable, retry one tier down (e.g. fable → opus) rather than failing the task — a transient
    provider outage should not stall the loop.
 3. **gate** — run the task's `gate_set` (defined in `TASKS.yaml.gates`, scaled to
@@ -99,9 +102,10 @@ For each task (in `depends_on` order), **do the work inline by default**:
    most often left stale): `current_task` ← next eligible task; `current_milestone` when you cross
    a milestone boundary; `integration_branch.pr_url` when a PR opens; `budget` /
    `token_spend_cumulative_k`. (`integration_branch.head_sha` you do NOT hand-maintain — the
-   renderer derives it live from git.) Keep `status.json` a THIN index. Then **refresh the
-   dashboard** (see **Observability**) and glance at the panels — a summary panel that didn't
-   move means an un-updated rollup field, not a render bug.
+   renderer derives it live from git.) Keep `status.json` a THIN index. (A dispatched worker/advisor
+   records its own cross-dispatch learnings in its native agent memory — nothing for you to harvest.)
+   Then **refresh the dashboard** (see **Observability**) and glance at the panels — a summary panel
+   that didn't move means an un-updated rollup field, not a render bug.
 6. **loop** to the next task whose `depends_on` are all `done`.
 
 ## Step 3 — fan-out (bounded bursts, via the Workflow tool)
@@ -147,8 +151,10 @@ A refactor that never pivots probably wasn't understood — expect to re-plan.
 
 ## Memory authority (single-writer)
 
-You own `status.json` (kept thin) + `runtime/` + `artifacts/` + `team-plans/`. A dispatched
-worker writes only its worktree. `gen_dashboard.py` renders `dashboard.html` mechanically.
+You own `status.json` (kept thin) + `runtime/` + `artifacts/` + `team-plans/`. A dispatched worker
+writes only its worktree; it also self-curates its **own** native persistent memory
+(`.claude/agent-memory/{{team}}-worker|advisor/`, auto-managed by Claude Code) — that is the agent's,
+not yours. `gen_dashboard.py` renders `dashboard.html` mechanically.
 
 ## Naming discipline (IDs stay internal)
 

@@ -38,6 +38,28 @@
 > This retires the "acceptable exception" carve-out for `team-plan-v1.md` and generalizes
 > naming-discipline rule #3. The team/workflow launchers no longer assume a fixed bootstrap plan
 > filename — they read the one plan file present (or the tracker/`design.yaml` pointer).
+>
+> **Subagent memory = Claude Code native (2026-07-03):** the frozen "Memory model — file-based
+> coordination" section (~line 353) left the *subagent's* memory thin — spawn handed pointers +
+> "derive your own read paths," nothing persisted across dispatches, and the advise role's
+> "rejected-hypotheses corpus" was a dangling pointer (never created). Resolved by adopting Claude
+> Code's **native per-agent memory** rather than a hand-rolled store (an initial file-based store was
+> built, then dropped in favor of the platform feature — verified against
+> code.claude.com/docs/en/sub-agents#enable-persistent-memory):
+> - **Dispatched roles get native memory.** Forge emits `memory: project` frontmatter on dispatched
+>   subagents (advise; workflow worker/advisor). Claude Code gives each a private
+>   `.claude/agent-memory/<name>/` directory, auto-injects its `MEMORY.md`, and enables Read/Write/Edit
+>   so the agent **self-curates** patterns, gotchas, and ruled-out approaches across dispatches. No lead
+>   harvesting, no team-level store. Scope overridable per roster entry (`user|project|local`).
+> - **Teammates get none — by platform design.** On the agent-teams teammate path Claude Code applies
+>   only `tools` + `model` (+ appends the definition body); `memory`, `skills`, `mcpServers` are
+>   ignored. So standing work/verify teammates have no per-agent memory: their durable context is this
+>   KB + the shared task list, and the lead hands each a scoped brief on (re)spawn.
+> - **Accepted limitation.** Native memory is per-agent-siloed (the directory is name-derived, not
+>   poolable), so there is no cross-agent shared dead-end corpus — an advisor cannot read a worker's
+>   ruled-out approaches. Cross-agent knowledge travels through the lead's KB + briefs instead.
+> Wired into `agent.md.j2`, `workflow/profile.md.j2`, all three launchers, and `forge.py`
+> (`memory_frontmatter_block`, `DISPATCHED_MEMORY_ROLES`); `FORGE_VERSION` 0.7.0.
 
 # team-forge — scoping (v8.3, frozen + docs/team-forge KB root)
 

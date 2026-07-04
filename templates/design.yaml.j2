@@ -23,6 +23,17 @@
 #                        and `constraints[]` must exist in `roster` or be "lead".
 #   SHARED-AGENT NAMING — entries with `shared_across_teams: true` keep unprefixed
 #                        names; non-shared get prefixed `<team>-<name>` at Forge.
+#
+# SUBAGENT MEMORY (native — usually no field to set): Forge relies on Claude Code's
+# native per-agent memory. DISPATCHED roles (advise; workflow worker/advisor) are
+# emitted with `memory: project` frontmatter → a private `.claude/agent-memory/<name>/`
+# directory whose MEMORY.md Claude Code auto-injects and the agent self-curates
+# (patterns, gotchas, ruled-out approaches) across dispatches. Standing TEAMMATES
+# (work/verify/tracker/monitor) get none — Claude Code ignores `memory:` on the
+# teammate path; their durable context is this KB + the shared task list, so the lead
+# hands each a scoped brief. To override a role's scope, set `memory: user|project|local`
+# on its roster entry (default: project for dispatched roles, omitted otherwise). The
+# lead does NOT harvest agent memory — there is no team-level memory store.
 # ============================================================================
 
 # ----------------------------------------------------------------------------
