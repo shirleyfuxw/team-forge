@@ -19,7 +19,7 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.7.0"
+FORGE_VERSION = "0.8.0"
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
 # (report drift, read-only).
@@ -474,7 +474,7 @@ def validate_workflow(design):
         assert len(ids) == len(set(ids)), "duplicate task ids"
         idset = set(ids)
         for t in tasks:
-            assert t.get('dispatch', 'inline') in ('inline', 'worker'), f"{t['id']}: bad dispatch"
+            assert t.get('dispatch', 'inline') in ('inline', 'worker', 'fresh_session'), f"{t['id']}: bad dispatch (inline|worker|fresh_session)"
             for g in t.get('gate_set', []):
                 assert g in gate_names, f"{t['id']}: gate '{g}' not in gates vocabulary"
             for dep in t.get('depends_on', []):

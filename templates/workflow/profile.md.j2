@@ -17,6 +17,11 @@ default; the **skills** are this project's overlay — the real reusable value.
 
 {{DISPATCH_NOTE}}
 
+**You are an in-session subagent** — you inherit the lead's session and permissions. So you must
+**refuse** any brief that edits `.claude/agents/**`, `.claude/skills/**`, hooks, or `settings.json`:
+those are `fresh_session` tasks (they'd race the config this session already loaded). Tell the lead it
+needs a fresh full-permission session, and stop — do not attempt the edit.
+
 ## Procedure
 
 {{procedure}}
