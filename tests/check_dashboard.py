@@ -71,11 +71,49 @@ def check(fixture, dash_path):
           f"archetype={payload['meta'].get('archetype')}{extra}")
 
 
+def check_one_shot_default_no_dashboard():
+    """A one-shot workflow (recurring absent, no ledger.dashboard opt-in) must NOT emit a
+    dashboard — status.json + TASKS.yaml is the ledger. Derived from workflow-tidy with
+    the opt-in flag stripped."""
+    import yaml
+    design = yaml.safe_load((REPO / "tests" / "fixtures" / "workflow-tidy" / "design.yaml").read_text())
+    design["ledger"].pop("dashboard", None)
+    design["project"]["target_repo"] = "/tmp/test-team-forge-tidy-nodash"
+    Path("/tmp/test-team-forge-tidy-nodash").mkdir(exist_ok=True)
+    tmp_design = Path("/tmp/tf-tidy-nodash-design.yaml")
+    tmp_design.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design)], capture_output=True, text=True)
+    assert r.returncode == 0, f"one-shot-no-dashboard: forge failed\n{r.stdout}\n{r.stderr}"
+    pg = Path("/tmp/test-team-forge-tidy-nodash/.claude/team-forge/tidy/playground")
+    assert not (pg / "dashboard.html").exists(), "one-shot workflow emitted a dashboard without opt-in"
+    assert not (pg / "gen_dashboard.py").exists(), "one-shot workflow emitted gen_dashboard.py without opt-in"
+    print("✓ one-shot workflow without ledger.dashboard: no dashboard emitted (ledger-only)")
+
+
+def check_prose_panel_rejected():
+    """A dashboard_panels entry that isn't a renderer id must abort the forge — prose
+    panel names shipped a silently-empty dashboard in the AOC run."""
+    import yaml
+    design = yaml.safe_load((REPO / "tests" / "fixtures" / "workflow-tidy" / "design.yaml").read_text())
+    design["ledger"]["dashboard"] = True
+    design["ledger"]["dashboard_panels"] = ["Issues resolved / 22 (stacked by reuse)", "task_timeline"]
+    design["project"]["target_repo"] = "/tmp/test-team-forge-tidy-badpanel"
+    Path("/tmp/test-team-forge-tidy-badpanel").mkdir(exist_ok=True)
+    tmp_design = Path("/tmp/tf-tidy-badpanel-design.yaml")
+    tmp_design.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design)], capture_output=True, text=True)
+    assert r.returncode != 0, "forge accepted a prose dashboard_panels entry — must abort"
+    assert "dashboard_panels" in (r.stdout + r.stderr), "abort message should name dashboard_panels"
+    print("✓ prose dashboard_panels entry rejected at forge time")
+
+
 def main():
     for fixture, dash in FIXTURES:
         forge(fixture)
         check(fixture, dash)
-    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures)")
+    check_one_shot_default_no_dashboard()
+    check_prose_panel_rejected()
+    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 2 negative checks)")
 
 
 if __name__ == "__main__":

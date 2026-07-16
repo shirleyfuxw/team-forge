@@ -19,7 +19,7 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.8.2"
+FORGE_VERSION = "0.8.3"
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
 # (report drift, read-only).
@@ -341,19 +341,28 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
 
 
 def observability_block(design):
-    """Who owns the dashboard at runtime — a monitor teammate, or the lead + render step.
+    """Who owns the dashboard at runtime — a monitor teammate, the lead + render step,
+    or (one-shot default) nobody: the ledger itself is the observability surface.
     Injected into the workflow launchers as {{OBSERVABILITY_BLOCK}}."""
     team = design['project']['name']
+    if not workflow_wants_dashboard(design):
+        return (
+            "No dashboard for this one-shot workflow — **the ledger is the observability "
+            f"surface**. Keep `.claude/team-forge/{team}/tracker/status.json` current (per-task "
+            "status, events, budget) after every meaningful state change; anyone checking progress "
+            "reads it or `TASKS.yaml` directly. (To add a rendered dashboard later, set "
+            "`ledger.dashboard: true` in design.yaml and re-forge/`--resync`.)"
+        )
     if design.get('ledger', {}).get('dashboard_owner') == 'monitor_agent':
         agent = f"{team}-{(design['ledger'].get('monitor') or {}).get('name', 'monitor')}"
         return (
             f"A **monitor teammate** (`{agent}`) owns the dashboard — do NOT run `gen_dashboard.py` yourself.\n"
             f"- **Spawn** `{agent}` at launch; **rehydrate** it on `/resume` (respawn with context).\n"
-            "- After each ledger update (task done / commit / milestone crossing), **trigger** it via "
+            "- After each ledger update (task done / commit / cycle boundary), **trigger** it via "
             "`SendMessage`. It PULLS authoritative state (git HEAD of the integration branch, the "
             "`tasks[]`/gate records), reconciles against your `status.json`, rewrites the dashboard, and "
             "messages back any **drift** — a rollup field you left stale (`integration_branch.head_sha`, "
-            "`current_milestone`, `budget`). Fix the flagged fields in `status.json`.\n"
+            "`integration_branch.pr_url`, `budget`). Fix the flagged fields in `status.json`.\n"
             "- It is single-writer for `dashboard.html` / `dashboard-data.json`; you stay single-writer for `status.json`."
         )
     return (
@@ -361,7 +370,7 @@ def observability_block(design):
         f"`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`. It DERIVES "
         "`integration_branch.head_sha` (via `git rev-parse`) and `current_task` (from the task "
         "records), so those panels stay correct even if you didn't hand-update the rollup — but you "
-        "must still refresh `current_milestone` / `integration_branch.pr_url` / `budget` in `status.json` yourself."
+        "must still refresh `integration_branch.pr_url` / `budget` in `status.json` yourself."
     )
 
 
@@ -387,27 +396,86 @@ def render_workflow_drain_launcher(design):
     project = design['project']
     constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
     rec = design.get('recurring')
+    team = project['name']
     if rec:
         recurring_note = (f"**Recurring / unattended.** Schedule: {rec.get('schedule', '—')}. "
                           f"Cycle box: {rec.get('cycle_box', '—')}. Unattended: {rec.get('unattended', False)} "
                           f"(plan-gate items park for human approval; per-item verify gates mandatory). "
                           f"Carry-over via {rec.get('carry_over_state', 'status.json')}. "
                           f"The schedule is the OUTER loop — this skill runs ONE cycle and exits.")
+        next_cycle_note = "The schedule fires the next cycle."
+        teardown_note = (
+            "**Retiring the recurring workflow** (not per-cycle): when the drain is decommissioned, run\n"
+            "**`team-forge:teardown`** — it removes the schedule/cron trigger first (so no further cycles fire),\n"
+            "archives the ledger, prunes worktrees, and removes the launcher + profiles + ephemeral state.")
     else:
         recurring_note = "One-shot (not recurring): drains the queue once, then exits."
+        next_cycle_note = ("This is a **one-shot** drain — there is no next cycle and no schedule; "
+                           "when the queue is empty the workflow is done.")
+        teardown_note = (
+            "**Retiring the workflow:** once the drain is done and its PRs are merged/closed, run\n"
+            "**`team-forge:teardown`** — it archives the ledger, prunes worktrees, and removes the\n"
+            "launcher + profiles + ephemeral state. (No schedule/cron to remove — this is one-shot.)")
+    # advisor is an OPTIONAL profile; only point at it if it was actually forged, else the
+    # escalation pointer dangles at a non-existent agent.
+    if 'advisor' in design:
+        escalation_note = f"Escalate hard\n  2+-module questions to **advisor** (`{team}-advisor`)."
+    else:
+        escalation_note = ("Escalate hard\n  2+-module questions to the **lead** "
+                           "(no advisor profile in this workflow) — surface it and stop.")
+    # wave_size belongs in the numeric "waves of ≤ N" slot; if the design put prose there,
+    # keep the prose out of the launcher (it lives in queue.wave_size / TASKS.yaml) and render a
+    # clean pointer instead, so the slot never reads as a run-on paragraph mid-sentence.
+    ws = design.get('queue', {}).get('wave_size', 4)
+    wave_size = str(ws) if isinstance(ws, int) else "the per-stage cap in `queue.wave_size` (see TASKS.yaml)"
     return substitute_simple(tmpl, {
-        'team': project['name'],
+        'team': team,
         'project_display_name': project['display_name'],
         'project_name': project['name'],
         'project_basename': project['target_repo_basename'],
         'target_repo': project['target_repo'],
         'domain': project['domain'],
         'integration_branch': project.get('integration_branch', '(unset)'),
-        'WAVE_SIZE': str(design.get('queue', {}).get('wave_size', 4)),
+        'WAVE_SIZE': wave_size,
         'RECURRING_NOTE': recurring_note,
+        'NEXT_CYCLE_NOTE': next_cycle_note,
+        'TEARDOWN_NOTE': teardown_note,
+        'ESCALATION_NOTE': escalation_note,
         'CONSTRAINTS_BULLET_LIST': constraints_block,
         'OBSERVABILITY_BLOCK': observability_block(design),
     })
+
+
+def dashboard_panel_registry():
+    """Valid panel ids = the renderer keys in dashboard.html.j2. The template is the single
+    source of truth so a new renderer becomes a valid id without touching this file."""
+    shell = (TEMPLATES_DIR / "dashboard.html.j2").read_text()
+    ids = re.findall(r'^    (\w+): function \(d\)', shell, re.M)
+    assert ids, "could not extract the panel renderer registry from dashboard.html.j2"
+    return ids
+
+
+def validate_dashboard_panels(panels, context):
+    """An unknown panel id renders a healthy-looking page whose panel is a placeholder
+    forever — the alpha-onboarding-completeness run shipped four of those for a week.
+    Fail at forge time instead."""
+    valid = dashboard_panel_registry()
+    bad = [p for p in (panels or []) if p not in valid]
+    assert not bad, (
+        f"{context}: dashboard_panels entries {bad!r} are not renderer ids. Panels must be "
+        f"chosen from the shell's registry — anything else renders as a silent empty-state "
+        f"box. Valid ids: {sorted(valid)}. Describe panel intent in YAML comments, not in the list.")
+
+
+def workflow_wants_dashboard(design):
+    """One-shot workflows default to NO dashboard: status.json + TASKS.yaml is the whole
+    ledger, and the render loop only earns its keep on recurring/long-running work.
+    ledger.dashboard: true opts in explicitly; a recurring schedule or a monitor
+    dashboard-owner implies it."""
+    ledger = design.get('ledger', {})
+    if 'dashboard' in ledger:
+        return bool(ledger['dashboard'])
+    return bool(design.get('recurring')) or ledger.get('dashboard_owner') == 'monitor_agent'
 
 
 def render_gen_dashboard(design):
@@ -466,6 +534,10 @@ def validate_workflow(design):
     assert design.get('ledger', {}).get('state_shape'), "no ledger.state_shape"
     dbo = design.get('ledger', {}).get('dashboard_owner', 'render_step')
     assert dbo in ('render_step', 'monitor_agent'), f"bad ledger.dashboard_owner: {dbo!r} (render_step|monitor_agent)"
+    if workflow_wants_dashboard(design):
+        panels = design['ledger'].get('dashboard_panels')
+        assert panels, "dashboard requested (recurring / ledger.dashboard / monitor owner) but no ledger.dashboard_panels"
+        validate_dashboard_panels(panels, "ledger")
     gate_names = set(design['gates'].keys())
     if design['shape'] == 'sequential-gated':
         tasks = design.get('tasks')
@@ -493,8 +565,17 @@ def validate_workflow(design):
         assert seen == len(ids), "task DAG has a cycle"
     else:
         assert design.get('queue'), "parallel-drain needs a queue block"
+        # wave_size feeds the launcher's numeric "waves of ≤ N" slot. Prose there renders as a
+        # run-on paragraph mid-sentence (the render step now falls back to a TASKS.yaml pointer,
+        # but the design is still malformed) — warn so it gets fixed at the source.
+        ws = design['queue'].get('wave_size', 4)
+        if not isinstance(ws, int):
+            print(f"⚠ queue.wave_size is {type(ws).__name__}, not int — the launcher will point at "
+                  "TASKS.yaml instead of a number. Put the numeric per-wave cap in wave_size and move "
+                  "the sizing rationale to queue.triage / a YAML comment.")
+    ws_detail = design.get('queue', {}).get('wave_size', '?') if design['shape'] == 'parallel-drain' else None
     detail = (f"{len(design['tasks'])} tasks, DAG acyclic" if design['shape'] == 'sequential-gated'
-              else f"queue (wave {design.get('queue', {}).get('wave_size', '?')})")
+              else f"queue (wave {ws_detail if isinstance(ws_detail, int) else 'per-triage'})")
     print(f"✓ Validation (workflow/{design['shape']}): {len(gate_names)} gates, {detail}")
 
 
@@ -557,15 +638,19 @@ def forge_workflow(design):
     generated.append({"path": str((hub_dir / 'tracker' / 'status.json').relative_to(target_repo)), "kind": "ledger_initial_state"})
     print(f"✓ tracker/status.json: {len(status)} top-level keys")
 
-    gd_path = hub_dir / "playground" / "gen_dashboard.py"
-    gd_path.write_text(render_gen_dashboard(design))
-    generated.append({"path": str(gd_path.relative_to(target_repo)), "kind": "dashboard_renderer"})
-    r = subprocess.run([sys.executable, str(gd_path)], capture_output=True, text=True)
-    if r.returncode != 0:
-        print("⚠ gen_dashboard.py failed:\n" + r.stderr)
+    if workflow_wants_dashboard(design):
+        gd_path = hub_dir / "playground" / "gen_dashboard.py"
+        gd_path.write_text(render_gen_dashboard(design))
+        generated.append({"path": str(gd_path.relative_to(target_repo)), "kind": "dashboard_renderer"})
+        r = subprocess.run([sys.executable, str(gd_path)], capture_output=True, text=True)
+        if r.returncode != 0:
+            print("⚠ gen_dashboard.py failed:\n" + r.stderr)
+        else:
+            generated.append({"path": str((hub_dir / 'playground' / 'dashboard.html').relative_to(target_repo)), "kind": "initial_dashboard"})
+            print("✓ dashboard.html rendered via gen_dashboard.py")
     else:
-        generated.append({"path": str((hub_dir / 'playground' / 'dashboard.html').relative_to(target_repo)), "kind": "initial_dashboard"})
-        print("✓ dashboard.html rendered via gen_dashboard.py")
+        print("– dashboard skipped (one-shot workflow — the ledger IS the observability "
+              "surface; set ledger.dashboard: true to emit one)")
 
     # Optional monitor teammate — ledger.dashboard_owner == 'monitor_agent'. gen_dashboard.py is
     # still emitted above: the monitor uses it as its deterministic renderer and adds live
@@ -592,7 +677,10 @@ def forge_workflow(design):
                  f"Workflow archetype ({design['shape']}). Work list + gates: "
                  f"`.claude/team-forge/{team}/TASKS.yaml`; progress: `tracker/status.json`.\n\n## Tasks\n"
                  + "\n".join(f"- **{t['id']}** ({t['name']}) — gates: {t.get('gate_set', [])}" for t in design.get('tasks', []))
-                 + f"\n\n## Pointers\n- Launcher: `/{team}-workflow`\n- Dashboard: `.claude/team-forge/{team}/playground/dashboard.html`\n")
+                 + f"\n\n## Pointers\n- Launcher: `/{team}-workflow`\n"
+                 + (f"- Dashboard: `.claude/team-forge/{team}/playground/dashboard.html`\n"
+                    if workflow_wants_dashboard(design)
+                    else f"- Progress: `.claude/team-forge/{team}/tracker/status.json` (no dashboard — one-shot workflow)\n"))
     (kb_dir / "README.md").write_text(kb_readme)
     generated.append({"path": str((kb_dir / 'README.md').relative_to(target_repo)), "kind": "kb_readme"})
     print("✓ KB README.md")
@@ -608,7 +696,10 @@ def forge_workflow(design):
     print("\n=== Workflow forge complete ===")
     print(f"Team: {team} ({design['shape']}) · {len(generated)} files")
     print(f"Launcher: /{team}-workflow")
-    print(f"Dashboard: open {hub_dir / 'playground' / 'dashboard.html'}")
+    if workflow_wants_dashboard(design):
+        print(f"Dashboard: open {hub_dir / 'playground' / 'dashboard.html'}")
+    else:
+        print(f"Progress: {hub_dir / 'tracker' / 'status.json'} (no dashboard — one-shot workflow)")
     drafts_emitted = sum(1 for g in generated if g.get('kind') == 'skill_gap_scaffold')
     if drafts_emitted:
         print(f"⚠ {drafts_emitted} skill-gap DRAFT(s) in {hub_dir / 'skill-drafts'} — "
@@ -719,6 +810,7 @@ for s in design['tracking']['state_shape']:
     src = s['source']
     if src != 'lead':
         assert src in roster_names, f"Comms closure failed: {src} not in roster"
+validate_dashboard_panels(design['tracking'].get('dashboard_panels'), "tracking")
 n = len(design['milestones'])
 assert 1 <= n <= 5, f"Milestone count {n} out of range"  # Relaxed to 1-5
 print(f"✓ Validation: {len(design['roster'])} roster entries, {n} milestones, role coverage complete")
