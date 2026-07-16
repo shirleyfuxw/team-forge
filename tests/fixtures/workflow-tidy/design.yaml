@@ -105,6 +105,7 @@ ledger:
     - {id: budget, type: object}
     - {id: blocked, type: list}
   events: [task_started, task_gated, task_completed, replanned, fan_out_started, blocked]
+  dashboard: true                        # one-shot workflows default to NO dashboard; this fixture opts in to exercise the sequential dashboard contract
   dashboard_panels: [task_timeline, gate_matrix, integration_branch_status, recent_events]
 
 constraints:

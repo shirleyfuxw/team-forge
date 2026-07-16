@@ -100,6 +100,12 @@ For each task (in `depends_on` order), **do the work inline by default**:
    learnings back — they self-curate. **Provider-outage fallback:** if a dispatch fails because the agent's model tier is globally
    unavailable, retry one tier down (e.g. fable → opus) rather than failing the task — a transient
    provider outage should not stall the loop.
+   **Worktree boundary — never edit a live worker's tree.** While a dispatched worker is active, do
+   **not** edit, commit, or push inside its worktree: from inside a worktree your edits are
+   indistinguishable from a hostile third party, so the worker resets them and escalates (a real run
+   had a worker file a false "rogue agent" issue over exactly this). Route review findings on a
+   worker's branch **back to the worker** as a follow-up dispatch; if you must take over, tell it to
+   **stand down and wait for its confirmation** before touching the tree.
 3. **gate** — run the task's `gate_set` (defined in `TASKS.yaml.gates`, scaled to
    `blast_radius`). **Never advance on red** — fix in place and re-gate. Any gate SCRIPT you
    author (parity check, deletion-safety cert) lives at `.claude/team-forge/{{team}}/gates/` with a

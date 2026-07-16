@@ -85,6 +85,15 @@ items → the Workflow pipeline. Drain in waves of ≤ **{{WAVE_SIZE}}**, each i
 
 The items are independent — no peer coordination. The lead owns the wave dispatch and the ledger.
 
+**Worktree boundary — never edit a live worker's tree.** A dispatched worker owns its worktree
+for the life of the dispatch. Do **not** edit, commit, or push inside it while that worker is
+active — from inside a worktree, *your* edits are indistinguishable from a hostile third party:
+the worker sees files change under it, resets them, sees them change again, and reasonably
+escalates (a real run had a worker file a false "rogue agent" GitHub issue over exactly this).
+When a code review lands findings on a worker's branch, **route them back to the worker** as a
+follow-up dispatch — do not grab the wheel. If you genuinely must take over, first tell the
+worker to **stand down and wait for it to confirm** before you touch the tree.
+
 **Box freeze:** past `cycle_box_deadline`, dispatch **no new** item/wave. An in-flight item
 finishes its **current** iteration, checkpoints its PR, and carries as `in_review` to the next
 cycle (NOT blocked, NOT done). Log `cycle_box_hit`.

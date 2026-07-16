@@ -139,12 +139,14 @@ tracking:
     - team_roster_and_status
     - current_pointers                      # current brainstorm + team-plan
     - recent_events
-    # The self-contained shell ships ONE renderer shared by both archetypes. Its panel
-    # registry covers: milestone_timeline, team_roster_and_status, current_pointers,
-    # recent_events (team) + task_timeline, gate_matrix, integration_branch_status,
-    # queue_state, ticket_table (workflow). Any other id renders a labeled empty-state —
-    # safe to list a <domain-specific> panel before a renderer exists for it.
-    - <domain-specific>
+    # ENFORCED REGISTRY — every entry must be a renderer id the shell ships:
+    # milestone_timeline, team_roster_and_status, current_pointers, recent_events (team)
+    # + task_timeline, gate_matrix, integration_branch_status, queue_state, ticket_table
+    # (workflow). forge.py ABORTS on any other string. Do NOT write prose panel
+    # descriptions here — an unknown id used to render a healthy-looking page whose panel
+    # stayed an empty placeholder forever (the alpha-onboarding-completeness run shipped
+    # four of those for a week). Describe panel *intent* in a comment next to the id;
+    # a panel wanting a renderer that doesn't exist yet is a shell change, not a list entry.
 
 # ----------------------------------------------------------------------------
 # constraints — project-specific facts the forge agent can't infer.
