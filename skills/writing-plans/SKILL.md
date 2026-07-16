@@ -96,8 +96,9 @@ list as implementation reveals the true shape (W7) — it is a hypothesis, not a
 schedule + cycle box + `unattended` flag.
 
 Write the task list (or queue spec) into `team-plans/<slug>-plan-<YYYY-MM-DD>.md` (see the naming rules above) — it becomes the
-proto-`TASKS.yaml`. Then go to **Step 6** (tracker update) and **Step 7** (confirm). Skip
-Steps 1–5.
+proto-`TASKS.yaml`. Then go to **Step 6** (tracker update) and **Step 7** (confirm +
+route — workflow plans are the most frequent fast-path candidates: a follow-on task
+list for a forged workflow folds straight into its `TASKS.yaml`). Skip Steps 1–5.
 
 ### Step 1 — Re-read the brainstorm   *(team archetype path)*
 
@@ -201,7 +202,13 @@ it mis-sizes the team and the budget. If a count is not yet verified, write the 
 ## Carry-overs from brainstorm
 
 (Anything the brainstorm flagged as uncertain that didn't get resolved here.
-Phase 3 will need to decide these.)
+Phase 3 will need to decide these. If this section is non-empty, the plan
+cannot recommend skipping Phase 3.)
+
+## Next-phase route
+
+(One of: `phase-3-design` / `fold-into-existing-runtime` / `direct-execution`,
+with the criteria met — see Step 7. Default `phase-3-design` when unsure.)
 
 ## Revision notes
 
@@ -221,10 +228,39 @@ plan_update:
 The tracker will append `team_plan_revised`, update `current_team_plan` and
 `team_plan_history`.
 
-### Step 7 — Confirm with the user
+### Step 7 — Confirm with the user + route the next phase
 
 Show the user the team-plan doc and a 2-sentence summary of milestone shapes.
-Ask if they approve to move to Phase 3 (Design).
+Then **recommend one of three routes** — Phase 3 is not an unconditional next step;
+its multi-agent design pass (3 parallel forge-design-agents + reciprocal review) is
+a real token/effort cost that a small or already-staffed goal shouldn't pay:
+
+1. **Full Phase 3 (design)** — the default for a fresh team where roster, gate
+   vocabulary, or skill gaps are still open questions.
+
+2. **Skip Phase 3 — fold into the existing forged runtime.** Use when this is a
+   follow-on plan for an **already-forged team/workflow** and the plan reuses its
+   roster + gate vocabulary. The task list already carries everything `TASKS.yaml`
+   needs (`output`, `depends_on`, `blast_radius`, `dispatch`, `gate_set` per task),
+   so design.yaml would add nothing: append the tasks to the existing `TASKS.yaml`,
+   update the tracker, and resume the existing launcher's task/gate loop.
+
+3. **Direct execution — skip Phase 3 AND Phase 4.** Use when ALL of:
+   - every task is executable with **existing** subagents/skills (the assets the
+     plan references) — no new agents, no skill gaps;
+   - the gate set is already runnable (repo-standard checks or an existing team's
+     gate vocabulary) — nothing needs discovering;
+   - the work is expected to finish **in the current session**. The launcher
+     skill's only job is cross-session rehydration — forging one for same-session
+     work is pure ceremony.
+   The team-plan's task list IS the contract: the lead works it directly,
+   dispatching per each task's `dispatch:` value. Nothing is forged; no
+   design.yaml, no launcher, no agent files.
+
+Record the chosen route (and the criteria it met) in the plan's `## Next-phase
+route` section, then ask the user to approve the route. If mid-execution the goal
+outgrows the fast path (new agents needed, work spills across sessions, skill gaps
+appear), stop and run Phase 3 then — the fast path is an on-ramp, not a lock-in.
 
 ## What this skill is NOT
 
