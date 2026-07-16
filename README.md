@@ -18,6 +18,50 @@ Forges a project-specific agent setup — gap-fill **skill drafts**, roster or w
 
 team-forge is the wiring; the procedural toolbox (TDD, debugging, planning, brainstorming) is provided by Superpowers and the project's own skills.
 
+## The four phases — inputs → outputs
+
+Each phase consumes the previous phase's artifact and hands the next a stricter one:
+**narrative → contract → files**. Plan decides *what work*; design decides *who does it and
+how it's verified*; forge decides **nothing** (a deterministic render). If forge would have
+to decide something, the design is incomplete — and if design would have nothing left to
+decide, skip it (see [routes](#huge-project-forge-vs-small-build-up) below).
+
+| Phase | Skill | Input | Output | Read by |
+|---|---|---|---|---|
+| **1 Brainstorm** | `team-forge:brainstorming` | your goal + the codebase + the existing team KB if any (Step-0 survey); interactive | `docs/team-forge/<team>/brainstorms/brainstorm-<session-id>.md` — working understanding: completion criteria, verification needs, budget, **archetype triage** (team vs workflow), milestone sketch | you + Phase 2 |
+| **2 Plan** | `team-forge:writing-plans` | the current brainstorm + you (interactive); the current plan + tracker when revising | dated `team-plans/<slug>-plan-<YYYY-MM-DD>.md` — team: milestones (output, go/no-go, hard deps, interfaces, team size); workflow: **ordered task list = the proto-TASKS.yaml** (output, `depends_on`, `blast_radius`, dispatch, gate sketch). Ends with **`## Next-phase route`** | you; Phase 3 — or execution directly on the fast paths |
+| **3 Design** | `team-forge:design` | brainstorm + team-plan + the repo's **verification surface** (test suites, CI, build targets) + asset discovery (project / user / plugin / reference-library skills & agents) | `.claude/team-forge/<team>/design.yaml` — the machine contract: roster or worker/advisor profiles (reuse/adapt/new), **gate vocabulary**, `skill_gaps`, ledger spec, constraints, fan-out points | you approve it; `forge.py` parses it |
+| **4 Forge** | `team-forge:forge` → `tools/forge.py` | the approved design.yaml + `templates/` | emitted files in the target repo: agent profiles, launcher skill, `TASKS.yaml`, `tracker/status.json`, skill-draft scaffolds, KB scaffold, `manifest.json` (+ dashboard **only** when recurring / `ledger.dashboard: true` / monitor-owned) | the running team, and `/resume` rehydrate |
+
+Costs are deliberately asymmetric: Phases 1–2 are cheap conversations; Phase 3 is the
+expensive one (parallel design agents + reciprocal review); Phase 4 is ~free (a script).
+That's why the routing decision lives at the *end of Phase 2*.
+
+### Huge-project forge vs small build-up
+
+The full 1→2→3→4 pipeline is priced for a **big project**: a fresh team, an unfamiliar
+domain, gates that must be discovered from the repo, skills that don't exist yet,
+work that spans sessions or recurs on a schedule. For anything smaller, Phase 2's
+`## Next-phase route` picks a shorter exit (you approve the route either way):
+
+| Route | When | What actually runs |
+|---|---|---|
+| `phase-3-design` (full) | fresh team; roster, gate vocabulary, or skill gaps still open; long-lived / recurring / cross-session work | 1 → 2 → 3 → 4 → launch |
+| `fold-into-existing-runtime` | a follow-on plan **inside an already-forged slug**, reusing its roster + gate vocabulary | 1 (light) → 2 → append the plan's tasks to the existing `TASKS.yaml`, update the tracker → resume the existing loop. No design revision, nothing re-forged |
+| `direct-execution` | small **same-session** goal: no new agents, no skill gaps, gates already runnable | 1 (light) → 2 → the lead works the task list directly with existing subagents/skills. **Nothing is forged** — a launcher skill only earns its keep across sessions |
+
+Guardrails, so the fast paths stay honest: unresolved brainstorm carry-overs force
+`phase-3-design` (open design questions can't be skipped past); the Phase-2 review
+checklist requires the route to be stated *and earned*; and the fast path is an on-ramp,
+not a lock-in — the moment the work outgrows it (a task needs a gate that doesn't exist,
+a skill gap appears, work spills across sessions, a new kind of worker is needed), stop
+and run Phase 3 **for the delta**: revise design.yaml, re-forge just what changed
+(`forge.py --resync` handles template drift; a new profile or gate is a design delta).
+
+The build-up direction is the intended default for evolving projects: **start small,
+let the work prove it needs machinery, then forge exactly that machinery** — rather than
+forging a full apparatus up front and paying to maintain scaffold the project never uses.
+
 ## Requires
 
 - A Claude Code version with experimental agent-teams support
@@ -39,7 +83,7 @@ team-forge is the wiring; the procedural toolbox (TDD, debugging, planning, brai
 
 ## End-to-end usage example
 
-Below is a complete walkthrough of forging a new team for a hypothetical project. You'll run through 4 phases interactively with Claude as the lead.
+Below is a complete walkthrough of forging a new team for a hypothetical project — the **full, huge-project route**. You'll run through 4 phases interactively with Claude as the lead. (Small scopes usually exit earlier — see [Huge-project forge vs small build-up](#huge-project-forge-vs-small-build-up).)
 
 ### Step 0 — Set up the target repo
 
