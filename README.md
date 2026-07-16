@@ -85,7 +85,14 @@ Each milestone gets: hard_dependencies, interface_to_next, expected_team_size, n
 
 Writes a dated, content-descriptive plan (`team-plans/<slug>-plan-<YYYY-MM-DD>.md`, e.g. `combiner-v3-rewrite-plan-2026-07-02.md`). **Self-review** (9 criteria including cyclic-dependency check) before asking approval.
 
-### Step 3 — Design (Phase 3)
+### Step 3 — Design (Phase 3) — *sometimes skippable*
+
+Phase 3 is not unconditional. Phase 2 ends by recommending a route (recorded in the
+plan's `## Next-phase route`): a follow-on plan for an **already-forged** team skips
+straight to appending its tasks to the existing `TASKS.yaml`; a **small same-session
+goal** with no new agents/skills/gates skips Phases 3 *and* 4 entirely — the lead
+executes the plan's task list directly with existing subagents/skills (a launcher
+skill only pays off across sessions). Otherwise:
 
 ```
 Now use team-forge:design to produce the design.yaml.

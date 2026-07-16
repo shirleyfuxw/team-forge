@@ -19,6 +19,24 @@ before the human approval gate.
 - **Phase 3 of a fresh team-forge run** — after brainstorm + team-plan written + user approval
 - **Re-design** — if Phase 4 (forge) fails validation OR if the user requests a re-design after seeing the proposed roster
 
+## When to SKIP this phase
+
+Phase 3's multi-agent pass is expensive; don't run it when it would add nothing.
+The team-plan's `## Next-phase route` section (Phase 2, Step 7) records which of
+these applies — both routes still require the user's explicit approval there:
+
+- **Follow-on plan for an already-forged team/workflow** reusing its roster + gate
+  vocabulary: the plan's per-task `output`/`depends_on`/`blast_radius`/`dispatch`/
+  `gate_set` is already the full TASKS.yaml contract — append the tasks to the
+  existing `TASKS.yaml` and resume the existing launcher's loop. No design.yaml revision.
+- **Small same-session goal with no new assets**: no new agents, no skill gaps, gates
+  already runnable, work finishes this session → skip Phase 4 too (a launcher skill
+  only earns its keep across sessions) and let the lead execute the plan's task list
+  directly with existing subagents/skills.
+
+If execution outgrows the fast path (skill gaps surface, new roster needs, work
+spills across sessions), come back and run this phase then.
+
 ## Inputs
 
 - The current brainstorm (`docs/team-forge/<team>/brainstorms/<current>.md`)

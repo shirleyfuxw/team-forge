@@ -11,6 +11,7 @@ Evaluate a Phase 2 team-plan (`<slug>-plan-<YYYY-MM-DD>.md`). Loadable standalon
 | 3 | Per-milestone fields complete | Each milestone has `output`, `go_no_go`, `expected_team_size`, `next_phase_check`, and an iteration shape (one-shot / iterative). | No (warn) |
 | 4 | Filename is meaningful + dated | The file is named `<slug>-plan-<YYYY-MM-DD>.md` — a content-descriptive slug plus the date. A generic/undated name (`team-plan-v1.md`, `team-plan.md`) fails. | No (warn — rename before approval) |
 | 5 | Existing artifacts reviewed / non-duplicative | The plan builds on the current team-plan + done artifacts rather than re-planning covered work; a follow-on plan scopes to new work and cites what prior plans delivered; contradictions of prior decisions/gated results are surfaced, not silent. | No (warn) |
+| 6 | Next-phase route stated + earned | `## Next-phase route` names one of `phase-3-design` / `fold-into-existing-runtime` / `direct-execution`. A fast-path route must cite its criteria (existing roster/gates for fold-in; no new assets + runnable gates + same-session for direct execution) AND have an empty Carry-overs section — unresolved carry-overs force `phase-3-design`. | No (warn — default to `phase-3-design` if unjustified) |
 
 Skip the rest (milestones high-level, cross-milestone notes, carry-overs) — a capable model produces those without a checklist.
 
@@ -23,6 +24,7 @@ Team-plan review:
 - [✓/✗] Per-milestone fields complete       (name any milestone missing a field)
 - [✓/✗] Filename meaningful + dated         (warn; rename if generic/undated)
 - [✓/✗] Existing artifacts reviewed         (warn; non-duplicative, contradictions surfaced)
+- [✓/✗] Next-phase route stated + earned    (warn; fast path needs cited criteria + empty carry-overs)
 ```
 
 ## Hard-abort triggers
