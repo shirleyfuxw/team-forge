@@ -26,7 +26,8 @@ sizes — NOT a detailed task list (the shared task list handles that at runtime
 
 ## Inputs
 
-- The brainstorm document (the latest `brainstorms/brainstorm-<session-id>.md`)
+- The brainstorm document (the tracker's `current_brainstorm` pointer — a dated
+  `brainstorms/<slug>-brainstorm-<YYYY-MM-DD>.md`)
 - The user (interactive)
 - If runtime: the current team-plan (the tracker's `current_team_plan` pointer) to revise from
 
@@ -156,7 +157,7 @@ Create `docs/team-forge/<team>/team-plans/<slug>-plan-<YYYY-MM-DD>.md` (naming r
 # <Project name> — Team Plan (<YYYY-MM-DD>)
 
 Written <ISO-timestamp> by the lead (`<orchestrator-name>`). Derived from
-`brainstorms/brainstorm-<session-id>.md`.
+`brainstorms/<slug>-brainstorm-<YYYY-MM-DD>.md`.
 
 ## Project recap (1 paragraph)
 
