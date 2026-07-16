@@ -358,11 +358,11 @@ def observability_block(design):
         return (
             f"A **monitor teammate** (`{agent}`) owns the dashboard — do NOT run `gen_dashboard.py` yourself.\n"
             f"- **Spawn** `{agent}` at launch; **rehydrate** it on `/resume` (respawn with context).\n"
-            "- After each ledger update (task done / commit / milestone crossing), **trigger** it via "
+            "- After each ledger update (task done / commit / cycle boundary), **trigger** it via "
             "`SendMessage`. It PULLS authoritative state (git HEAD of the integration branch, the "
             "`tasks[]`/gate records), reconciles against your `status.json`, rewrites the dashboard, and "
             "messages back any **drift** — a rollup field you left stale (`integration_branch.head_sha`, "
-            "`current_milestone`, `budget`). Fix the flagged fields in `status.json`.\n"
+            "`integration_branch.pr_url`, `budget`). Fix the flagged fields in `status.json`.\n"
             "- It is single-writer for `dashboard.html` / `dashboard-data.json`; you stay single-writer for `status.json`."
         )
     return (
@@ -370,7 +370,7 @@ def observability_block(design):
         f"`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`. It DERIVES "
         "`integration_branch.head_sha` (via `git rev-parse`) and `current_task` (from the task "
         "records), so those panels stay correct even if you didn't hand-update the rollup — but you "
-        "must still refresh `current_milestone` / `integration_branch.pr_url` / `budget` in `status.json` yourself."
+        "must still refresh `integration_branch.pr_url` / `budget` in `status.json` yourself."
     )
 
 
@@ -396,24 +396,51 @@ def render_workflow_drain_launcher(design):
     project = design['project']
     constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
     rec = design.get('recurring')
+    team = project['name']
     if rec:
         recurring_note = (f"**Recurring / unattended.** Schedule: {rec.get('schedule', '—')}. "
                           f"Cycle box: {rec.get('cycle_box', '—')}. Unattended: {rec.get('unattended', False)} "
                           f"(plan-gate items park for human approval; per-item verify gates mandatory). "
                           f"Carry-over via {rec.get('carry_over_state', 'status.json')}. "
                           f"The schedule is the OUTER loop — this skill runs ONE cycle and exits.")
+        next_cycle_note = "The schedule fires the next cycle."
+        teardown_note = (
+            "**Retiring the recurring workflow** (not per-cycle): when the drain is decommissioned, run\n"
+            "**`team-forge:teardown`** — it removes the schedule/cron trigger first (so no further cycles fire),\n"
+            "archives the ledger, prunes worktrees, and removes the launcher + profiles + ephemeral state.")
     else:
         recurring_note = "One-shot (not recurring): drains the queue once, then exits."
+        next_cycle_note = ("This is a **one-shot** drain — there is no next cycle and no schedule; "
+                           "when the queue is empty the workflow is done.")
+        teardown_note = (
+            "**Retiring the workflow:** once the drain is done and its PRs are merged/closed, run\n"
+            "**`team-forge:teardown`** — it archives the ledger, prunes worktrees, and removes the\n"
+            "launcher + profiles + ephemeral state. (No schedule/cron to remove — this is one-shot.)")
+    # advisor is an OPTIONAL profile; only point at it if it was actually forged, else the
+    # escalation pointer dangles at a non-existent agent.
+    if 'advisor' in design:
+        escalation_note = f"Escalate hard\n  2+-module questions to **advisor** (`{team}-advisor`)."
+    else:
+        escalation_note = ("Escalate hard\n  2+-module questions to the **lead** "
+                           "(no advisor profile in this workflow) — surface it and stop.")
+    # wave_size belongs in the numeric "waves of ≤ N" slot; if the design put prose there,
+    # keep the prose out of the launcher (it lives in queue.wave_size / TASKS.yaml) and render a
+    # clean pointer instead, so the slot never reads as a run-on paragraph mid-sentence.
+    ws = design.get('queue', {}).get('wave_size', 4)
+    wave_size = str(ws) if isinstance(ws, int) else "the per-stage cap in `queue.wave_size` (see TASKS.yaml)"
     return substitute_simple(tmpl, {
-        'team': project['name'],
+        'team': team,
         'project_display_name': project['display_name'],
         'project_name': project['name'],
         'project_basename': project['target_repo_basename'],
         'target_repo': project['target_repo'],
         'domain': project['domain'],
         'integration_branch': project.get('integration_branch', '(unset)'),
-        'WAVE_SIZE': str(design.get('queue', {}).get('wave_size', 4)),
+        'WAVE_SIZE': wave_size,
         'RECURRING_NOTE': recurring_note,
+        'NEXT_CYCLE_NOTE': next_cycle_note,
+        'TEARDOWN_NOTE': teardown_note,
+        'ESCALATION_NOTE': escalation_note,
         'CONSTRAINTS_BULLET_LIST': constraints_block,
         'OBSERVABILITY_BLOCK': observability_block(design),
     })
@@ -538,8 +565,17 @@ def validate_workflow(design):
         assert seen == len(ids), "task DAG has a cycle"
     else:
         assert design.get('queue'), "parallel-drain needs a queue block"
+        # wave_size feeds the launcher's numeric "waves of ≤ N" slot. Prose there renders as a
+        # run-on paragraph mid-sentence (the render step now falls back to a TASKS.yaml pointer,
+        # but the design is still malformed) — warn so it gets fixed at the source.
+        ws = design['queue'].get('wave_size', 4)
+        if not isinstance(ws, int):
+            print(f"⚠ queue.wave_size is {type(ws).__name__}, not int — the launcher will point at "
+                  "TASKS.yaml instead of a number. Put the numeric per-wave cap in wave_size and move "
+                  "the sizing rationale to queue.triage / a YAML comment.")
+    ws_detail = design.get('queue', {}).get('wave_size', '?') if design['shape'] == 'parallel-drain' else None
     detail = (f"{len(design['tasks'])} tasks, DAG acyclic" if design['shape'] == 'sequential-gated'
-              else f"queue (wave {design.get('queue', {}).get('wave_size', '?')})")
+              else f"queue (wave {ws_detail if isinstance(ws_detail, int) else 'per-triage'})")
     print(f"✓ Validation (workflow/{design['shape']}): {len(gate_names)} gates, {detail}")
 
 
