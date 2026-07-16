@@ -4,7 +4,8 @@ description: |
   Use when starting Phase 1 of the team-forge loop OR when the lead needs to develop
   / revise the project's working understanding. Agent-team-aware brainstorming with
   active interrogation of the human about agent needs, verification, tracking,
-  completion criteria, and budget. Writes a brainstorm-<session-id>.md to the KB.
+  completion criteria, and budget. Writes a dated, content-descriptive brainstorm
+  (`<slug>-brainstorm-<YYYY-MM-DD>.md`) to the KB.
 ---
 
 # team-forge:brainstorming — Phase 1 (or runtime brainstorm revision)
@@ -21,12 +22,25 @@ needed to design a multi-agent team.
 ## Inputs
 
 - The user (interactive conversation)
-- If runtime: the current `brainstorms/brainstorm-<latest>.md` to revise from
+- If runtime: the current brainstorm (the tracker's `current_brainstorm` pointer) to revise from
 
 ## What you produce
 
-A markdown file at `docs/team-forge/<team>/brainstorms/brainstorm-<session-id>.md`
-where `<session-id>` is an ISO timestamp or a slug like `phase1-initial` or `pivot-1`.
+A markdown file at `docs/team-forge/<team>/brainstorms/<slug>-brainstorm-<YYYY-MM-DD>.md`,
+where `<slug>` is a short content-descriptive slug (the project/team slug for the initial
+brainstorm; the *focus* for a later one — e.g. the pivot subject, a new scope's name) and
+`<YYYY-MM-DD>` is today's date. Examples:
+
+- Initial:            `combiner-v3-rewrite-brainstorm-2026-07-02.md`
+- Later scope/pivot:  `connect-eval-tooling-brainstorm-2026-07-15.md`
+
+**Naming rules** (same discipline as team-plans):
+- **Meaningful + dated, never opaque.** No session ids, no `brainstorm-v1.md` — the name must
+  say what the brainstorm is about AND carry the date it was cut.
+- **Same-day collision:** if the exact filename exists, append `-v2`, `-v3`, …; a revision on
+  a later day just uses the new date.
+- **"Current" is tracked, not encoded in the name.** The tracker's `current_brainstorm` +
+  `brainstorm_history` decide which brainstorm is live — the filename carries no version counter.
 
 ## Procedure
 
@@ -128,10 +142,10 @@ Phase 3 (design).
 
 ### Step 5 — Write the brainstorm document
 
-Create `docs/team-forge/<team>/brainstorms/brainstorm-<session-id>.md`:
+Create `docs/team-forge/<team>/brainstorms/<slug>-brainstorm-<YYYY-MM-DD>.md` (naming rules above):
 
 ```markdown
-# <Project name> — Brainstorm <session-id>
+# <Project name> — Brainstorm (<YYYY-MM-DD>, <focus>)
 
 Written <ISO-timestamp> by the lead (`<orchestrator-name>`) in conversation with
 the human user.
