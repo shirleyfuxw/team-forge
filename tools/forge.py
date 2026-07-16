@@ -19,7 +19,7 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.8.2"
+FORGE_VERSION = "0.9.0"
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
 # (report drift, read-only).
@@ -194,18 +194,18 @@ def emit_skill_gap_scaffolds(design, hub_dir, target_repo, generated):
 def render_agent_md(entry, team, project_basename):
     """Render templates/agent.md.j2 for one roster entry."""
     name = entry['name']
-    shared = entry.get('shared_across_teams', False)
-    agent_name = name if shared else f"{team}-{name}"
+    # Every forged agent is team-owned and team-prefixed — no exceptions. The old
+    # `shared_across_teams: true` escape emitted a bare `<name>.md`, which teardown's
+    # `<team>-*.md` glob could not match, so those agents outlived every teardown and
+    # stayed registered in the target project forever. One naming rule keeps the team
+    # slug the single handle for forge, --resync, and teardown alike.
+    agent_name = f"{team}-{name}"
     role = entry['role']
     skills = entry.get('skills', [])
 
     role_block = ROLE_DESCRIPTIONS[role].format(team=team)
     skills_block = "\n".join(f"- `{s}`" for s in skills) if skills else "*None — you work from prompt context alone. Intentional for pure prompt-driven agents.*"
     memory_block = MEMORY_AUTHORITY[role].format(team=team)
-    shared_block = (
-        "## Shared-agent note\n\n"
-        "You are `shared_across_teams: true`. Forged into the target project's `.claude/agents/` once and reused unmodified by sibling teams. Do not assume team-specific context — behavior must hold across every team that spawns you."
-    ) if shared else ""
 
     # Native persistent memory only for dispatched roles (advise); teammate roles omit it
     # (Claude Code ignores `memory:` on the teammate path). An explicit entry.memory overrides.
@@ -228,7 +228,6 @@ def render_agent_md(entry, team, project_basename):
         'SKILLS_FRONTMATTER_BLOCK': skills_frontmatter_block(skills),
         'MEMORY_FRONTMATTER_BLOCK': memory_frontmatter_block(mem_scope),
         'MEMORY_AUTHORITY_BLOCK': memory_block,
-        'SHARED_AGENT_NOTE_BLOCK': shared_block,
     }), agent_name + ".md"
 
 def roster_roles(design):
@@ -247,7 +246,7 @@ def render_team_launcher(design):
     if not orchestrator:
         raise ValueError("No orchestrator in roster")
     team = project['name']
-    orch_name = orchestrator['name'] if orchestrator.get('shared_across_teams') else f"{team}-{orchestrator['name']}"
+    orch_name = f"{team}-{orchestrator['name']}"
     constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
     roles = roster_roles(design)
     ledger_lines = []
@@ -719,6 +718,17 @@ for s in design['tracking']['state_shape']:
     src = s['source']
     if src != 'lead':
         assert src in roster_names, f"Comms closure failed: {src} not in roster"
+# `shared_across_teams` is retired (FORGE_VERSION 0.9.0) — every agent is now `<team>-<name>.md`.
+# Fail loudly rather than ignore it: a design that still carries the key was forged under the old
+# rule, so re-forging silently renames `<name>.md` → `<team>-<name>.md` and ORPHANS the bare file —
+# re-creating the exact leak this change removes. The stale file must be deleted by hand.
+_stale_shared = [e['name'] for e in design['roster'] if 'shared_across_teams' in e]
+assert not _stale_shared, (
+    f"`shared_across_teams` is retired but still set on: {', '.join(_stale_shared)}. "
+    "Every forged agent is now `<team>-<name>.md`. Remove the key from design.yaml — and if this "
+    f"team was already forged, delete the old bare-named agent(s) from `.claude/agents/` "
+    "(and their `.claude/agent-memory/<name>/`) first, or re-forging will leave them orphaned."
+)
 n = len(design['milestones'])
 assert 1 <= n <= 5, f"Milestone count {n} out of range"  # Relaxed to 1-5
 print(f"✓ Validation: {len(design['roster'])} roster entries, {n} milestones, role coverage complete")
@@ -814,7 +824,6 @@ manifest = {
     "design_hash": hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest(),
     "forged_at_iso": _NOW,
     "generated_files": generated,
-    "shared_agents_used": [],
 }
 (hub_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
 print(f"✓ manifest.json: {len(generated)} files tracked")

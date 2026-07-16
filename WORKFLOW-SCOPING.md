@@ -114,7 +114,7 @@ No `-tracker/-monitor/-verifier.md`; no `respawn_order`.
 4. Fan-out: declare in contract vs leave to lead's judgment — lean: declare known, allow ad-hoc.
 5. Team archetype stays; the *default* flips to triage-decides (most wjsl_trader work → `workflow`).
 6. Re-forge the two existing teams under the new archetype? Lean: re-forge `ticket-drainer` as the parallel-drain reference (exercises cron + `pipeline()` + rotation).
-7. Default profiles: extension-shipped vs repo-owned `shared_across_teams`? Lean: extension ships the generic procedure; repos promote a shared instance for stable domain skills.
+7. ~~Default profiles: extension-shipped vs repo-owned `shared_across_teams`?~~ **Settled (0.9.0):** repo-owned, per team. `shared_across_teams` is retired — every forged agent is `<team>-<name>.md`, so a workflow's `<team>-worker`/`<team>-advisor` are that team's own copies and retire with it. The "promote a shared instance" half is gone: an unprefixed agent was invisible to teardown and outlived the team. The extension still ships the generic procedure (`templates/workflow/profile.md.j2`); each team forges its own instance from it.
 8. Forge produces skills inline (via `skill-creator`) vs just specs the gap? Lean: scaffold + human-review before load-bearing.
 
 ## Status
