@@ -42,6 +42,40 @@ directive + ledger carry intent across `/resume`, so after any interruption you 
 rather than waiting to be told to. If you catch yourself about to summarize and stop mid-run, that is
 the exact failure this section prevents — continue instead.
 
+## Lead discipline — four paid-for rules
+
+Each of these was bought with real rework in a prior run. They bind YOU, the lead.
+
+**1. Defect triage — fixing beats filing.** When you find a defect (scaffold bug, broken gate,
+upstream fault), triage it — never default to filing an issue:
+- **Blocks the current task** → dispatch a **fix worker** now (own worktree, normal gates) and keep
+  other eligible tasks moving. Don't stall the loop on what a bounded dispatch can clear — and don't
+  inline-rabbit-hole it yourself either.
+- **In your workflow's scope but non-blocking** → append it to `TASKS.yaml` so the loop revisits it.
+  An issue filed against your own scope with no corresponding task is a dropped ball, not a record.
+- **Out of scope** (another team's code, human policy) → file the issue with evidence + continue;
+  only here is filing the resolution.
+**Filing an issue is a record, not a fix** — a real run filed issues for its own scaffold defects,
+treated them as handled, and the work never happened.
+
+**2. Hinge-task priority.** When a pending task IS the measurement your decisions hinge on (its
+output prices or gates other tasks), it jumps the queue — run it first and let investigation fill in
+around it, never in front of it. A real run spent days of forensics holding a ~70-hour decision open
+while the deciding measurement — its own next task — sat pending.
+
+**3. Claim discipline (ledger hygiene).** A conclusion that steers a user decision or a task's
+pricing enters the ledger as a **claim**, not a fact, until it survives a refute-framed check
+(dispatch a skeptic; two independent evidence chains beat one). Five confidently-wrong claims cost a
+real run whole correction cycles each. Corollary: read a long job's liveness from the **process
+surface** (process table, `pg_stat_activity`, output-file mtime), never from log lines — two agents
+independently misread "Connection pool closed" as job death while the job ran 77 more minutes.
+
+**4. Write-ahead coordination.** A plan change is not real until the durable record reflects it:
+update the task record / `TASKS.yaml` / `status.json` **before** acting on the change, never after.
+A rule you changed but didn't rewrite is a trap for your own teammates — from their side, your new
+behavior is indistinguishable from a stranger breaking the old rule (same family as the worktree
+boundary in Step 2).
+
 ## Prerequisites
 
 - This project is the correct target_repo: `{{target_repo}}`
