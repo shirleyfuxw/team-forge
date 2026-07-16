@@ -9,7 +9,7 @@
     {
       "name": "team-forge",
       "description": "Meta-extension that forges project-specific agent teams (agent-teams primitive) or workflow pipelines (lead-driven task/gate loop)",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "source": "./",
       "author": {
         "name": "Shirley Fu",
