@@ -52,6 +52,29 @@ project:
     <one-paragraph brief — verbatim from brainstorm if possible>
 
 # ----------------------------------------------------------------------------
+# goal — the lead's standing orders (REQUIRED, both archetypes).
+# ----------------------------------------------------------------------------
+# Forge stamps this into tracker/status.json as `goal_directive` and renders it at the
+# top of the launcher — it is what lets the lead run WITHOUT stopping for input: the
+# launchers' autonomy rule is "pause only for a `user_decides` item, or a decision not
+# inferable from this directive + the ledger." Sourced from the brainstorm's Completion
+# criteria + Autonomy contract (interrogation areas 4 and 6).
+goal:
+  statement: |
+    <one paragraph: the outcome this team/workflow exists to produce — verbatim-ish
+    from the brainstorm goal>
+  done_when:                                # 2–5 falsifiable completion signals (brainstorm §Completion criteria)
+    - "<signal-1>"
+    - "<signal-2>"
+  lead_decides:                             # standing approvals — the lead acts WITHOUT asking
+    - "<e.g. open PRs against the integration branch>"
+    - "<e.g. re-cut not-yet-done tasks / dispatch fix workers>"
+  user_decides:                             # hard asks — ALWAYS pause for the user
+    - "<e.g. bulk-close GitHub issues / anything outward-facing>"
+    - "<e.g. spend above the budget ceiling>"
+  # Unlisted decisions default to: act if inferable from statement+done_when+ledger, ask otherwise.
+
+# ----------------------------------------------------------------------------
 # milestones — Phase 2 output. High-level only (no detail task lists).
 # ----------------------------------------------------------------------------
 # 2–5 milestones. Each has a verifiable output + an explicit human go/no-go gate.

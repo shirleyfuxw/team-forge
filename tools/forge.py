@@ -19,7 +19,7 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.8.5"
+FORGE_VERSION = "0.8.6"
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
 # (report drift, read-only).
@@ -240,6 +240,33 @@ def roster_roles(design):
         roles.update(e.get('combined_roles') or [])
     return roles
 
+def validate_goal(design):
+    """The goal directive is what lets the lead run without stopping for input — the
+    launchers' autonomy rule pauses only for user_decides items or decisions not
+    inferable from it. A forge without one ships a lead that asks about everything."""
+    g = design.get('goal') or {}
+    assert (g.get('statement') or '').strip(), \
+        "goal.statement missing — the launcher's autonomy contract needs the lead's standing orders (see templates/design.yaml.j2 `goal:`)"
+    assert g.get('done_when'), "goal.done_when missing — 2-5 falsifiable completion signals (brainstorm §Completion criteria)"
+
+
+def goal_block(design):
+    """Markdown for the launchers' {{GOAL_BLOCK}} — the lead's standing orders."""
+    g = design['goal']
+    lines = [g['statement'].strip(), "", "**Done when (all of):**"]
+    lines += [f"- {s}" for s in g['done_when']]
+    if g.get('lead_decides'):
+        lines += ["", "**You decide alone (standing approvals):**"]
+        lines += [f"- {s}" for s in g['lead_decides']]
+    if g.get('user_decides'):
+        lines += ["", "**Always pause for the user (hard asks):**"]
+        lines += [f"- {s}" for s in g['user_decides']]
+    lines += ["", "Unlisted decisions default to: **act** if inferable from this directive + the "
+              "ledger, **ask** otherwise — and while one question waits, keep working everything "
+              "else that is eligible."]
+    return "\n".join(lines)
+
+
 def render_team_launcher(design):
     tmpl = (TEMPLATES_DIR / "team-launcher.md.j2").read_text()
     project = design['project']
@@ -261,6 +288,7 @@ def render_team_launcher(design):
         ledger_lines.append(f"After each status.json update, re-render the dashboard: `python3 .claude/team-forge/{team}/playground/gen_dashboard.py` (no monitor teammate — the render step owns the dashboard).")
     return substitute_simple(tmpl, {
         'LEDGER_OWNERSHIP_BLOCK': "\n".join(ledger_lines),
+        'GOAL_BLOCK': goal_block(design),
         'team': team,
         'project_display_name': project['display_name'],
         'project_name': project['name'],
@@ -277,6 +305,7 @@ def initial_status_json(design):
         t = s['type']
         state[s['id']] = {'string':None,'int':0,'float':0.0,'bool':False,'list':[],'object':{}}[t]
     state.update({
+        'goal_directive': design['goal'],
         'current_brainstorm': None,
         'current_team_plan': None,
         'brainstorm_history': [],
@@ -386,6 +415,7 @@ def render_workflow_launcher(design):
         'target_repo': project['target_repo'],
         'domain': project['domain'],
         'integration_branch': project.get('integration_branch', '(unset)'),
+        'GOAL_BLOCK': goal_block(design),
         'CONSTRAINTS_BULLET_LIST': constraints_block,
         'OBSERVABILITY_BLOCK': observability_block(design),
     })
@@ -437,6 +467,7 @@ def render_workflow_drain_launcher(design):
         'domain': project['domain'],
         'integration_branch': project.get('integration_branch', '(unset)'),
         'WAVE_SIZE': wave_size,
+        'GOAL_BLOCK': goal_block(design),
         'RECURRING_NOTE': recurring_note,
         'NEXT_CYCLE_NOTE': next_cycle_note,
         'TEARDOWN_NOTE': teardown_note,
@@ -518,6 +549,7 @@ def initial_status_json_workflow(design):
         state['tasks'] = [{'id': t['id'], 'status': 'pending', 'gate_status': None, 'commit': None} for t in tasks]
         state['current_task'] = tasks[0]['id']
     state['integration_branch'] = {'name': design['project'].get('integration_branch'), 'head_sha': None, 'pr_url': None}
+    state['goal_directive'] = design['goal']
     state['events'] = []
     state['forge_metadata'] = {
         'forged_at_iso': _NOW,
@@ -529,6 +561,7 @@ def initial_status_json_workflow(design):
 
 def validate_workflow(design):
     assert design.get('shape') in ('sequential-gated', 'parallel-drain'), f"bad/missing shape: {design.get('shape')}"
+    validate_goal(design)
     assert design.get('gates'), "no gates block"
     assert 'worker' in design, "no worker profile"
     assert design.get('ledger', {}).get('state_shape'), "no ledger.state_shape"
@@ -810,6 +843,7 @@ for s in design['tracking']['state_shape']:
     src = s['source']
     if src != 'lead':
         assert src in roster_names, f"Comms closure failed: {src} not in roster"
+validate_goal(design)
 validate_dashboard_panels(design['tracking'].get('dashboard_panels'), "tracking")
 n = len(design['milestones'])
 assert 1 <= n <= 5, f"Milestone count {n} out of range"  # Relaxed to 1-5

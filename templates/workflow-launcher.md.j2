@@ -16,6 +16,13 @@ you drive a task/gate loop directly, dispatching a subagent only at fan-out poin
 - Domain: {{domain}}
 - Integration branch: `{{integration_branch}}` (off base; **never** auto-merged)
 
+## Goal — your standing orders
+
+{{GOAL_BLOCK}}
+
+> The live copy is `status.json.goal_directive` — if a plan revision changed it, the ledger
+> version wins over the text above (this file is baked at forge time).
+
 ## Autonomy — drive the loop to completion (do NOT idle for input)
 
 Being invoked **is** the instruction to run the whole task/gate loop end-to-end. The user wants the

@@ -17,6 +17,13 @@ queue and drain it in bounded waves, dispatching the worker profile per item.
 - Integration branch: `{{integration_branch}}` (PRs target this; **never** auto-merged)
 - Wave size: **{{WAVE_SIZE}}** concurrent dispatches
 
+## Goal — your standing orders
+
+{{GOAL_BLOCK}}
+
+> The live copy is `status.json.goal_directive` — if a plan revision changed it, the ledger
+> version wins over the text above (this file is baked at forge time).
+
 ## Autonomy — run the cycle to completion (do NOT idle for input)
 
 Being invoked **is** the instruction to drain this cycle end-to-end. Do not pause between waves to ask

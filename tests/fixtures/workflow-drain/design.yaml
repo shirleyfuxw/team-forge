@@ -23,6 +23,21 @@ project:
     triage the eligible queue, route (full-drain vs plan-gate), drain the full-drain
     subset in waves of <=4 worktrees through the gate stack to PR-ready, report, exit.
 
+goal:
+  statement: |
+    Keep the bug/refactor/chore issue queue drained: every cycle, all eligible
+    full-drain items reach PR-ready through the gate stack; risky items park for
+    human approval rather than auto-proceeding.
+  done_when:
+    - "Cycle end: queue_eligible_count == 0 OR cycle_box_deadline hit with carry-overs logged"
+    - "Every drained item has a PR against the integration branch with its gate_set green"
+  lead_decides:
+    - "Triage/routing of eligible items; wave dispatch; opening PRs"
+    - "Dispatching fix workers for blocking defects"
+  user_decides:
+    - "The plan-gate (risky) item set — always HOLDs for approval"
+    - "Merging PRs"
+
 # --- parallel-drain → a queue DISCOVERED at runtime (no authored task list) ---
 queue:
   eligibility: "gh issue list --state open --search 'label:bug,refactor,chore' minus wontfix/duplicate/assigned"

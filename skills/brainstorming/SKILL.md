@@ -112,6 +112,15 @@ Now ask, in this order:
 5. **Token budget?**
    > "What's the rough token budget over the project's lifetime? Per-cohort budget if iterative? Hard ceiling or soft target?"
 
+6. **Autonomy contract?**
+   > "While the loop runs, which decisions are the lead's alone? Name the **standing
+   > approvals** — things it may do without asking (open PRs against the integration
+   > branch, re-cut tasks, dispatch fix workers, spend up to the budget) — and the
+   > **hard asks** — things that must always come back to you (irreversible or
+   > outward-facing actions, cost above a threshold, scope changes). Anything not
+   > listed defaults to: the lead decides if it's inferable from the goal + ledger,
+   > and asks otherwise."
+
 For each question: ask, listen, capture, follow up if vague. Don't paraphrase the
 user's answer back as if it's a refinement — capture verbatim plus ANY follow-up
 questions you genuinely had.
@@ -174,6 +183,16 @@ the human user.
 
 <budget; mark `hard` or `soft`>
 
+## Autonomy contract
+
+Standing approvals (lead decides alone):
+- <approval-1>
+
+Hard asks (always pause for the user):
+- <hard-ask-1>
+
+Default for the unlisted: decide if inferable from goal + ledger, ask otherwise.
+
 ## Milestone sketch (high-level, for Phase 2 to refine)
 
 1. <milestone-1>: <output> | go/no-go: <criterion>
@@ -217,7 +236,7 @@ approve to move to Phase 2 (planning).
 
 ## Failure modes
 
-- **User declines to answer one of the 5 interrogation questions** → record `<question-id>: declined` and proceed. Note in the doc that the field is undeclared.
+- **User declines to answer one of the 6 interrogation questions** → record `<question-id>: declined` and proceed. Note in the doc that the field is undeclared.
 - **User wants to revise mid-flight** → revise the in-progress file before saving; never partial-save and resume — the brainstorm is atomic per session.
 
 
