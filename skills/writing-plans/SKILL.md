@@ -217,7 +217,7 @@ with the criteria met — see Step 7. Default `phase-3-design` when unsure.)
 list what changed and why. The tracker's `team_plan_history` holds the full ordering.)
 ```
 
-### Step 6 — Update the tracker
+### Step 6 — Update the tracker (plan pointer + goal directive)
 
 After writing the file, send the tracker a message:
 
@@ -228,6 +228,23 @@ plan_update:
 
 The tracker will append `team_plan_revised`, update `current_team_plan` and
 `team_plan_history`.
+
+**Goal-directive revision (mandatory for add-on scope / follow-on plans).** The ledger's
+`status.json.goal_directive` (`statement` / `done_when` / `lead_decides` / `user_decides`)
+is what the running lead consults instead of stopping for input — and on the fast-path
+routes nothing downstream will ever touch it, so a stale goal here is the write-ahead
+failure aimed at yourself. Before executing under the new plan:
+
+- **Scope added/changed** → extend `done_when` with the new plan's completion signals
+  (drop signals the pivot made obsolete — with a one-line why), update `statement` if the
+  outcome itself grew, and revisit `lead_decides`/`user_decides` if the new tasks introduce
+  actions of a different risk class (e.g. the old scope never touched anything
+  outward-facing, the new one does). Log a `goal_revised` event with the delta.
+- **Same scope, plan merely re-cut** → confirm the existing directive still covers it; no edit.
+- **No `goal_directive` in the ledger** (team forged before v0.8.6) → seed it now from the
+  brainstorm's Completion criteria + Autonomy contract, then proceed.
+
+Update the directive **before** the first task of the new scope runs, never retroactively.
 
 ### Step 7 — Confirm with the user + route the next phase
 
@@ -244,7 +261,9 @@ a real token/effort cost that a small or already-staffed goal shouldn't pay:
    roster + gate vocabulary. The task list already carries everything `TASKS.yaml`
    needs (`output`, `depends_on`, `blast_radius`, `dispatch`, `gate_set` per task),
    so design.yaml would add nothing: append the tasks to the existing `TASKS.yaml`,
-   update the tracker, and resume the existing launcher's task/gate loop.
+   update the tracker **including the goal-directive revision (Step 6)** — the new
+   scope's `done_when` signals must land in `status.json.goal_directive` before its
+   first task runs — and resume the existing launcher's task/gate loop.
 
 3. **Direct execution — skip Phase 3 AND Phase 4.** Use when ALL of:
    - every task is executable with **existing** subagents/skills (the assets the

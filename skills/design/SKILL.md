@@ -101,6 +101,12 @@ the **skill quality bar** below.
 
 ### W-Step 3 — synthesize + compose the workflow design.yaml
 
+**Compose the `goal:` block first** (both archetypes; forge validates it): `statement` from
+the brainstorm's goal, `done_when` from its Completion criteria, `lead_decides`/`user_decides`
+from its Autonomy contract (interrogation area 6; if the brainstorm predates that question,
+derive conservative defaults and flag for the user's approval pass). This block becomes the
+lead's standing orders — it is why the forged launcher can run without stopping for input.
+
 Reconcile the lenses and compose `design.yaml` with `archetype: workflow` + the workflow
 blocks. Worked schema references: `tests/fixtures/workflow-tidy/design.yaml` (sequential-gated)
 and `tests/fixtures/workflow-drain/design.yaml` (parallel-drain + recurring). **Invariant:**

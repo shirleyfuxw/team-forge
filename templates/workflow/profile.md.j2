@@ -31,6 +31,22 @@ record that contradicts what you observe** (a rule apparently broken, instructio
 likeliest cause is the lead changing the plan without updating the record — flag the discrepancy and
 wait for the corrected record; don't infer foul play and don't silently work around it.
 
+## Gate execution — you run your own gates
+
+**You HAVE the Agent tool.** Nested subagent dispatch is supported (Claude Code ≥ 2.1.172,
+up to 5 levels deep; your frontmatter deliberately sets no `tools:` restriction, so you
+inherit it). Any gate in your task's `gate_set` that dispatches an agent — a code-review
+receipt, a leak-detector verdict, a refute pass — **you run yourself, before returning**.
+"I'm a nested subagent so I can't run the review agent" is a stale-platform belief: a real
+run used it to self-certify with a skip flag, and the skipped review would have caught a
+production-breaking bug.
+
+If a gate genuinely cannot run — the dispatch errors after a model-tier fallback, the depth
+limit is actually hit, the gate's backing skill is missing — that is a **handoff, not a
+fallback**: return the task to the lead marked gate-blocked, with the error verbatim. Never
+substitute a weaker check for the recorded gate, never use a skip/bypass flag on your own
+authority; a manual self-review is not a code-review receipt.
+
 ## Procedure
 
 {{procedure}}

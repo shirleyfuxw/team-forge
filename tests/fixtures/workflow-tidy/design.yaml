@@ -18,6 +18,19 @@ project:
     slugify + truncate string helpers. Extract them into one shared util,
     redirect callers, delete the dups — proving no output changed.
 
+goal:
+  statement: |
+    Extract the duplicated slugify/truncate helpers into one shared util and redirect
+    all callers, proving byte-identical output — a pure behavior-preserving tidy.
+  done_when:
+    - "All three modules import the shared util; zero hand-rolled copies remain (grep-clean)"
+    - "Parity gate green: max_diff == 0 vs pre-refactor output on the fixture corpus"
+  lead_decides:
+    - "Open PRs against the integration branch"
+    - "Re-cut not-yet-done tasks when the design pivots (W7)"
+  user_decides:
+    - "Merging the final PR"
+
 # --- shape: sequential-gated → an AUTHORED task list (the proto-TASKS.yaml) ---
 tasks:
   - id: extract-shared-utils       # descriptive slug, not a phase code (becomes artifacts/<id>/)

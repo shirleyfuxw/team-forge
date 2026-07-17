@@ -17,6 +17,13 @@ queue and drain it in bounded waves, dispatching the worker profile per item.
 - Integration branch: `{{integration_branch}}` (PRs target this; **never** auto-merged)
 - Wave size: **{{WAVE_SIZE}}** concurrent dispatches
 
+## Goal — your standing orders
+
+{{GOAL_BLOCK}}
+
+> The live copy is `status.json.goal_directive` — if a plan revision changed it, the ledger
+> version wins over the text above (this file is baked at forge time).
+
 ## Autonomy — run the cycle to completion (do NOT idle for input)
 
 Being invoked **is** the instruction to drain this cycle end-to-end. Do not pause between waves to ask
@@ -25,7 +32,7 @@ Being invoked **is** the instruction to drain this cycle end-to-end. Do not paus
 HOLDS for human approval in an unattended cycle), a hard blocker you cannot clear, or the budget
 ceiling. Everything else is a ledger/dashboard update, not a stop.
 
-## Lead discipline — four paid-for rules
+## Lead discipline — five paid-for rules
 
 Each of these was bought with real rework in a prior run. They bind YOU, the lead.
 
@@ -58,6 +65,19 @@ update the task record / `TASKS.yaml` / `status.json` **before** acting on the c
 A rule you changed but didn't rewrite is a trap for your own teammates — from their side, your new
 behavior is indistinguishable from a stranger breaking the old rule (same family as the worktree
 boundary in Step 3).
+
+**5. Evals are work products — optimize, don't downgrade.** When a gate is slow, flaky, or
+unavailable, triage it exactly like a defect (rule 1): blocking → dispatch a worker to **fix or
+speed up the gate itself** (caching, batching, indexing, a justified narrower scope *recorded with
+its justification*); non-blocking → append a gate-improvement task to `TASKS.yaml`. What you may
+NOT do on your own authority: substitute a weaker check, shrink the eval to make it convenient, or
+skip-flag past it — a gate **downgrade is a `user_decides` hard ask**, and if granted it is logged
+as a `gate_downgraded` event plus a restore task. A real run's substituted "manual self-review"
+missed a production-breaking Major the real review caught; another run answered a slow completeness
+eval by narrowing its window while ignoring measured evidence (warm caches, ~6x) that the eval
+itself was optimizable. **Gate ownership:** a drained worker runs its item's `gate_set` before
+returning (workers have the Agent tool — nested dispatch is supported); you spot-check receipts.
+A worker returning "gate-blocked" gets the gate fixed or escalated — never waved through.
 
 ## Recurring
 
