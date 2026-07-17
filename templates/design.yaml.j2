@@ -21,8 +21,8 @@
 #                        allowed via `combined_roles: [...]` on a teammate.
 #   COMMS CLOSURE      — every roster reference in `tracking.state_shape[].source`
 #                        and `constraints[]` must exist in `roster` or be "lead".
-#   SHARED-AGENT NAMING — entries with `shared_across_teams: true` keep unprefixed
-#                        names; non-shared get prefixed `<team>-<name>` at Forge.
+#   AGENT NAMING       — every roster entry is forged as `<team>-<name>.md`. No exceptions:
+#                        the team slug is the handle teardown uses to remove them.
 #
 # SUBAGENT MEMORY (native — usually no field to set): Forge relies on Claude Code's
 # native per-agent memory. DISPATCHED roles (advise; workflow worker/advisor) are
@@ -72,7 +72,7 @@ milestones:
 # roster — concrete teammate definitions.
 # ----------------------------------------------------------------------------
 # Required per entry: name, role (or combined_roles), purpose, skills.
-# Optional: shared_across_teams (default false), combined_roles, model.
+# Optional: combined_roles, model.
 roster:
   - name: <slug>                            # filename without .md
     role: <enum>                            # work | verify | advise | orchestrator (required roles)
@@ -80,7 +80,6 @@ roster:
     # combined_roles: [<role>, <role>]      # OPTIONAL — for one-shot/small teams
     purpose: |
       <prose paragraph describing what this teammate owns>
-    # shared_across_teams: true             # OPTIONAL — if reused across project's teams
     skills:                                 # SUGGESTED loadout — see "Skill loadouts" note below
       - <skill-name>
       - team-forge:<bare-name>
@@ -192,10 +191,10 @@ asset_discovery:
       ecc: [<agent-name>]                    # e.g. code-reviewer, architect, tdd-guide
 
   # The four buckets the design agents act on:
-  reuse_candidates:                          # installed, shared/domain-agnostic, domain-match → reference, don't re-emit
-    - name: <agent-or-skill>
+  reuse_candidates:                          # installed, domain-agnostic, domain-match → reference, don't re-emit
+    - name: <agent-or-skill>                 # NOT another team's forged `<team>-*` agent — that one is theirs
       source: <project_local | user_global | plugin>
-      why: "<shared_across_teams + domain match>"
+      why: "<already installed + domain-agnostic + domain match>"
   adapt_candidates:                          # reference-library prior art → forge our own, cite the source
     - name: <ecc-agent-or-skill>
       source: ecc

@@ -73,7 +73,7 @@ Status: **design phase, frozen for implementation. No more reshuffling.**
 1. **Multi-session resume — agent-teams + rehydrate protocol.** team-forge bets on Claude Code's agent-teams primitive. Teammates evaporate on `/resume`. The forged lead's first action on resume is **read tracker/status.json + hub directory → respawn all teammates with their state**. Tracker is load-bearing.
 2. **Phase 3 → Phase 4 contract is annotated YAML, not markdown.** Phase 3 produces one artifact: `design.yaml` (richly commented, human-reviewable, machine-parseable). v6's "design as markdown doc" framework is dropped. (Worked example file `phase3-design.herc.md` is now historical.)
 3. **Drop Workflow as a runtime primitive entirely.** agent-teams native fan-out (multiple teammates assigned similar tasks via the shared task list) is sufficient. No teammate-internal Workflow. No forge-emitted .js for runtime. Workflow remains useful as a META tool for building team-forge itself.
-4. **Extension scope = generic forging machinery + generic shared skills + templates only.** Domain-specific agents and skills (combiner-skeptic, combiner-librarian, combiner-team launcher, combiner-peer-debate) belong to the TARGET PROJECT, not the extension. "Shared across teams" means *shared across forged teams within the same project's `.claude/`* — `combiner-skeptic` is forged into `wjsl_trader/.claude/agents/` once by HERC and reused by sibling combiner-research teams. The extension stays generic. *(v8.1 correction — v8's "bundle everything" framing conflated extension-level sharing with project-level sharing.)*
+4. **Extension scope = generic forging machinery + generic shared skills + templates only.** Domain-specific agents and skills (combiner-skeptic, combiner-librarian, combiner-team launcher, combiner-peer-debate) belong to the TARGET PROJECT, not the extension. The extension stays generic. *(v8.1 correction — v8's "bundle everything" framing conflated extension-level sharing with project-level sharing. v0.9.0 correction — cross-team sharing of a forged agent is retired entirely; each team forges its own `<team>-<name>.md`. See "Shared across teams — retired" below.)*
 5. **Tracker + monitor stay as separate teammates.** 5 roles total. Tracker is load-bearing (rehydrate source of truth). Monitor reads tracker + writes dashboard.
 6. **Drop Phase 2.5 reviewer.** Phase 3 spawns multiple forge-design-agents in parallel; their reciprocal review IS the coverage gate. Workflow simplifies to 4 phases.
 
@@ -188,7 +188,6 @@ roster:
     role: <work|verify|advise|tracker|monitor>  # or list if combined_roles
     purpose: |
       <prose description of what this teammate owns>
-    shared_across_teams: <bool>           # default false
     skills: [<list of discovered skills>] # Phase-3 forge-agent search output
     # No tools_allowed — teammates get whatever they need
 
@@ -254,7 +253,7 @@ The design agent populates everything except the `project`, `milestones`, and `c
 <target_repo>/                                          ← committed to git
   .claude/                                              ← RUNTIME STATE (small, structured)
     agents/<team>-<name>.md                             ← teammate type definitions; skill loadouts from Phase-3 discovery
-    agents/<shared-name>.md                             ← unprefixed if shared_across_teams: true
+                                                          ALWAYS team-prefixed — the handle teardown removes them by
     skills/<team>-team/SKILL.md                         ← entry point: /<team>-team — custom per project
     team-forge/<team>/                                  ← THE TEAM'S RUNTIME HUB
       design.yaml                                       ← annotated; Phase 3 contract; Phase 4 input
@@ -370,7 +369,11 @@ team-forge/                                       ← OUR extension repo (generi
 
 Forged teammates' `skills:` references look like `team-forge:brainstorming` for generic patterns and `<team>-<domain-skill>` for project-local skills. **The dependency contract:** every forged team requires team-forge installed in the target repo. The team-launcher skill checks at startup and fails loudly if missing.
 
-**"Shared across teams" — clarified:** when a roster entry has `shared_across_teams: true` in design.yaml, it means "shared across forged teams in the SAME project's `.claude/`." Example: HERC forges `combiner-skeptic.md` into `wjsl_trader/.claude/agents/`. Dynamic IC (also in wjsl_trader) later gets forged and detects the file exists — it reuses it instead of overwriting. NOT shared at the team-forge extension level.
+**"Shared across teams" — retired (v0.9.0).** Earlier versions let a roster entry set `shared_across_teams: true` to keep an unprefixed name, so a sibling team in the same project could reuse the file (HERC forges `combiner-skeptic.md`; Dynamic IC detects and reuses it). **That is gone.** Every forged agent is now `<team>-<name>.md`, and each team gets its own copy — two teams wanting a skeptic forge `herc-skeptic` and `dynamic-ic-skeptic` independently.
+
+*Why it was worth losing:* the unprefixed name broke the lifecycle. Teardown's only handle on a forged agent is the team slug, so a bare `combiner-skeptic.md` matched no `<team>-*` glob and survived every teardown — accumulating dead agents that load into every session of the target project. Cross-team reuse saved one duplicated file; it cost the ability to ever cleanly retire a team. Duplication is the cheaper side of that trade: an agent `.md` is a cheap, regenerable artifact, and per-team copies can also diverge as each team's needs do.
+
+*What reuse still means:* referencing an asset **already installed** in the target (`.claude/`, user-global, or a plugin) that is domain-agnostic and domain-matches — see the `reuse_candidates` bucket. It no longer means picking up another forged team's agent; a `<team>-*` agent belongs to that team and retires with it.
 
 ## Memory model — file-based coordination
 
@@ -405,8 +408,8 @@ The HERC stack as it would be forged under v8:
 
 - **Lead:** main session (adopts via `/herc-team`)
 - **Work:** herc-implementer
-- **Verify:** herc-analyzer (dual-mode), herc-smoke-tester, combiner-skeptic (forged into `wjsl_trader/.claude/agents/`; `shared_across_teams: true` so Dynamic IC reuses it; no skill loadout)
-- **Advise:** combiner-librarian (forged into `wjsl_trader/.claude/agents/`; `shared_across_teams: true`; no skill loadout)
+- **Verify:** herc-analyzer (dual-mode), herc-smoke-tester, herc-skeptic (forged into `wjsl_trader/.claude/agents/`; no skill loadout)
+- **Advise:** herc-librarian (forged into `wjsl_trader/.claude/agents/`; no skill loadout)
 - **Tracker:** herc-tracker — aggregates cohort state, milestone progress, token spend
 - **Monitor:** herc-monitor — writes `team-forge/herc/playground/dashboard.html`
 

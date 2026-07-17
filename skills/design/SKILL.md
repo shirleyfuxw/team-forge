@@ -166,11 +166,13 @@ reference library (ECC has ~180 assets) swamps the design. Filter BEFORE passing
 the catalog to the design agents.
 
 **Produce four buckets:**
-- **reuse** — installed agents/skills usable as-is. For agents marked
-  `shared_across_teams` (or domain-agnostic + already in the target's
-  `.claude/agents/`): reference, don't re-emit. **Reuse policy is strict** — only
-  propose reuse when the asset is shared/domain-agnostic AND domain-matches. A
-  combiner-specific librarian is NOT offered to a frontend team.
+- **reuse** — installed agents/skills usable as-is: domain-agnostic AND already in
+  the target's `.claude/agents/` (or user-global / a plugin) → reference, don't
+  re-emit. **Reuse policy is strict** — only propose reuse when the asset is
+  domain-agnostic AND domain-matches. A combiner-specific librarian is NOT offered
+  to a frontend team. **Never reuse another forged team's `<team>-*` agent**: it is
+  theirs and retires with them, so depending on it breaks you at their teardown.
+  If you want that capability, forge your own copy under your team's prefix.
 - **adapt** — reference-library assets (e.g. ECC agents/skills) whose pattern is
   worth borrowing. **Default consumption mode is reference-and-adapt:** the forge
   writes our own project-owned version citing what it adapted — NOT a verbatim
@@ -261,7 +263,8 @@ Write the rendered YAML to `.claude/team-forge/<team>/design.yaml`.
 Show the user:
 - The full design.yaml (or a summary of it)
 - Specifically highlight:
-  - Which agents are `shared_across_teams: true`
+  - Which existing assets you propose to reuse rather than forge (and why each is
+    domain-agnostic + already installed)
   - Which teammates have NO skill loadout (pure prompt-driven)
   - Any gaps flagged by Lens 1
   - Any domain-fit issues flagged by Lens 3

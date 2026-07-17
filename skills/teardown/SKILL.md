@@ -75,38 +75,41 @@ The launcher is ephemeral — it exists to drive THIS team and is dead weight af
 
 - Remove `.claude/skills/<team>-team/` (team archetype) or `.claude/skills/<team>-workflow/`
   (workflow archetype).
-- Remove the forged agents — **drive this off the manifest, never off a `<team>-*` glob**:
+- Remove the forged agents — **enumerate them from the manifest, never from a `<team>-*` glob**:
 
   ```
   jq -r '.generated_files[] | select(.kind | test("agent_md|workflow_profile|monitor_agent")) | .path' \
     <target_repo>/.claude/team-forge/<team>/manifest.json
   ```
 
-  `manifest.json` is the forge's own receipt of every file it wrote, so it is the only
-  authoritative list. A `<team>-*.md` glob **silently misses shared agents**: forge names a
-  roster entry `<team>-<name>.md` only when `shared_across_teams` is false — a shared entry is
-  emitted as bare `<name>.md` (`combiner-skeptic.md`, not `combiner-research-skeptic.md`). Those
-  are exactly the agents that survive a glob-based teardown and stay registered forever.
-- **Shared agents are not yours alone to delete.** For each removal candidate whose manifest
-  entry came from a `shared_across_teams: true` roster entry, check whether a sibling team in the
-  same repo still references it before removing:
-
-  ```
-  grep -l '"path": ".claude/agents/<agent>.md"' <target_repo>/.claude/team-forge/*/manifest.json
-  ```
-
-  Only this team's manifest → remove it. Any sibling manifest → **keep it** and say so in the
-  Step 7 report ("`combiner-skeptic` retained — still used by dynamic-ic"). Deleting a live
-  sibling's agent breaks that team on its next launch.
+  `manifest.json` is the forge's own receipt of every file it wrote, so it is the authoritative
+  list — it stays correct even when a file was renamed or hand-added, which a glob cannot.
+- **Remove every agent on that list. The default is delete, and there is no exception.** You
+  decided to retire this team; a forged agent left in `.claude/agents/` loads into every future
+  session of the target project forever. Every forged agent is `<team>-<name>.md` and belongs to
+  exactly one team — no other team can be depending on it, so there is nothing to spare.
 - Remove each removed agent's native memory dir, `.claude/agent-memory/<agent-name>/` (see
   Step 6) — it is keyed by the agent's forged name, so use the same names from the manifest.
 - If the forge registered a **hook trigger** for the launcher (a `settings.json` hook, a cron
   entry, or a `SessionStart` line), remove that entry too — a trigger for a deleted skill is a
   latent error. Grep the target repo's `.claude/settings*.json` for `<team>` and clean it.
 
-If `manifest.json` is missing (hand-edited hub, or a pre-0.6 forge), fall back to the glob **plus**
-an explicit read of `design.yaml`'s roster for `shared_across_teams: true` names — and say in the
-report that the removal was reconstructed, not receipted.
+If `manifest.json` is missing (hand-edited hub, or a pre-0.6 forge), fall back to the
+`<team>-*.md` glob and say in the report that the removal was reconstructed, not receipted.
+
+**Teams forged before 0.9.0** may still have a bare-named agent from the retired
+`shared_across_teams: true` option (`combiner-skeptic.md`, with no team prefix). The manifest lists
+it, so enumerating from the manifest still finds it — but a glob fallback will not. If you are
+reconstructing without a manifest, read `design.yaml`'s roster for `shared_across_teams` names and
+remove those too. Since a sibling team forged before 0.9.0 may genuinely have been reusing that one
+file, check before removing it:
+
+```
+grep -l '"path": ".claude/agents/<agent>.md"' <target_repo>/.claude/team-forge/*/manifest.json
+```
+
+A sibling manifest lists it → keep that **single legacy file** and say so in the Step 7 report.
+Nothing else is spared. This applies only to pre-0.9.0 teams; nothing forged since can hit it.
 
 ### Step 4 — Remove ephemeral runtime state
 
@@ -141,9 +144,10 @@ on every `advise` roster entry and on both workflow dispatch profiles (worker + 
 gives each a repo-local `.claude/agent-memory/<agent-name>/` that Claude Code auto-manages. It is
 ephemeral scaffolding keyed to the agent, so it goes when the agent goes:
 
-- For each agent removed in Step 3, remove `<target_repo>/.claude/agent-memory/<agent-name>/`.
-- For a **shared agent you retained** because a sibling team still references it, **keep its memory
-  dir** — that memory is the sibling's accumulated context, not this team's leftovers.
+- For each agent removed in Step 3 — normally all of them — remove
+  `<target_repo>/.claude/agent-memory/<agent-name>/`.
+- Only if Step 3 retained a **pre-0.9.0 legacy shared agent**, keep that one agent's memory dir with
+  it: the memory belongs to the sibling still using it. Every other dir goes.
 - A roster entry may override the scope (`memory: user|project|local`). `user` scope lives at
   `~/.claude/agent-memory/<agent-name>/` instead — check `design.yaml` rather than assuming the
   project-local path.
@@ -165,12 +169,13 @@ Confirm with the user before committing if anything was ambiguous.
 ## Failure modes
 
 - **Un-merged worktree / branch** → STOP; never remove un-reviewed work. Surface it.
-- **Forged agent left registered** → a `<team>-*.md` glob misses `shared_across_teams: true`
-  agents (emitted as bare `<name>.md`), so they stay loaded in every future session of the target
-  project — the exact burden teardown exists to remove. Always enumerate from `manifest.json`
-  (Step 3), then check siblings before deleting a shared one.
-- **Deleting a shared agent a sibling team still uses** → breaks that team on next launch. Grep
-  the other `.claude/team-forge/*/manifest.json` first; retain and report if referenced.
+- **Forged agent left registered** → it stays loaded in every future session of the target project,
+  which is the exact burden teardown exists to remove. Always enumerate from `manifest.json`
+  (Step 3) rather than a glob, and remove every agent it lists.
+- **Talking yourself out of a removal** → there is no sharing to protect. Every agent forged since
+  0.9.0 is `<team>-<name>.md` and belongs to exactly one team. Only a pre-0.9.0 legacy bare-named
+  agent can be spared, only when a sibling manifest still lists it, and it spares that one file —
+  never the launcher, hub, memory dirs, or any `<team>-*` agent.
 - **Agent memory orphaned** → `.claude/agent-memory/<agent-name>/` outlives a deleted agent and
   accumulates silently. Remove it alongside its agent (Step 6).
 - **Trigger hook left behind** → a `SessionStart`/cron entry firing a deleted skill errors every
