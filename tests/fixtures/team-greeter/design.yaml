@@ -55,7 +55,7 @@ roster:
     purpose: |
       The team lead. Adopts this role in the main session, dispatches teammates,
       arbitrates verdicts, writes narrative artifacts, and makes go/no-go calls.
-    skills: [team-forge:brainstorming, team-forge:writing-plans]
+    skills: [team-forge:contract, team-forge:run]
     model: opus
   - name: builder
     role: work

@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "team-forge",
-      "description": "Meta-extension that forges project-specific agent teams (agent-teams primitive) or workflow pipelines (lead-driven task/gate loop)",
+      "description": "The product is a verified problem contract (problem + model-checkable done_when); direct execution by default, deterministic machinery forging when the contract earns it",
       "version": "0.10.0",
       "source": "./",
       "author": {
