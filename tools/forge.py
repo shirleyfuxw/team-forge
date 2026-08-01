@@ -133,6 +133,16 @@ def write_hub_gitignore(hub_dir, team):
         "tracker/status.json\n"
     )
 
+def emit_contract_copy(kb_dir, target_repo, generated):
+    """Stash the problem contract in the KB (durable, fixed-name) when the design names one."""
+    if not CONTRACT_PATH:
+        return
+    dest = kb_dir / "contract.yaml"
+    if CONTRACT_PATH.resolve() != dest.resolve():
+        shutil.copyfile(CONTRACT_PATH, dest)
+    generated.append({"path": str(dest.relative_to(target_repo)), "kind": "problem_contract"})
+    print("✓ contract.yaml stashed in KB")
+
 def skills_frontmatter_block(skills):
     """YAML `skills:` frontmatter list. Preloaded (full content) when the agent runs as a
     dispatched subagent; ignored-but-documented when it runs as an agent-teams teammate."""
@@ -664,6 +674,7 @@ def forge_workflow(design):
 
     shutil.copyfile(DESIGN_PATH, hub_dir / "design.yaml")
     generated.append({"path": str((hub_dir / 'design.yaml').relative_to(target_repo)), "kind": "design_contract"})
+    emit_contract_copy(kb_dir, target_repo, generated)
 
     status = initial_status_json_workflow(design)
     (hub_dir / "tracker" / "status.json").write_text(json.dumps(status, indent=2))
@@ -812,6 +823,24 @@ def resync(design, target_repo, team, basename, do_write):
 # ───────── Main forge procedure ─────────
 
 design = yaml.safe_load(DESIGN_PATH.read_text())
+
+# The problem contract (GOAL.md): when design.yaml names one, it is the authoritative
+# source of the goal directive — lint it, then DERIVE `goal:` from it. A hand-written
+# goal: block is only for contract-less legacy designs.
+CONTRACT_PATH = None
+if design.get('contract'):
+    from contract_lint import validate_contract, goal_directive_from_contract
+    CONTRACT_PATH = Path(design['contract'])
+    if not CONTRACT_PATH.is_absolute():
+        CONTRACT_PATH = DESIGN_PATH.parent / CONTRACT_PATH
+    assert CONTRACT_PATH.exists(), f"design.contract points at a missing file: {CONTRACT_PATH}"
+    _contract = yaml.safe_load(CONTRACT_PATH.read_text())
+    _c_errs = validate_contract(_contract)
+    assert not _c_errs, "contract invalid (tools/contract_lint.py):\n  " + "\n  ".join(_c_errs)
+    design['goal'] = goal_directive_from_contract(_contract)
+    print(f"✓ contract {CONTRACT_PATH.name}: valid — goal directive derived "
+          f"({len(_contract['done_when'])} checkable signals)")
+
 project = design['project']
 team = project['name']
 target_repo = Path(project['target_repo'])
@@ -881,6 +910,7 @@ generated.append({"path": str((hub_dir / '.gitignore').relative_to(target_repo))
 shutil.copyfile(DESIGN_PATH, hub_dir / "design.yaml")
 generated.append({"path": str((hub_dir / "design.yaml").relative_to(target_repo)), "kind": "design_contract"})
 print("✓ design.yaml stashed in hub")
+emit_contract_copy(kb_dir, target_repo, generated)
 
 # Step 3 — agent .md files
 for entry in design['roster']:

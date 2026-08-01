@@ -70,6 +70,20 @@ def check(fixture, dash_path):
     print(f"✓ {fixture}: {len(html)} bytes · self-contained · {len(payload['panels'])} panels · "
           f"archetype={payload['meta'].get('archetype')}{extra}")
 
+    # Contract wiring (GOAL.md pivot): every fixture declares a contract, so the
+    # forged ledger's goal directive must be contract-derived (checks ride along)
+    # and the KB must hold the stashed copy.
+    hub = p.parents[1]
+    status = json.loads((hub / "tracker" / "status.json").read_text())
+    directive = status.get("goal_directive") or {}
+    assert directive.get("statement"), f"{fixture}: status.json missing goal_directive.statement"
+    assert directive.get("done_when") and all("[check: " in s for s in directive["done_when"]), \
+        f"{fixture}: goal_directive.done_when not contract-derived (no [check: ...] markers)"
+    repo_root = hub.parents[2]
+    assert (repo_root / "docs" / "team-forge" / hub.name / "contract.yaml").exists(), \
+        f"{fixture}: contract.yaml not stashed in the KB"
+    print(f"   contract-derived goal directive · {len(directive['done_when'])} checkable signals · KB copy present")
+
 
 def check_one_shot_default_no_dashboard():
     """A one-shot workflow (recurring absent, no ledger.dashboard opt-in) must NOT emit a
@@ -78,6 +92,7 @@ def check_one_shot_default_no_dashboard():
     import yaml
     design = yaml.safe_load((REPO / "tests" / "fixtures" / "workflow-tidy" / "design.yaml").read_text())
     design["ledger"].pop("dashboard", None)
+    design["contract"] = str(REPO / "tests" / "fixtures" / "workflow-tidy" / "contract.yaml")
     design["project"]["target_repo"] = "/tmp/test-team-forge-tidy-nodash"
     Path("/tmp/test-team-forge-tidy-nodash").mkdir(exist_ok=True)
     tmp_design = Path("/tmp/tf-tidy-nodash-design.yaml")
@@ -97,6 +112,7 @@ def check_prose_panel_rejected():
     design = yaml.safe_load((REPO / "tests" / "fixtures" / "workflow-tidy" / "design.yaml").read_text())
     design["ledger"]["dashboard"] = True
     design["ledger"]["dashboard_panels"] = ["Issues resolved / 22 (stacked by reuse)", "task_timeline"]
+    design["contract"] = str(REPO / "tests" / "fixtures" / "workflow-tidy" / "contract.yaml")
     design["project"]["target_repo"] = "/tmp/test-team-forge-tidy-badpanel"
     Path("/tmp/test-team-forge-tidy-badpanel").mkdir(exist_ok=True)
     tmp_design = Path("/tmp/tf-tidy-badpanel-design.yaml")

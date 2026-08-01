@@ -1,0 +1,19 @@
+# Problem contract for the workflow-tidy fixture (GOAL.md pivot).
+contract: 1
+problem:
+  statement: |
+    Three modules hand-roll their own slugify/truncate helpers that have drifted
+    apart; downstream filenames differ by module. The problem is divergent behavior
+    — dedup is only the fix if output is proven byte-identical.
+done_when:
+  - signal: "All three modules import the shared util; zero hand-rolled copies remain"
+    check: "grep -rn 'def slugify\\|def truncate' src/ returns only the shared util module"
+  - signal: "Output byte-identical to pre-refactor on the fixture corpus"
+    check: "gate `parity`: tidy-parity-check exits 0 with max_diff == 0"
+open_items: []
+lead_decides:
+  - "Open PRs against the integration branch"
+  - "Re-cut not-yet-done tasks when the design pivots (W7)"
+user_decides:
+  - "Merging the final PR"
+route: machinery   # earned: the parity check has no backing capability (skill gap) + gated multi-task loop

@@ -18,6 +18,9 @@ project:
     slugify + truncate string helpers. Extract them into one shared util,
     redirect callers, delete the dups — proving no output changed.
 
+# Problem contract (authoritative — goal: below is derived from it at forge time)
+contract: contract.yaml
+
 goal:
   statement: |
     Extract the duplicated slugify/truncate helpers into one shared util and redirect

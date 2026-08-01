@@ -23,6 +23,9 @@ project:
     triage the eligible queue, route (full-drain vs plan-gate), drain the full-drain
     subset in waves of <=4 worktrees through the gate stack to PR-ready, report, exit.
 
+# Problem contract (authoritative — goal: below is derived from it at forge time)
+contract: contract.yaml
+
 goal:
   statement: |
     Keep the bug/refactor/chore issue queue drained: every cycle, all eligible

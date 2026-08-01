@@ -14,6 +14,9 @@ project:
     procedure across all five role types plus an orchestrator, two milestones, and a
     minimal tracking spec.
 
+# Problem contract (authoritative — goal: below is derived from it at forge time)
+contract: contract.yaml
+
 goal:
   statement: |
     Ship a demo greeter package that exercises every forge role type end-to-end,

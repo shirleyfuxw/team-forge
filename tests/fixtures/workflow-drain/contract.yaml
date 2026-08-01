@@ -1,0 +1,18 @@
+# Problem contract for the workflow-drain fixture (GOAL.md pivot).
+contract: 1
+problem:
+  statement: |
+    The bug/refactor/chore issue queue accumulates faster than ad-hoc attention
+    drains it; eligible items must reach PR-ready through the gate stack every
+    cycle, with risky items parked for a human instead of auto-proceeding.
+done_when:
+  - signal: "Cycle end: queue drained or cycle box hit with carry-overs logged"
+    check: "status.json queue_eligible_count == 0, OR cycle_box deadline passed AND carry_over events recorded"
+  - signal: "Every drained item has a PR against the integration branch with its gate_set green"
+    check: "for each drained item id: gh pr list --search names its PR and gh pr checks reports green"
+open_items: []
+lead_decides:
+  - "Triage routing per the queue predicate; dispatch fix workers"
+user_decides:
+  - "Anything routed park-for-approval; merging PRs"
+route: machinery   # earned: recurring/unattended cycles + parallel-drain fan-out
