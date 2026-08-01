@@ -1,0 +1,18 @@
+# Problem contract for the team-greeter fixture (GOAL.md pivot).
+contract: 1
+problem:
+  statement: |
+    The forge's team-archetype emission + launch path has no end-to-end proof; a
+    demo greeter package must exercise every role type so regressions surface
+    before a real project hits them.
+done_when:
+  - signal: "Both milestones completed with their go/no-go criteria met"
+    check: "grep milestone_completed .claude/team-forge/greeter/tracker/status.json names both milestone ids"
+  - signal: "Smoke test green on the greeter package"
+    check: "run the greeter package smoke test — exit 0"
+open_items: []
+lead_decides:
+  - "Task assignment + verifier arbitration between milestones"
+user_decides:
+  - "Milestone go/no-go crossings"
+route: machinery   # earned: standing multi-role roster is the thing under test

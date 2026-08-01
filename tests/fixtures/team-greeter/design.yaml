@@ -14,6 +14,21 @@ project:
     procedure across all five role types plus an orchestrator, two milestones, and a
     minimal tracking spec.
 
+# Problem contract (authoritative — goal: below is derived from it at forge time)
+contract: contract.yaml
+
+goal:
+  statement: |
+    Ship a demo greeter package that exercises every forge role type end-to-end,
+    proving the team archetype's emission + launch path works.
+  done_when:
+    - "Both milestones completed with their go/no-go criteria met"
+    - "Smoke test green on the greeter package"
+  lead_decides:
+    - "Task assignment + verifier arbitration between milestones"
+  user_decides:
+    - "Milestone go/no-go gates"
+
 milestones:
   - id: scaffold
     name: "Scaffold the greeter"
@@ -40,7 +55,7 @@ roster:
     purpose: |
       The team lead. Adopts this role in the main session, dispatches teammates,
       arbitrates verdicts, writes narrative artifacts, and makes go/no-go calls.
-    skills: [team-forge:brainstorming, team-forge:writing-plans]
+    skills: [team-forge:contract, team-forge:run]
     model: opus
   - name: builder
     role: work
@@ -60,19 +75,6 @@ roster:
       On-demand advisor that unblocks the builder on hard 2+ module questions.
     skills: [knowledge-retrieval]
     model: opus
-  - name: tracker
-    role: tracker
-    purpose: |
-      Single-writer for status.json. Aggregates state per the tracking spec and appends events.
-    skills: [team-forge:tracker]
-    model: sonnet
-  - name: monitor
-    role: monitor
-    purpose: |
-      Single-writer for the dashboard. Rebuilds the unified payload from status.json and
-      injects it into the shared shell on every meaningful state change.
-    skills: [team-forge:monitor]
-    model: sonnet
 
 rehydrate:
   durable_state:
@@ -80,7 +82,7 @@ rehydrate:
     - docs/team-forge/greeter/brainstorms/<current>.md
     - docs/team-forge/greeter/team-plans/<current>.md
     - docs/team-forge/greeter/artifacts/<milestone-id>/*.md
-  respawn_order: [tracker, lead, builder, checker, helper, monitor]
+  respawn_order: [lead, builder, checker, helper]
 
 tracking:
   state_shape:
