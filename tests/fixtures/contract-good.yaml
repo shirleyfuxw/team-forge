@@ -1,0 +1,24 @@
+# A valid contract: the pivot's core deliverable. Every done_when entry names the
+# mechanical step the model runs to verify it — no user in the loop.
+contract: 1
+problem:
+  statement: |
+    Three modules hand-roll their own slugify/truncate helpers that have drifted apart;
+    downstream filenames differ by module. The problem is divergent behavior, not the
+    duplication itself — dedup is the fix only if output is proven byte-identical.
+  context: |
+    Filed after a prod incident where two exporters produced different slugs for the
+    same title. Behavior-preserving is the hard constraint.
+done_when:
+  - signal: "All three modules import the shared util; zero hand-rolled copies remain"
+    check: "grep -rn 'def slugify\\|def truncate' src/ returns only src/util/text.py"
+  - signal: "Output is byte-identical to pre-refactor on the fixture corpus"
+    check: "gate `parity`: run tools/parity_check.py — exit 0, max_diff == 0"
+open_items:
+  - "Whether exporter v1 (deprecated, no fixtures) must also be migrated — needs a
+    fixture corpus before it can become a done_when entry"
+lead_decides:
+  - "Open PRs against the integration branch"
+user_decides:
+  - "Merging the final PR"
+route: direct-execution

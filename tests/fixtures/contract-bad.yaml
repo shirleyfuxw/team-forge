@@ -1,0 +1,14 @@
+# An INVALID contract — every classic failure the lint must catch:
+#   prose done_when entry, check that restates its signal, human-activity check,
+#   missing decision split, bogus route.
+contract: 1
+problem:
+  statement: |
+    Clean up the text helpers.
+done_when:
+  - "Everything works and the code is clean"                # prose — no {signal, check}
+  - signal: "Parity gate green"
+    check: "parity gate is green"                           # restates the signal
+  - signal: "Exporters produce sensible slugs"
+    check: "manual review of a few outputs"                 # human activity
+route: quick-pass

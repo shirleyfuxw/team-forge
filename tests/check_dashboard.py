@@ -114,6 +114,9 @@ def main():
     check_one_shot_default_no_dashboard()
     check_prose_panel_rejected()
     print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 2 negative checks)")
+    # Elicitation half of the harness — contract quality (GOAL.md pivot).
+    r = subprocess.run([sys.executable, str(REPO / "tests" / "check_contract.py")])
+    assert r.returncode == 0, "contract checks failed"
 
 
 if __name__ == "__main__":
