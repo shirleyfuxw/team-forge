@@ -9,7 +9,15 @@ model can't check isn't a verification step yet — it belongs in `open_items`.
 Importable (`validate_contract(dict) -> [errors]`) so forge.py and the harness share
 one bar; runnable (`python3 contract_lint.py <contract.yaml>`) for hand checks.
 """
+import re
 import sys
+
+_STOPWORDS = {"is", "are", "the", "a", "an", "be", "been"}
+
+
+def _tokens(s):
+    return set(re.findall(r"[a-z0-9]+", s.lower())) - _STOPWORDS
+
 
 # Checks that name a human activity instead of a mechanical step are prose in disguise.
 _UNCHECKABLE = ("tbd", "todo", "manual", "eyeball", "ask the user", "user confirms",
@@ -44,7 +52,7 @@ def validate_contract(c):
             if not chk:
                 errs.append(f"{where}: check missing/empty — HOW does the model verify this "
                             "without the user? (command / file predicate / gate id)")
-            elif chk.lower() == (entry.get("signal") or "").strip().lower():
+            elif _tokens(chk) == _tokens(entry.get("signal") or ""):
                 errs.append(f"{where}: check merely restates the signal — name the mechanical step")
             elif any(t in chk.lower() for t in _UNCHECKABLE):
                 errs.append(f"{where}: check {chk!r} names a human activity — the model must be "
