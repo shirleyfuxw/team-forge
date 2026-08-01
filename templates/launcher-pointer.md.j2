@@ -1,0 +1,25 @@
+---
+name: {{team}}-{{entry_suffix}}
+description: |
+  Use to {{entry_verb}} for {{project_display_name}}. Thin entry point: adopts the
+  lead role and runs the shared team-forge:run runtime against this team's live
+  hub — nothing baked here but the team handle.
+---
+
+# {{team}} — runtime entry (thin pointer)
+
+Team handle: `{{team}}` · archetype `{{archetype}}`{{shape_note}} · repo `{{target_repo}}`
+
+Load the **`team-forge:run`** skill and follow its `references/{{loop_ref}}` loop
+for team `{{team}}`. Every fact is read LIVE at launch — never from this file:
+
+- `.claude/team-forge/{{team}}/design.yaml` — project, constraints, shape, profiles
+- `.claude/team-forge/{{team}}/TASKS.yaml` — tasks/queue + gate vocabulary
+- `.claude/team-forge/{{team}}/tracker/status.json` — state + the authoritative
+  `goal_directive`
+- `docs/team-forge/{{team}}/contract.yaml` — the problem contract this runtime serves
+
+> **Staleness:** only this pointer + `gen_dashboard.py` are baked copies. On
+> template drift (`tools/forge.py --check .claude/team-forge/{{team}}/design.yaml`),
+> `--resync` regenerates them and preserves the ledger. The runtime policy itself
+> lives in the plugin's `team-forge:run` and updates with the plugin.

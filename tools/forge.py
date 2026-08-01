@@ -19,7 +19,7 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.9.0"
+FORGE_VERSION = "0.10.0"
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
 # (report drift, read-only).
@@ -110,6 +110,7 @@ def build_team_payload(design, status):
             'token_spend_cumulative_k': status.get('token_spend_cumulative_k', 0),
             'last_update_iso': _NOW,
         },
+        'goal': status.get('goal_directive'),
         'panels': design['tracking']['dashboard_panels'],
         'milestones': [{'id': m['id'], 'name': m['name'], 'output': m.get('output', ''),
                         'status': ms_status(m['id'], i)} for i, m in enumerate(milestones)],
@@ -132,6 +133,17 @@ def write_hub_gitignore(hub_dir, team):
         "playground/\n"
         "tracker/status.json\n"
     )
+
+def consumer_exercise(payload, where):
+    """Forge-time consumer exercise (GOAL.md): assert the payload the shell will render
+    carries the contract section + required fields — catches emit-time field mismatches
+    at the forge instead of shipping a silently-blank dashboard."""
+    assert payload.get('meta', {}).get('team'), f"{where}: payload missing meta.team"
+    assert payload.get('panels'), f"{where}: payload missing panels"
+    g = payload.get('goal') or {}
+    assert g.get('statement') and g.get('done_when'), \
+        f"{where}: payload missing the contract goal section (statement + done_when)"
+    print(f"✓ consumer exercise ({where}): contract goal + required sections present")
 
 def emit_contract_copy(kb_dir, target_repo, generated):
     """Stash the problem contract in the KB (durable, fixed-name) when the design names one."""
@@ -259,53 +271,28 @@ def validate_goal(design):
     assert g.get('done_when'), "goal.done_when missing — 2-5 falsifiable completion signals (brainstorm §Completion criteria)"
 
 
-def goal_block(design):
-    """Markdown for the launchers' {{GOAL_BLOCK}} — the lead's standing orders."""
-    g = design['goal']
-    lines = [g['statement'].strip(), "", "**Done when (all of):**"]
-    lines += [f"- {s}" for s in g['done_when']]
-    if g.get('lead_decides'):
-        lines += ["", "**You decide alone (standing approvals):**"]
-        lines += [f"- {s}" for s in g['lead_decides']]
-    if g.get('user_decides'):
-        lines += ["", "**Always pause for the user (hard asks):**"]
-        lines += [f"- {s}" for s in g['user_decides']]
-    lines += ["", "Unlisted decisions default to: **act** if inferable from this directive + the "
-              "ledger, **ask** otherwise — and while one question waits, keep working everything "
-              "else that is eligible."]
-    return "\n".join(lines)
-
-
-def render_team_launcher(design):
-    tmpl = (TEMPLATES_DIR / "team-launcher.md.j2").read_text()
+def render_launcher_pointer(design):
+    """The thin per-team entry skill (launcher-pointer.md.j2). The runtime policy lives in
+    the plugin's team-forge:run skill and updates with the plugin; only the team handle and
+    hub paths are baked. (The old fat launchers baked ~300 policy lines per team — the whole
+    baked-text staleness class this replaces.)"""
+    tmpl = (TEMPLATES_DIR / "launcher-pointer.md.j2").read_text()
     project = design['project']
-    orchestrator = next((e for e in design['roster'] if e['role'] == 'orchestrator'), None)
-    if not orchestrator:
-        raise ValueError("No orchestrator in roster")
-    team = project['name']
-    orch_name = f"{team}-{orchestrator['name']}"
-    constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
-    roles = roster_roles(design)
-    ledger_lines = []
-    if 'tracker' in roles:
-        ledger_lines.append("The tracker teammate is the single-writer for `tracker/status.json`.")
-    else:
-        ledger_lines.append(f"**You** are the single-writer for `.claude/team-forge/{team}/tracker/status.json` (no tracker teammate in this roster).")
-    if 'monitor' in roles:
-        ledger_lines.append("The monitor teammate is the single-writer for the dashboard files.")
-    else:
-        ledger_lines.append(f"After each status.json update, re-render the dashboard: `python3 .claude/team-forge/{team}/playground/gen_dashboard.py` (no monitor teammate — the render step owns the dashboard).")
+    is_workflow = design.get('archetype') == 'workflow'
+    shape = design.get('shape')
+    loop_ref = ('drain.md' if shape == 'parallel-drain'
+                else 'sequential.md' if is_workflow else 'team.md')
     return substitute_simple(tmpl, {
-        'LEDGER_OWNERSHIP_BLOCK': "\n".join(ledger_lines),
-        'GOAL_BLOCK': goal_block(design),
-        'team': team,
+        'team': project['name'],
         'project_display_name': project['display_name'],
-        'project_name': project['name'],
-        'project_basename': project['target_repo_basename'],
         'target_repo': project['target_repo'],
-        'domain': project['domain'],
-        'orchestrator_name': orch_name,
-        'CONSTRAINTS_BULLET_LIST': constraints_block,
+        'archetype': 'workflow' if is_workflow else 'team',
+        'shape_note': f" · shape `{shape}`" if shape else "",
+        'entry_suffix': 'workflow' if is_workflow else 'team',
+        'entry_verb': ("run one cycle of the drain workflow" if shape == 'parallel-drain'
+                       else "drive the task/gate loop" if is_workflow
+                       else "launch the agent team"),
+        'loop_ref': loop_ref,
     })
 
 def initial_status_json(design):
@@ -376,114 +363,6 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
         'DISPATCH_NOTE': dispatch_note,
         'MEMORY_NOTE': memory_note,
     }), agent_name + ".md"
-
-
-def observability_block(design):
-    """Who owns the dashboard at runtime — a monitor teammate, the lead + render step,
-    or (one-shot default) nobody: the ledger itself is the observability surface.
-    Injected into the workflow launchers as {{OBSERVABILITY_BLOCK}}."""
-    team = design['project']['name']
-    if not workflow_wants_dashboard(design):
-        return (
-            "No dashboard for this one-shot workflow — **the ledger is the observability "
-            f"surface**. Keep `.claude/team-forge/{team}/tracker/status.json` current (per-task "
-            "status, events, budget) after every meaningful state change; anyone checking progress "
-            "reads it or `TASKS.yaml` directly. (To add a rendered dashboard later, set "
-            "`ledger.dashboard: true` in design.yaml and re-forge/`--resync`.)"
-        )
-    if design.get('ledger', {}).get('dashboard_owner') == 'monitor_agent':
-        agent = f"{team}-{(design['ledger'].get('monitor') or {}).get('name', 'monitor')}"
-        return (
-            f"A **monitor teammate** (`{agent}`) owns the dashboard — do NOT run `gen_dashboard.py` yourself.\n"
-            f"- **Spawn** `{agent}` at launch; **rehydrate** it on `/resume` (respawn with context).\n"
-            "- After each ledger update (task done / commit / cycle boundary), **trigger** it via "
-            "`SendMessage`. It PULLS authoritative state (git HEAD of the integration branch, the "
-            "`tasks[]`/gate records), reconciles against your `status.json`, rewrites the dashboard, and "
-            "messages back any **drift** — a rollup field you left stale (`integration_branch.head_sha`, "
-            "`integration_branch.pr_url`, `budget`). Fix the flagged fields in `status.json`.\n"
-            "- It is single-writer for `dashboard.html` / `dashboard-data.json`; you stay single-writer for `status.json`."
-        )
-    return (
-        f"No monitor teammate — **you** own the dashboard. After each ledger update run "
-        f"`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`. It DERIVES "
-        "`integration_branch.head_sha` (via `git rev-parse`) and `current_task` (from the task "
-        "records), so those panels stay correct even if you didn't hand-update the rollup — but you "
-        "must still refresh `integration_branch.pr_url` / `budget` in `status.json` yourself."
-    )
-
-
-def render_workflow_launcher(design):
-    tmpl = (TEMPLATES_DIR / "workflow-launcher.md.j2").read_text()
-    project = design['project']
-    constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
-    return substitute_simple(tmpl, {
-        'team': project['name'],
-        'project_display_name': project['display_name'],
-        'project_name': project['name'],
-        'project_basename': project['target_repo_basename'],
-        'target_repo': project['target_repo'],
-        'domain': project['domain'],
-        'integration_branch': project.get('integration_branch', '(unset)'),
-        'GOAL_BLOCK': goal_block(design),
-        'CONSTRAINTS_BULLET_LIST': constraints_block,
-        'OBSERVABILITY_BLOCK': observability_block(design),
-    })
-
-
-def render_workflow_drain_launcher(design):
-    tmpl = (TEMPLATES_DIR / "workflow-drain-launcher.md.j2").read_text()
-    project = design['project']
-    constraints_block = "\n".join(f"- {c}" for c in design.get('constraints', []))
-    rec = design.get('recurring')
-    team = project['name']
-    if rec:
-        recurring_note = (f"**Recurring / unattended.** Schedule: {rec.get('schedule', '—')}. "
-                          f"Cycle box: {rec.get('cycle_box', '—')}. Unattended: {rec.get('unattended', False)} "
-                          f"(plan-gate items park for human approval; per-item verify gates mandatory). "
-                          f"Carry-over via {rec.get('carry_over_state', 'status.json')}. "
-                          f"The schedule is the OUTER loop — this skill runs ONE cycle and exits.")
-        next_cycle_note = "The schedule fires the next cycle."
-        teardown_note = (
-            "**Retiring the recurring workflow** (not per-cycle): when the drain is decommissioned, run\n"
-            "**`team-forge:teardown`** — it removes the schedule/cron trigger first (so no further cycles fire),\n"
-            "archives the ledger, prunes worktrees, and removes the launcher + profiles + ephemeral state.")
-    else:
-        recurring_note = "One-shot (not recurring): drains the queue once, then exits."
-        next_cycle_note = ("This is a **one-shot** drain — there is no next cycle and no schedule; "
-                           "when the queue is empty the workflow is done.")
-        teardown_note = (
-            "**Retiring the workflow:** once the drain is done and its PRs are merged/closed, run\n"
-            "**`team-forge:teardown`** — it archives the ledger, prunes worktrees, and removes the\n"
-            "launcher + profiles + ephemeral state. (No schedule/cron to remove — this is one-shot.)")
-    # advisor is an OPTIONAL profile; only point at it if it was actually forged, else the
-    # escalation pointer dangles at a non-existent agent.
-    if 'advisor' in design:
-        escalation_note = f"Escalate hard\n  2+-module questions to **advisor** (`{team}-advisor`)."
-    else:
-        escalation_note = ("Escalate hard\n  2+-module questions to the **lead** "
-                           "(no advisor profile in this workflow) — surface it and stop.")
-    # wave_size belongs in the numeric "waves of ≤ N" slot; if the design put prose there,
-    # keep the prose out of the launcher (it lives in queue.wave_size / TASKS.yaml) and render a
-    # clean pointer instead, so the slot never reads as a run-on paragraph mid-sentence.
-    ws = design.get('queue', {}).get('wave_size', 4)
-    wave_size = str(ws) if isinstance(ws, int) else "the per-stage cap in `queue.wave_size` (see TASKS.yaml)"
-    return substitute_simple(tmpl, {
-        'team': team,
-        'project_display_name': project['display_name'],
-        'project_name': project['name'],
-        'project_basename': project['target_repo_basename'],
-        'target_repo': project['target_repo'],
-        'domain': project['domain'],
-        'integration_branch': project.get('integration_branch', '(unset)'),
-        'WAVE_SIZE': wave_size,
-        'GOAL_BLOCK': goal_block(design),
-        'RECURRING_NOTE': recurring_note,
-        'NEXT_CYCLE_NOTE': next_cycle_note,
-        'TEARDOWN_NOTE': teardown_note,
-        'ESCALATION_NOTE': escalation_note,
-        'CONSTRAINTS_BULLET_LIST': constraints_block,
-        'OBSERVABILITY_BLOCK': observability_block(design),
-    })
 
 
 def dashboard_panel_registry():
@@ -656,7 +535,7 @@ def forge_workflow(design):
     # Skill-gap scaffolds — the primary deliverable (skills outlive the team; W5).
     emit_skill_gap_scaffolds(design, hub_dir, target_repo, generated)
 
-    launcher = render_workflow_drain_launcher(design) if design['shape'] == 'parallel-drain' else render_workflow_launcher(design)
+    launcher = render_launcher_pointer(design)
     (skill_dir / "SKILL.md").write_text(launcher)
     generated.append({"path": str((skill_dir / 'SKILL.md').relative_to(target_repo)), "kind": "workflow_launcher_skill"})
     print(f"✓ {design['shape']} launcher SKILL.md: {launcher.count(chr(10)) + 1} lines")
@@ -691,6 +570,10 @@ def forge_workflow(design):
         else:
             generated.append({"path": str((hub_dir / 'playground' / 'dashboard.html').relative_to(target_repo)), "kind": "initial_dashboard"})
             print("✓ dashboard.html rendered via gen_dashboard.py")
+            _html = (hub_dir / 'playground' / 'dashboard.html').read_text()
+            _line = next(l for l in _html.splitlines() if l.strip().startswith('const DASHBOARD_DATA ='))
+            consumer_exercise(json.loads(_line.strip()[len('const DASHBOARD_DATA ='):].strip().rstrip(';')),
+                              'workflow dashboard')
     else:
         print("– dashboard skipped (one-shot workflow — the ledger IS the observability "
               "surface; set ledger.dashboard: true to emit one)")
@@ -760,10 +643,9 @@ def _regen_content(design, team, basename, fmeta):
     """Regenerated text for a template-derived manifest entry, or None to preserve the file."""
     kind = fmeta.get('kind')
     if kind == 'team_launcher_skill':
-        return render_team_launcher(design)
+        return render_launcher_pointer(design)
     if kind == 'workflow_launcher_skill':
-        return (render_workflow_drain_launcher(design) if design.get('shape') == 'parallel-drain'
-                else render_workflow_launcher(design))
+        return render_launcher_pointer(design)
     if kind == 'dashboard_renderer':
         return render_gen_dashboard(design)
     if kind == 'agent_md':
@@ -830,10 +712,18 @@ design = yaml.safe_load(DESIGN_PATH.read_text())
 CONTRACT_PATH = None
 if design.get('contract'):
     from contract_lint import validate_contract, goal_directive_from_contract
-    CONTRACT_PATH = Path(design['contract'])
-    if not CONTRACT_PATH.is_absolute():
-        CONTRACT_PATH = DESIGN_PATH.parent / CONTRACT_PATH
-    assert CONTRACT_PATH.exists(), f"design.contract points at a missing file: {CONTRACT_PATH}"
+    # Resolution order: absolute → relative to this design.yaml → the canonical KB copy
+    # (docs/team-forge/<team>/contract.yaml). The KB fallback is what lets --check/--resync
+    # run against the HUB-stashed design copy, whose relative path no longer resolves.
+    _cand = [Path(design['contract'])]
+    if not _cand[0].is_absolute():
+        _proj = design.get('project') or {}
+        _cand = [DESIGN_PATH.parent / design['contract']]
+        if _proj.get('target_repo') and _proj.get('name'):
+            _cand.append(Path(_proj['target_repo']) / "docs" / "team-forge" / _proj['name'] / "contract.yaml")
+    CONTRACT_PATH = next((c for c in _cand if c.exists()), None)
+    assert CONTRACT_PATH, \
+        "design.contract unresolvable — tried: " + ", ".join(str(c) for c in _cand)
     _contract = yaml.safe_load(CONTRACT_PATH.read_text())
     _c_errs = validate_contract(_contract)
     assert not _c_errs, "contract invalid (tools/contract_lint.py):\n  " + "\n  ".join(_c_errs)
@@ -924,7 +814,7 @@ for entry in design['roster']:
 emit_skill_gap_scaffolds(design, hub_dir, target_repo, generated)
 
 # Step 4 — team-launcher
-launcher = render_team_launcher(design)
+launcher = render_launcher_pointer(design)
 out = team_skill_dir / "SKILL.md"
 out.write_text(launcher)
 generated.append({"path": str(out.relative_to(target_repo)), "kind": "team_launcher_skill"})
@@ -939,6 +829,7 @@ print(f"✓ tracker/status.json: {len(status)} top-level keys")
 
 # Step 6 — initial dashboard (self-contained interactive shell + embedded payload)
 dash, dash_payload = render_dashboard(design, status)
+consumer_exercise(dash_payload, 'team dashboard')
 out = hub_dir / "playground" / "dashboard.html"
 out.write_text(dash)
 generated.append({"path": str(out.relative_to(target_repo)), "kind": "initial_dashboard"})

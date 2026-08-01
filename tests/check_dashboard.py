@@ -84,6 +84,18 @@ def check(fixture, dash_path):
         f"{fixture}: contract.yaml not stashed in the KB"
     print(f"   contract-derived goal directive · {len(directive['done_when'])} checkable signals · KB copy present")
 
+    # The shell must carry the contract strip (the payload's goal section renders above panels).
+    assert 'id="contract"' in html, f"{fixture}: dashboard shell missing the contract strip mount"
+    assert (payload.get("goal") or {}).get("statement"), f"{fixture}: dashboard payload missing goal section"
+
+    # The emitted launcher is a THIN pointer to team-forge:run — never a fat baked copy.
+    suffix = "team" if payload["meta"].get("archetype") == "team" else "workflow"
+    launcher = repo_root / ".claude" / "skills" / f"{hub.name}-{suffix}" / "SKILL.md"
+    ltext = launcher.read_text()
+    assert "team-forge:run" in ltext, f"{fixture}: launcher is not a runtime pointer"
+    assert len(ltext.splitlines()) < 40, f"{fixture}: launcher is fat ({len(ltext.splitlines())} lines) — policy belongs in team-forge:run"
+    print(f"   contract strip in shell · thin pointer launcher ({len(ltext.splitlines())} lines)")
+
 
 def check_one_shot_default_no_dashboard():
     """A one-shot workflow (recurring absent, no ledger.dashboard opt-in) must NOT emit a
