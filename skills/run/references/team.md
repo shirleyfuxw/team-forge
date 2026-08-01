@@ -15,8 +15,11 @@ between gates, work toward `done_when` without idling.
 ## Step 2 — bootstrap vs rehydrate
 
 Read `tracker/status.json`: missing or empty state → **bootstrap**; else →
-**rehydrate** (invoke `team-forge:rehydrate` — it recovers state, re-reads the
-contract + current plan + recent artifacts, respawns the roster with context).
+**rehydrate**: the ledger + KB are complete state — re-read the contract, the
+current plan (`current_plan`/`current_team_plan` pointer), and recent artifacts
+under `artifacts/<current-milestone>/`; respawn the roster per
+`design.yaml.rehydrate.respawn_order`, each with a scoped brief that includes
+where its work left off; log a `rehydrate` event; resume coordination.
 
 Bootstrap: read design.yaml + the contract + the current plan doc; spawn roster
 per `rehydrate.respawn_order`, each with a **scoped brief** (role, team, its task,

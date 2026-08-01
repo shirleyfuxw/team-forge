@@ -127,7 +127,7 @@ the forge seeds `null`/`[]`, never contract literals.
 
 Show the user the **task DAG**, the **gate vocabulary**, and **the skills to be produced**
 (the `skill_gaps` entries, each with its trigger + acceptance). On approval, go to Phase 4 —
-`team-forge:forge` auto-detects `archetype: workflow` and **emits one DRAFT scaffold per gap**
+the forge renderer (`python3 <team-forge-extension>/tools/forge.py <design.yaml>`) auto-detects `archetype: workflow` and **emits one DRAFT scaffold per gap**
 at `.claude/team-forge/<team>/skill-drafts/<name>/SKILL.md`. The human (optionally with
 `skill-creator` to flesh out the body) reviews each draft against its promotion checklist,
 runs the acceptance check green, then promotes it to `.claude/skills/<name>/`. Until promoted,
@@ -298,7 +298,19 @@ Show the user:
 After user approval:
 1. The design.yaml is already written (Step 5)
 2. Log a `phase_3_complete` event to the tracker (if tracker is already spawned; if this is a fresh run, tracker doesn't exist yet — that comes in Phase 4)
-3. Tell the user: "Ready for Phase 4 — run `team-forge:forge` to emit the team files."
+3. **Emit** (the old Phase 4 — now just the renderer): run the tooling preflight below, then
+   `python3 <team-forge-extension>/tools/forge.py <path-to-design.yaml>` and review its output
+   (it validates the design + contract, aborts on a hook-protected default branch, and prints
+   every file it emits). Skill-gap DRAFTs land in `skill-drafts/` for human promotion.
+
+   **Tooling preflight (warn, don't abort — record accepted risks in `constraints`):** grep the
+   target's `.claude/settings*.json` + `.claude/hooks/` for (a) an auto-formatter PostToolUse
+   hook that re-churns unrelated lines — have the user scope it to changed lines or bless a
+   binary-write path first; (b) a review-receipt hook that inspects staged files from the harness
+   CWD — under worktrees it never sees the staged files and gets blanket-bypassed, silently
+   defeating the gate; make it worktree-aware first; (c) model pins with no fallback tier —
+   confirm critical stages aren't pinned to a single provider tier (the runtime retries one tier
+   down on outage).
 
 ## Re-design loop
 

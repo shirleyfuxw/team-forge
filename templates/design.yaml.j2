@@ -3,8 +3,8 @@
 #
 # This file is the contract between Phase 3 (Design) and Phase 4 (Forge).
 # Phase 3's forge-design-agents PRODUCE this file (in parallel; human approves).
-# Phase 4 (team-forge:forge) READS it and emits .md files, launcher skill,
-# tracker initial state, dashboard initial render, and KB scaffolds.
+# The forge renderer (tools/forge.py) READS it and emits .md files, the thin
+# launcher pointer, ledger initial state, dashboard initial render, and KB scaffolds.
 #
 # This is NOT a Jinja2 template. It is the SCHEMA REFERENCE for what Phase 3
 # must produce. Forge-design-agents write the actual design.yaml from scratch
@@ -13,7 +13,8 @@
 #
 # Universal validation Phase 3 MUST satisfy:
 #   ROLE COVERAGE      — at least one teammate per role: work, verify, advise
-#                        (+ exactly one orchestrator). tracker and monitor are
+#                        (+ exactly one orchestrator). The tracker role is RETIRED
+#                        (the lead always owns the ledger); monitor is
 #                        OPTIONAL: the default is a lead-written ledger + a
 #                        deterministic dashboard render step (gen_dashboard.py,
 #                        as in the workflow archetype); add them only when the
@@ -29,7 +30,7 @@
 # emitted with `memory: project` frontmatter → a private `.claude/agent-memory/<name>/`
 # directory whose MEMORY.md Claude Code auto-injects and the agent self-curates
 # (patterns, gotchas, ruled-out approaches) across dispatches. Standing TEAMMATES
-# (work/verify/tracker/monitor) get none — Claude Code ignores `memory:` on the
+# (work/verify/monitor) get none — Claude Code ignores `memory:` on the
 # teammate path; their durable context is this KB + the shared task list, so the lead
 # hands each a scoped brief. To override a role's scope, set `memory: user|project|local`
 # on its roster entry (default: project for dispatched roles, omitted otherwise). The
@@ -109,7 +110,7 @@ milestones:
 roster:
   - name: <slug>                            # filename without .md
     role: <enum>                            # work | verify | advise | orchestrator (required roles)
-                                            # | tracker | monitor (OPTIONAL — see ROLE COVERAGE above)
+                                            # | monitor (OPTIONAL; tracker is retired)
     # combined_roles: [<role>, <role>]      # OPTIONAL — for one-shot/small teams
     purpose: |
       <prose paragraph describing what this teammate owns>
@@ -137,15 +138,15 @@ rehydrate:
     - docs/team-forge/<team>/team-plans/<current>.md
     - docs/team-forge/<team>/artifacts/<milestone-id>/*.md
     - docs/team-forge/<team>/runtime/<milestone-id>/*.md   # optional
-  respawn_order: [<roles-in-order>]         # IF the roster has a tracker it MUST be first
-                                            # (rehydrate source of truth); a monitor MUST be
+  respawn_order: [<roles-in-order>]         # the lead's ledger is the rehydrate source of
+                                            # truth; a monitor (if present) SHOULD be
                                             # last (depends on others). Without them the lead
                                             # reads status.json directly — no special ordering.
 
 # ----------------------------------------------------------------------------
 # tracking — per-project end-to-end tracking spec.
 # ----------------------------------------------------------------------------
-# The ledger owner maintains status.json per state_shape — the tracker teammate if the
+# The LEAD maintains status.json per state_shape (tracker role retired) — the
 # roster has one, otherwise the lead. dashboard_panels drive the shell render — written
 # by the monitor teammate if present, otherwise by the emitted gen_dashboard.py render
 # step. Phase 4 emits the initial status.json + rendered dashboard.html either way.
@@ -213,7 +214,7 @@ asset_discovery:
     project_local: [<skill-name>]            # <target_repo>/.claude/skills/
     user_global:   [<skill-name>]            # ~/.claude/skills/
     plugins:
-      team-forge: [contract, design, forge, run, rehydrate, tracker, monitor]
+      team-forge: [contract, design, run, teardown]
       # <other-installed-plugin>: [...]
     reference_libraries:                     # domain-matched skills from reference libs
       ecc: [<skill-name>]                    # e.g. frontend-patterns, e2e-testing

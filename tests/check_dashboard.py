@@ -135,13 +135,35 @@ def check_prose_panel_rejected():
     print("✓ prose dashboard_panels entry rejected at forge time")
 
 
+def check_protected_branch_abort():
+    """Forge must abort BEFORE emission when the target repo sits on a protected default
+    branch (pre-flight absorbed from the retired forge skill)."""
+    import yaml
+    design = yaml.safe_load((REPO / "tests" / "fixtures" / "workflow-tidy" / "design.yaml").read_text())
+    design["contract"] = str(REPO / "tests" / "fixtures" / "workflow-tidy" / "contract.yaml")
+    target = Path("/tmp/tf-protected-target")
+    if not (target / ".git").exists():
+        target.mkdir(exist_ok=True)
+        subprocess.run(["git", "-C", str(target), "init", "-q", "-b", "main"], check=True)
+    design["project"]["target_repo"] = str(target)
+    tmp_design = Path("/tmp/tf-protected-design.yaml")
+    tmp_design.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design)], capture_output=True, text=True)
+    assert r.returncode != 0, "forge proceeded on a protected default branch — pre-flight missing"
+    assert "main" in (r.stdout + r.stderr) and "branch" in (r.stdout + r.stderr).lower(), \
+        "protected-branch abort should name the branch"
+    assert not (target / ".claude").exists(), "pre-flight must abort BEFORE any emission"
+    print("✓ protected-branch target: forge aborts before emission")
+
+
 def main():
     for fixture, dash in FIXTURES:
         forge(fixture)
         check(fixture, dash)
     check_one_shot_default_no_dashboard()
     check_prose_panel_rejected()
-    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 2 negative checks)")
+    check_protected_branch_abort()
+    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 3 negative checks)")
     # Elicitation half of the harness — contract quality (GOAL.md pivot).
     r = subprocess.run([sys.executable, str(REPO / "tests" / "check_contract.py")])
     assert r.returncode == 0, "contract checks failed"

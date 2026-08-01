@@ -40,16 +40,14 @@ _NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ
 
 ROLE_DESCRIPTIONS = {
     'work': "You produce primary milestone output. Receive task assignments from the lead via the shared task list — use the `TaskList` / `TaskGet` tools; the list is native to your session's team (do not hard-code a `~/.claude/tasks/...` path). Hand work off to verify-role teammates before propagation. Use `SendMessage` to coordinate with peers.",
-    'verify': "You check outputs before they propagate. Read work-role outputs, validate against the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage`, and report status updates to the team's ledger owner (the tracker teammate if the roster has one, otherwise the lead).",
+    'verify': "You check outputs before they propagate. Read work-role outputs, validate against the milestone's go/no-go criteria, post verdicts to the lead via `SendMessage` — the lead owns the ledger (`tracker/status.json`) and records them.",
     'advise': "You unblock work agents on hard problems. You are called on-demand via `Agent()` dispatch. **Consult your persistent agent memory first** — Claude Code injects your `MEMORY.md` (native `memory:` frontmatter): it's where you recorded patterns and ruled-out approaches from past calls, so you don't re-walk them — then read the KB slice the dispatch names. Return structured advice, and **update your memory** with what you learned. Make no writes to the team's durable KB.",
-    'tracker': "You aggregate project state per the team's `tracking.state_shape` spec from design.yaml. **You are the single-writer for `.claude/team-forge/{team}/tracker/status.json`.** Read verdicts from verify-role teammates and plan outputs from the lead. Append events from `tracking.events_to_log`. Tracker is load-bearing for `/resume` — your status.json is the durable state source. Spawned FIRST on rehydrate.",
-    'monitor': "You keep the dashboard always-current by PULLING authoritative state — `git rev-parse` the integration branch for the true HEAD, the `tasks[]`/gate records for progress + current task/milestone — and reconciling it against the lead's `status.json`. **Verify, don't mirror:** the lead lets rollup fields (head_sha, current_milestone, budget) go stale, so derive them; render the derived truth; and `SendMessage` the lead any drift you find. **You are the single-writer for `.claude/team-forge/{team}/playground/dashboard.html`** (per `dashboard_panels`). Trigger on every meaningful state change. Full procedure: the `team-forge:monitor` skill.",
-    'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. Hand each teammate a scoped brief (its task + the exact artifacts to read), not the whole KB. **You are the single-writer for `docs/team-forge/{team}/` narrative state.** If the roster has no tracker/monitor teammates (the default), you also own `.claude/team-forge/{team}/tracker/status.json` and re-render the dashboard (`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`) after each update.",
+    'monitor': "You keep the dashboard always-current by PULLING authoritative state — `git rev-parse` the integration branch for the true HEAD, the `tasks[]`/gate records for progress + current task/milestone — and reconciling it against the lead's `status.json`. **Verify, don't mirror:** the lead lets rollup fields (head_sha, current_milestone, budget) go stale, so derive them; render the derived truth; and `SendMessage` the lead any drift you find. **You are the single-writer for `.claude/team-forge/{team}/playground/dashboard.html`** (per `dashboard_panels`). Trigger on every meaningful state change. Full procedure: the `team-forge:run` skill's `references/drift-audit.md`.",
+    'orchestrator': "You are the team lead. The main session adopts this role at `/{team}-team`. You manage the shared task list, dispatch teammates, arbitrate verifier verdicts, write the team's narrative artifacts (brainstorm, plans, conclusions), and make milestone go/no-go decisions with the user. Hand each teammate a scoped brief (its task + the exact artifacts to read), not the whole KB. **You are the single-writer for `docs/team-forge/{team}/` narrative state.** You own `.claude/team-forge/{team}/tracker/status.json` (the tracker role is retired — the lead is always the ledger writer). With no monitor teammate (the default) you also re-render the dashboard (`python3 .claude/team-forge/{team}/playground/gen_dashboard.py`) after each update.",
 }
 MEMORY_AUTHORITY = {
-    'tracker': "You write only to `.claude/team-forge/{team}/tracker/status.json`.",
     'monitor': "You write only to `.claude/team-forge/{team}/playground/dashboard.html` and `dashboard-data.json`.",
-    'orchestrator': "You write to `docs/team-forge/{team}/{{brainstorms,team-plans,artifacts,runtime}}/`. Rosters without a tracker/monitor teammate: you also own `tracker/status.json` and the dashboard render (`gen_dashboard.py`).",
+    'orchestrator': "You write to `docs/team-forge/{team}/{{brainstorms,team-plans,artifacts,runtime}}/`. You always own `tracker/status.json`; without a monitor teammate you also own the dashboard render (`gen_dashboard.py`).",
     'work': "You write to ephemeral worktrees only. No durable writes.",
     'verify': "You write to ephemeral worktrees only. No durable writes.",
     'advise': "You write to your ephemeral worktree plus your own **persistent agent-memory directory** (native `memory:` frontmatter — Claude Code auto-manages it). You make no writes to the team's durable KB.",
@@ -582,12 +580,15 @@ def forge_workflow(design):
     # still emitted above: the monitor uses it as its deterministic renderer and adds live
     # authoritative-pull (git HEAD, task records) + drift alerts on top (see skills/monitor).
     if design.get('ledger', {}).get('dashboard_owner') == 'monitor_agent':
+        assert design.get('recurring'), (
+            "standing monitor is recurring-only: a one-shot run gets a dispatched cold "
+            "drift audit (team-forge:run references/drift-audit.md), not a standing agent")
         mon = design['ledger'].get('monitor') or {}
         entry = {
             'name': mon.get('name', 'monitor'),
             'role': 'monitor',
             'model': mon.get('model', 'inherit'),
-            'skills': mon.get('skills', ['team-forge:monitor']),
+            'skills': mon.get('skills', []),
             'purpose': mon.get('purpose',
                 f"Keep the {team} dashboard always-current: pull authoritative state (git HEAD of "
                 f"{project.get('integration_branch', 'the integration branch')}, the task/gate "
@@ -658,7 +659,7 @@ def _regen_content(design, team, basename, fmeta):
         mon = (design.get('ledger') or {}).get('monitor') or {}
         e = {'name': mon.get('name', 'monitor'), 'role': 'monitor',
              'model': mon.get('model', 'inherit'),
-             'skills': mon.get('skills', ['team-forge:monitor']),
+             'skills': mon.get('skills', []),
              'purpose': mon.get('purpose', f"Keep the {team} dashboard always-current by pulling authoritative state.")}
         return render_agent_md(e, team, basename)[0]
     return None   # tracker/ledger state, TASKS.yaml, design copy, skill-drafts, README, gitignore → preserve
@@ -739,6 +740,21 @@ target_repo = Path(project['target_repo'])
 basename = project.get('target_repo_basename') or Path(project['target_repo']).name
 project['target_repo_basename'] = basename   # normalize so all downstream reads succeed
 
+# Pre-flight (absorbed from the retired forge skill): forge writes into <target_repo>/.claude/
+# + docs/, which many repos hook-protect on the default branch. Abort BEFORE emission rather
+# than failing midway. FORGE_ALLOW_PROTECTED=1 overrides for repos where main is writable.
+import subprocess as _sp
+try:
+    _branch = _sp.run(["git", "-C", str(target_repo), "branch", "--show-current"],
+                      capture_output=True, text=True, timeout=5).stdout.strip()
+except Exception:
+    _branch = ""
+if _branch in ("main", "master", "production") and not os.environ.get("FORGE_ALLOW_PROTECTED"):
+    print(f"STOP: {target_repo} is on '{_branch}' — likely hook-protected for direct writes; forge "
+          f"would fail mid-emission. Create a branch first:\n  git -C {target_repo} checkout -b "
+          f"feature/{team}-forge\n(or set FORGE_ALLOW_PROTECTED=1 if this repo allows it).")
+    sys.exit(1)
+
 # Re-sync / drift-check: regenerate template-derived files in place (preserve runtime), then exit.
 if RESYNC or CHECK:
     resync(design, target_repo, team, basename, do_write=RESYNC)
@@ -756,6 +772,9 @@ required_roles = {'work', 'verify', 'advise', 'orchestrator'}
 present_roles = roster_roles(design)
 missing = required_roles - present_roles
 assert not missing, f"Role coverage failed: missing {missing}"
+assert 'tracker' not in present_roles, (
+    "the tracker role is retired (v0.10.0): the lead is always the ledger writer — "
+    "remove the roster entry; status.json itself is unchanged")
 roster_names = set(e['name'] for e in design['roster'])
 for s in design['tracking']['state_shape']:
     src = s['source']

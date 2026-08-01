@@ -75,19 +75,6 @@ roster:
       On-demand advisor that unblocks the builder on hard 2+ module questions.
     skills: [knowledge-retrieval]
     model: opus
-  - name: tracker
-    role: tracker
-    purpose: |
-      Single-writer for status.json. Aggregates state per the tracking spec and appends events.
-    skills: [team-forge:tracker]
-    model: sonnet
-  - name: monitor
-    role: monitor
-    purpose: |
-      Single-writer for the dashboard. Rebuilds the unified payload from status.json and
-      injects it into the shared shell on every meaningful state change.
-    skills: [team-forge:monitor]
-    model: sonnet
 
 rehydrate:
   durable_state:
@@ -95,7 +82,7 @@ rehydrate:
     - docs/team-forge/greeter/brainstorms/<current>.md
     - docs/team-forge/greeter/team-plans/<current>.md
     - docs/team-forge/greeter/artifacts/<milestone-id>/*.md
-  respawn_order: [tracker, lead, builder, checker, helper, monitor]
+  respawn_order: [lead, builder, checker, helper]
 
 tracking:
   state_shape:

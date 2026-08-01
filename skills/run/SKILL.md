@@ -123,6 +123,11 @@ human audits the run against the contract. Resolve ownership live:
   yours to refresh. No `playground/` at all (one-shot, no opt-in) → `status.json`
   + `TASKS.yaml` is the whole surface.
 
+Either way, at milestone/cycle boundaries and before the end-of-run summary,
+run the **drift audit** (`references/drift-audit.md`) — a dispatched cold check
+that the dashboard/ledger the human reads matches authoritative state. You are
+the producer of the ledger; the audit is its verifier.
+
 ## Re-plan (the design is a living artifact)
 
 A gate result or discovery that invalidates the plan: write a new dated plan
