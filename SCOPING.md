@@ -1,3 +1,12 @@
+> ⚠️ **ERRATA (2026-08-01).** The repo's goal is redefined by [`GOAL.md`](./GOAL.md): the
+> product is a **verified problem contract** (user problem + machine-checkable verification
+> steps); rosters/launchers/loops are opt-in machinery reached only when the contract demands
+> them; the dashboard is kept as the agent-behavior observation surface. This doc's framing of
+> the forged team as the deliverable is superseded. Additionally, team-forge is **decoupled
+> from Superpowers**: the section "How team-forge relates to Superpowers" and the
+> `superpowers:` mentions in the schema examples below are historical — read them as "any
+> skill library the project uses."
+>
 > ⚠️ **ERRATA (2026-07-02).** This frozen v8.3 doc predates a Claude Code agent-teams update.
 > Its runtime specifics are **superseded** by `docs/agent-teams-primitive-notes.md` (see the
 > re-verification banner there). Notably: the native task/team dirs are now **session-derived**

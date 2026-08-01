@@ -300,7 +300,7 @@ If the user rejects:
 ## Failure modes
 
 - **All 3 lens outputs disagree on role coverage** → surface to user, don't auto-resolve
-- **Skill discovery returns empty** → the project's `.claude/skills/` and `~/.claude/skills/` are bare; tell the user that loadouts will be sparse and ask if they want to install Superpowers or any other skill libraries before continuing
+- **Skill discovery returns empty** → the project's `.claude/skills/` and `~/.claude/skills/` are bare; tell the user that loadouts will be sparse and ask if they want to install a skill library (or configure a reference library) before continuing
 - **No agent in the catalog matches a critical role need** → tell the user; the project will need either custom skill development OR a different roster strategy
 
 ## What this skill is NOT

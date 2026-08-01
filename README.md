@@ -16,7 +16,7 @@ Forges a project-specific agent setup — gap-fill **skill drafts**, roster or w
   - `workflow` — a lead-driven task/gate loop with no standing roster; worker profiles dispatched only at fan-out points
 - Runtime dashboard at `.claude/team-forge/<team>/playground/dashboard.html`
 
-team-forge is the wiring; the procedural toolbox (TDD, debugging, planning, brainstorming) is provided by Superpowers and the project's own skills.
+team-forge is the wiring; the procedural toolbox (TDD, debugging, planning) comes from the project's own skills and whatever skill libraries the project already uses.
 
 ## The four phases — inputs → outputs
 

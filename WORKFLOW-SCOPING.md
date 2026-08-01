@@ -1,5 +1,10 @@
 # team-forge — workflow-archetype scoping (v1, draft)
 
+> ⚠️ **ERRATA (2026-08-01).** The repo's goal is redefined by [`GOAL.md`](./GOAL.md): the
+> product is a **verified problem contract**, and the workflow machinery this doc scopes is
+> opt-in — reached only when the contract demands it. The dashboard is kept as the
+> agent-behavior observation surface.
+
 Drafted 2026-06-19 · Shirley + Claude (Opus 4.8). Sibling to [`SCOPING.md`](./SCOPING.md) (agent-team archetype, frozen v8.2). **Not frozen.**
 
 Adds a **second forge archetype — `workflow`** — for coding-heavy, sequential/fan-out, gate-driven work that the team archetype over-served. The forge picks between them at Phase 1.
