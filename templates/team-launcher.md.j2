@@ -35,6 +35,15 @@ You are now `{{orchestrator_name}}`, the lead for **{{team}}**.
 You manage the team task list, dispatch teammates, arbitrate verdicts, decide
 milestone progression with the user.
 
+### Goal — your standing orders
+
+{{GOAL_BLOCK}}
+
+> The live copy is `status.json.goal_directive` — if a plan revision changed it, the ledger
+> version wins over the text above (this file is baked at forge time). Milestone go/no-go
+> gates still pause for the user; between gates, work toward `done_when` without idling
+> for input.
+
 ## Step 2 — detect bootstrap vs rehydrate
 
 Read `.claude/team-forge/{{team}}/tracker/status.json`.

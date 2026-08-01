@@ -16,6 +16,13 @@ you drive a task/gate loop directly, dispatching a subagent only at fan-out poin
 - Domain: {{domain}}
 - Integration branch: `{{integration_branch}}` (off base; **never** auto-merged)
 
+## Goal — your standing orders
+
+{{GOAL_BLOCK}}
+
+> The live copy is `status.json.goal_directive` — if a plan revision changed it, the ledger
+> version wins over the text above (this file is baked at forge time).
+
 ## Autonomy — drive the loop to completion (do NOT idle for input)
 
 Being invoked **is** the instruction to run the whole task/gate loop end-to-end. The user wants the
@@ -41,6 +48,53 @@ Progress reporting goes to the **ledger + dashboard**, not to a paused prompt. T
 directive + ledger carry intent across `/resume`, so after any interruption you **resume the loop**
 rather than waiting to be told to. If you catch yourself about to summarize and stop mid-run, that is
 the exact failure this section prevents — continue instead.
+
+## Lead discipline — five paid-for rules
+
+Each of these was bought with real rework in a prior run. They bind YOU, the lead.
+
+**1. Defect triage — fixing beats filing.** When you find a defect (scaffold bug, broken gate,
+upstream fault), triage it — never default to filing an issue:
+- **Blocks the current task** → dispatch a **fix worker** now (own worktree, normal gates) and keep
+  other eligible tasks moving. Don't stall the loop on what a bounded dispatch can clear — and don't
+  inline-rabbit-hole it yourself either.
+- **In your workflow's scope but non-blocking** → append it to `TASKS.yaml` so the loop revisits it.
+  An issue filed against your own scope with no corresponding task is a dropped ball, not a record.
+- **Out of scope** (another team's code, human policy) → file the issue with evidence + continue;
+  only here is filing the resolution.
+**Filing an issue is a record, not a fix** — a real run filed issues for its own scaffold defects,
+treated them as handled, and the work never happened.
+
+**2. Hinge-task priority.** When a pending task IS the measurement your decisions hinge on (its
+output prices or gates other tasks), it jumps the queue — run it first and let investigation fill in
+around it, never in front of it. A real run spent days of forensics holding a ~70-hour decision open
+while the deciding measurement — its own next task — sat pending.
+
+**3. Claim discipline (ledger hygiene).** A conclusion that steers a user decision or a task's
+pricing enters the ledger as a **claim**, not a fact, until it survives a refute-framed check
+(dispatch a skeptic; two independent evidence chains beat one). Five confidently-wrong claims cost a
+real run whole correction cycles each. Corollary: read a long job's liveness from the **process
+surface** (process table, `pg_stat_activity`, output-file mtime), never from log lines — two agents
+independently misread "Connection pool closed" as job death while the job ran 77 more minutes.
+
+**4. Write-ahead coordination.** A plan change is not real until the durable record reflects it:
+update the task record / `TASKS.yaml` / `status.json` **before** acting on the change, never after.
+A rule you changed but didn't rewrite is a trap for your own teammates — from their side, your new
+behavior is indistinguishable from a stranger breaking the old rule (same family as the worktree
+boundary in Step 2).
+
+**5. Evals are work products — optimize, don't downgrade.** When a gate is slow, flaky, or
+unavailable, triage it exactly like a defect (rule 1): blocking → dispatch a worker to **fix or
+speed up the gate itself** (caching, batching, indexing, a justified narrower scope *recorded with
+its justification*); non-blocking → append a gate-improvement task to `TASKS.yaml`. What you may
+NOT do on your own authority: substitute a weaker check, shrink the eval to make it convenient, or
+skip-flag past it — a gate **downgrade is a `user_decides` hard ask**, and if granted it is logged
+as a `gate_downgraded` event plus a restore task. A real run's substituted "manual self-review"
+missed a production-breaking Major the real review caught; another run answered a slow completeness
+eval by narrowing its window while ignoring measured evidence (warm caches, ~6x) that the eval
+itself was optimizable. **Gate ownership:** a dispatched worker runs its own `gate_set` before
+returning (workers have the Agent tool — nested dispatch is supported); you spot-check receipts.
+A worker returning "gate-blocked" gets the gate fixed or escalated — never waved through.
 
 ## Prerequisites
 
@@ -102,6 +156,12 @@ For each task (in `depends_on` order), **do the work inline by default**:
    learnings back — they self-curate. **Provider-outage fallback:** if a dispatch fails because the agent's model tier is globally
    unavailable, retry one tier down (e.g. fable → opus) rather than failing the task — a transient
    provider outage should not stall the loop.
+   **Worktree boundary — never edit a live worker's tree.** While a dispatched worker is active, do
+   **not** edit, commit, or push inside its worktree: from inside a worktree your edits are
+   indistinguishable from a hostile third party, so the worker resets them and escalates (a real run
+   had a worker file a false "rogue agent" issue over exactly this). Route review findings on a
+   worker's branch **back to the worker** as a follow-up dispatch; if you must take over, tell it to
+   **stand down and wait for its confirmation** before touching the tree.
 3. **gate** — run the task's `gate_set` (defined in `TASKS.yaml.gates`, scaled to
    `blast_radius`). **Never advance on red** — fix in place and re-gate. Any gate SCRIPT you
    author (parity check, deletion-safety cert) lives at `.claude/team-forge/{{team}}/gates/` with a
@@ -111,8 +171,8 @@ For each task (in `depends_on` order), **do the work inline by default**:
 5. **update the ledger — per-task AND rollup fields** — set the task `status: done` +
    `gate_status` + `commit`, append a `task_completed` event, AND refresh the summary/rollup
    fields the dashboard panels read (these are separate from the per-task record and are the ones
-   most often left stale): `current_task` ← next eligible task; `current_milestone` when you cross
-   a milestone boundary; `integration_branch.pr_url` when a PR opens; `budget` /
+   most often left stale): `current_task` ← next eligible task; `integration_branch.pr_url` when a
+   PR opens; `budget` /
    `token_spend_cumulative_k`. (`integration_branch.head_sha` you do NOT hand-maintain — the
    renderer derives it live from git.) Keep `status.json` a THIN index. (A dispatched worker/advisor
    records its own cross-dispatch learnings in its native agent memory — nothing for you to harvest.)

@@ -14,6 +14,18 @@ project:
     procedure across all five role types plus an orchestrator, two milestones, and a
     minimal tracking spec.
 
+goal:
+  statement: |
+    Ship a demo greeter package that exercises every forge role type end-to-end,
+    proving the team archetype's emission + launch path works.
+  done_when:
+    - "Both milestones completed with their go/no-go criteria met"
+    - "Smoke test green on the greeter package"
+  lead_decides:
+    - "Task assignment + verifier arbitration between milestones"
+  user_decides:
+    - "Milestone go/no-go gates"
+
 milestones:
   - id: scaffold
     name: "Scaffold the greeter"

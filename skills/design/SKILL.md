@@ -88,12 +88,24 @@ the **skill quality bar** below.
   (default procedure + project skill overlay), the `ledger` (state_shape — incl. the
   `current_plan`/`plan_history` runtime fields — events, dashboard_panels), the `fan_out`
   points (where the lead bursts via the Workflow tool), and (parallel-drain) the `recurring` block.
+  **Dashboard sizing:** a one-shot workflow (no `recurring`) gets NO dashboard by default —
+  `status.json` + `TASKS.yaml` is the whole observability surface; only add
+  `ledger.dashboard: true` when the run is long/recurring enough that a rendered page earns
+  its keep. If a dashboard IS declared, `dashboard_panels` entries must be **renderer ids from
+  the shell's registry** (see `templates/design.yaml.j2` — forge.py aborts on anything else);
+  panel *intent* goes in a YAML comment, never as a prose list entry.
   **Declare a `fan_out` point ONLY where there is genuine N-way parallelism or a multi-item
   fan-out→synthesize→verify** — single/sequential tasks stay inline (the lead codes them, or one
   `Agent` dispatch for an isolated piece), never a Workflow. Over-declaring `fan_out` makes the
   runtime burst where an inline step would do; the parallel-drain wave is the one always-Workflow point.
 
 ### W-Step 3 — synthesize + compose the workflow design.yaml
+
+**Compose the `goal:` block first** (both archetypes; forge validates it): `statement` from
+the brainstorm's goal, `done_when` from its Completion criteria, `lead_decides`/`user_decides`
+from its Autonomy contract (interrogation area 6; if the brainstorm predates that question,
+derive conservative defaults and flag for the user's approval pass). This block becomes the
+lead's standing orders — it is why the forged launcher can run without stopping for input.
 
 Reconcile the lenses and compose `design.yaml` with `archetype: workflow` + the workflow
 blocks. Worked schema references: `tests/fixtures/workflow-tidy/design.yaml` (sequential-gated)
@@ -218,7 +230,8 @@ Returns: validation issues + tracking spec proposal.
 > does the roster feel 'forced'? Are there project-domain constraints from the
 > brainstorm that no roster entry addresses? Propose constraints[] entries for
 > domain-specific facts. Propose dashboard_panels[] entries that would be useful
-> for the user."
+> for the user — choosing ONLY from the shell's renderer-id registry (see
+> templates/design.yaml.j2); panel intent goes in a comment, never a prose entry."
 
 Returns: domain-fit issues + constraints proposal + dashboard_panels proposal.
 
@@ -233,7 +246,7 @@ Lead synthesizes the 3 lens outputs:
 1. **Roster**: take Lens 1's roster as starting point; apply Lens 2's coverage corrections; flag any issues Lens 3 raises about specific entries
 2. **tracking.state_shape**: take Lens 2's proposal; cross-reference with Lens 3's dashboard_panels (every panel should be backed by a state field)
 3. **tracking.events_to_log**: combine Lens 2's enum proposal
-4. **tracking.dashboard_panels**: take Lens 3's proposal; verify each panel has supporting state in `state_shape`
+4. **tracking.dashboard_panels**: take Lens 3's proposal; verify each panel has supporting state in `state_shape` AND is a registry renderer id (forge.py aborts on prose entries)
 5. **constraints**: take Lens 3's proposal; the brainstorm's "domain-specific facts" should map here
 6. **skill_discovery_results.proposed_loadouts_per_teammate**: derive from Lens 1's roster (each teammate's `skills` field)
 7. **skill_gaps**: from Lens 1's gaps list ("no skill exists for this role/need") + any

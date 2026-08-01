@@ -52,6 +52,29 @@ project:
     <one-paragraph brief — verbatim from brainstorm if possible>
 
 # ----------------------------------------------------------------------------
+# goal — the lead's standing orders (REQUIRED, both archetypes).
+# ----------------------------------------------------------------------------
+# Forge stamps this into tracker/status.json as `goal_directive` and renders it at the
+# top of the launcher — it is what lets the lead run WITHOUT stopping for input: the
+# launchers' autonomy rule is "pause only for a `user_decides` item, or a decision not
+# inferable from this directive + the ledger." Sourced from the brainstorm's Completion
+# criteria + Autonomy contract (interrogation areas 4 and 6).
+goal:
+  statement: |
+    <one paragraph: the outcome this team/workflow exists to produce — verbatim-ish
+    from the brainstorm goal>
+  done_when:                                # 2–5 falsifiable completion signals (brainstorm §Completion criteria)
+    - "<signal-1>"
+    - "<signal-2>"
+  lead_decides:                             # standing approvals — the lead acts WITHOUT asking
+    - "<e.g. open PRs against the integration branch>"
+    - "<e.g. re-cut not-yet-done tasks / dispatch fix workers>"
+  user_decides:                             # hard asks — ALWAYS pause for the user
+    - "<e.g. bulk-close GitHub issues / anything outward-facing>"
+    - "<e.g. spend above the budget ceiling>"
+  # Unlisted decisions default to: act if inferable from statement+done_when+ledger, ask otherwise.
+
+# ----------------------------------------------------------------------------
 # milestones — Phase 2 output. High-level only (no detail task lists).
 # ----------------------------------------------------------------------------
 # 2–5 milestones. Each has a verifiable output + an explicit human go/no-go gate.
@@ -138,12 +161,14 @@ tracking:
     - team_roster_and_status
     - current_pointers                      # current brainstorm + team-plan
     - recent_events
-    # The self-contained shell ships ONE renderer shared by both archetypes. Its panel
-    # registry covers: milestone_timeline, team_roster_and_status, current_pointers,
-    # recent_events (team) + task_timeline, gate_matrix, integration_branch_status,
-    # queue_state, ticket_table (workflow). Any other id renders a labeled empty-state —
-    # safe to list a <domain-specific> panel before a renderer exists for it.
-    - <domain-specific>
+    # ENFORCED REGISTRY — every entry must be a renderer id the shell ships:
+    # milestone_timeline, team_roster_and_status, current_pointers, recent_events (team)
+    # + task_timeline, gate_matrix, integration_branch_status, queue_state, ticket_table
+    # (workflow). forge.py ABORTS on any other string. Do NOT write prose panel
+    # descriptions here — an unknown id used to render a healthy-looking page whose panel
+    # stayed an empty placeholder forever (the alpha-onboarding-completeness run shipped
+    # four of those for a week). Describe panel *intent* in a comment next to the id;
+    # a panel wanting a renderer that doesn't exist yet is a shell change, not a list entry.
 
 # ----------------------------------------------------------------------------
 # constraints — project-specific facts the forge agent can't infer.

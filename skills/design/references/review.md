@@ -20,7 +20,7 @@ Different contract — the role/comms checks don't apply. Checks:
 |---|---|---|---|
 | 1 | Schema + project fields | Parses; `archetype: workflow`; `shape ∈ {sequential-gated, parallel-drain}`; sections present (`project`, `gates`, `worker`, `ledger`, + `tasks` OR `queue`); project fields non-empty. | **Yes** |
 | 2 | Task/gate integrity | sequential-gated: task DAG **acyclic**, unique ids, every `gate_set ⊆ gates`, `dispatch ∈ {inline,worker}`. parallel-drain: a `queue` block present. | **Yes** — forge.py re-checks |
-| 3 | Ledger shape | `ledger.state_shape` declares `current_plan`/`plan_history` as **fields** (not literal paths); every `dashboard_panels` entry backed by state or a known panel. | **Yes** |
+| 3 | Ledger shape | `ledger.state_shape` declares `current_plan`/`plan_history` as **fields** (not literal paths); every `dashboard_panels` entry is a **registry renderer id** (forge.py aborts on prose) backed by state; a one-shot workflow declares a dashboard only via explicit `ledger.dashboard: true` (default is ledger-only). | **Yes** |
 
 Soft: the gate vocabulary cites the codebase's verification surface (not invented); skill gaps are listed for any gate lacking a backing capability; `recurring` present iff scheduled.
 
