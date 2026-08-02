@@ -2,8 +2,7 @@
   "name": "team-forge-dev",
   "description": "Marketplace for team-forge — add via `/plugin marketplace add shirleyfuxw/team-forge` (GitHub) or a local clone path",
   "owner": {
-    "name": "Shirley Fu",
-    "email": "shirleyfu24@gmail.com"
+    "name": "shirleyfuxw"
   },
   "plugins": [
     {
@@ -12,8 +11,7 @@
       "version": "0.10.0",
       "source": "./",
       "author": {
-        "name": "Shirley Fu",
-        "email": "shirleyfu24@gmail.com"
+        "name": "shirleyfuxw"
       }
     }
   ]

@@ -5,7 +5,7 @@
 > opt-in — reached only when the contract demands it. The dashboard is kept as the
 > agent-behavior observation surface.
 
-Drafted 2026-06-19 · Shirley + Claude (Opus 4.8). Sibling to [`SCOPING.md`](./SCOPING.md) (agent-team archetype, frozen v8.2). **Not frozen.**
+Drafted 2026-06-19 · the maintainer + Claude (Opus 4.8). Sibling to [`SCOPING.md`](./SCOPING.md) (agent-team archetype, frozen v8.2). **Not frozen.**
 
 Adds a **second forge archetype — `workflow`** — for coding-heavy, sequential/fan-out, gate-driven work that the team archetype over-served. The forge picks between them at Phase 1.
 

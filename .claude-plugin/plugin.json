@@ -3,8 +3,7 @@
   "description": "Claude Code plugin whose product is a verified problem contract: the user's interrogated problem + verification steps the model can run without them (contract_lint enforces checkable done_when). Direct execution is the default; opt-in machinery (agent-team or workflow archetype) is forged deterministically when the contract earns it, driven by one shared runtime skill and observed via a contract-first dashboard.",
   "version": "0.10.0",
   "author": {
-    "name": "Shirley Fu",
-    "email": "shirleyfu24@gmail.com"
+    "name": "shirleyfuxw"
   },
   "homepage": "https://github.com/shirleyfuxw/team-forge",
   "repository": "https://github.com/shirleyfuxw/team-forge",
