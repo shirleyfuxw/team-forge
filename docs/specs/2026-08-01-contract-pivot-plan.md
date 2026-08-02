@@ -14,7 +14,7 @@ Versioning: PRs 3–5 change behavior → bump `FORGE_VERSION` + `plugin.json` +
 `marketplace.json` in lockstep (drift blocks plugin updates). PRs 1–2 are
 docs/tests only → no bump (precedent: PR #24).
 
-> **Execution note (2026-08-01, Shirley's call):** executed as **one PR** with one commit
+> **Execution note (2026-08-01, the maintainer's call):** executed as **one PR** with one commit
 > per section below, plus a leading rescue merge — the #22–#27 stack had merged into its
 > own stacked branches, never into main (verified via `git merge-base --is-ancestor`);
 > `origin/feat/goal-directive` held the full accumulation and is merged in first. The
@@ -127,7 +127,7 @@ check FIRST — it is what makes every later deletion safe.
 
 ---
 
-## Open decisions (need Shirley before the PR that hits them)
+## Open decisions (need the maintainer before the PR that hits them)
 
 1. **Contract artifact home** (PR 3): standalone `contract.yaml` referenced by
    design.yaml (proposed — it exists before/without any design), vs. staying a
