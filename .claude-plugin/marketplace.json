@@ -8,7 +8,7 @@
     {
       "name": "team-forge",
       "description": "The product is a verified problem contract (problem + model-checkable done_when); direct execution by default, deterministic machinery forging when the contract earns it",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "source": "./",
       "author": {
         "name": "shirleyfuxw"
