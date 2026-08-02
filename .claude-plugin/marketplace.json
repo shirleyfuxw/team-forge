@@ -1,6 +1,6 @@
 {
   "name": "team-forge-dev",
-  "description": "Development marketplace for team-forge (private; for our repos)",
+  "description": "Marketplace for team-forge — add via `/plugin marketplace add shirleyfuxw/team-forge` (GitHub) or a local clone path",
   "owner": {
     "name": "Shirley Fu",
     "email": "shirleyfu24@gmail.com"
