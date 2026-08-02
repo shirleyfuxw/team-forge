@@ -72,7 +72,7 @@
 
 # team-forge — scoping (v8.3, frozen + docs/team-forge KB root)
 
-Drafted 2026-05-31 by Shirley + Claude (Opus 4.7).
+Drafted 2026-05-31 by the maintainer + Claude (Opus 4.7).
 Status: **design phase, frozen for implementation. No more reshuffling.**
 
 **This is the freeze point.** v7 went through a critical opus review (preserved on the `design-history` branch) that surfaced 10 specific issues — 3 buildability blockers, 7 design-decisions-needed. All 6 of the resulting v8 decisions are locked. Items resolved in earlier versions are not re-litigated.

@@ -1,146 +1,104 @@
 # team-forge
 
-Claude Code plugin whose product is a **verified problem contract**: the user's
-actual problem, interrogated — plus verification steps the model can run without
-the user present. Agent teams, workflow loops, and launchers are **opt-in
-machinery** generated only when the contract demands them. The **dashboard** is
-kept as the agent-behavior observation surface: the model verifies the work, the
-human observes the model. The full argument: [GOAL.md](./GOAL.md).
-
-**Status:** v0.10.0 — the contract pivot
-([docs/specs/2026-08-01-contract-pivot-plan.md](./docs/specs/2026-08-01-contract-pivot-plan.md)).
-Four skills, one deterministic renderer, one runtime. The old 4-phase pipeline
-(brainstorm → plan → design → forge) and the standing tracker/monitor roles are
-retired; [SCOPING.md](./SCOPING.md) / [WORKFLOW-SCOPING.md](./WORKFLOW-SCOPING.md)
-carry errata banners and remain as historical record.
-
-## The shape
-
-```
-team-forge:contract   →  contract.yaml       (the product: problem + checkable done_when)
-      │ route: direct-execution (DEFAULT) — work it now with existing skills/subagents
-      │ route: machinery (must be earned)
-      ▼
-team-forge:design     →  design.yaml         (archetype, roster/tasks, gates, skill gaps)
-      ▼
-tools/forge.py        →  emitted files       (deterministic render — not a skill)
-      ▼
-/<team>-workflow | /<team>-team               (~25-line thin pointer)
-      ▼
-team-forge:run        →  the lead loop       (policy lives HERE, plugin-propagated)
-```
-
-- **`team-forge:contract`** — interrogates the problem behind the ask and designs
-  its verification: every `done_when` entry carries a `check:` the model can run;
-  what can't be checked yet lives in `open_items`. Lint: `tools/contract_lint.py`
-  (prose entries, restated checks, and human-activity checks fail). Ends by
-  routing — **direct execution is the default**; machinery must cite an earned
-  criterion (a check with no backing capability, cross-session/unattended work,
-  genuine fan-out).
-- **`team-forge:design`** — opt-in machinery design. Absorbs the machinery
-  interrogation (archetype work-shape triage, roster, tracking, budget), runs the
-  3-lens parallel design agents + asset discovery, produces `design.yaml`
-  (which references the contract — forge derives the goal directive from it),
-  and ends by running the renderer.
-- **`tools/forge.py`** — deterministic emission (validation, panel-id registry,
-  protected-branch pre-flight, forge-time consumer exercise of the dashboard
-  payload). `--check` reports template drift for a forged team; `--resync`
-  regenerates template-derived files preserving the ledger.
-- **`team-forge:run`** — the shared runtime: goal-directive autonomy, the five
-  paid-for lead-discipline rules, dispatch/fan-out policy, `fresh_session`
-  handoffs, re-plan, naming discipline — once, for every team. Shape loops in
-  `references/` (sequential / drain / team; `drift-audit.md` is the dashboard's
-  cold verifier). Per-team launchers are thin pointers, so runtime policy
-  updates with the plugin instead of going stale in baked copies.
-- **`team-forge:teardown`** — the lifecycle close: archive the ledger, prune
-  worktrees, remove the pointer + profiles via the manifest.
-
-## What a forge emits (machinery route)
-
-```
-<target_repo>/
-  .claude/
-    agents/<team>-*.md                  # worker/advisor profiles (native memory) or roster
-    skills/<team>-workflow/SKILL.md     # ~25-line pointer to team-forge:run
-    team-forge/<team>/
-      design.yaml · TASKS.yaml · manifest.json
-      tracker/status.json               # lead-written ledger + contract-derived goal_directive
-      gates/                            # gate scripts you author at runtime
-      skill-drafts/<gap>/SKILL.md       # DRAFTs pending human promotion
-      playground/gen_dashboard.py + dashboard.html   # when the run earns a dashboard
-  docs/team-forge/<team>/
-    contract.yaml                       # the product, stashed durably
-    brainstorms/ team-plans/ artifacts/ runtime/ README.md
-```
-
-The dashboard renders the **contract strip** — statement + each `done_when` with
-its check — above every panel; one-shot workflows default to no dashboard
-(ledger-only), and the run skill dispatches a **drift audit** (cold agent:
-pull authoritative state, reconcile, report) at milestone/cycle boundaries. A
-standing monitor exists only for recurring/unattended workflows (enforced) or
-persistent team rosters.
-
-## Skills are the product (unchanged, sharpened)
-
-A needed check with no backing capability is a **skill gap** — recorded in
-design.yaml with a trigger-first description and a runnable acceptance check;
-forge emits one DRAFT scaffold per gap under `skill-drafts/`, and a human
-promotes it to `.claude/skills/` after the acceptance runs green. Gates that
-call an unpromoted skill fail-closed. Under the pivot this is the heart: a
-`kind: verification` skill is a contract verification step made durable.
-
-## Verification
-
-```bash
-python3 tests/check_dashboard.py
-```
-
-Forges all 3 fixtures and runs both halves of the harness: **emission**
-(self-contained dashboard, contract strip, thin pointers, panel registry, 3
-negative checks incl. protected-branch abort) and **elicitation**
-(`tests/check_contract.py` — the contract lint's bar against good/bad fixtures).
-
-## Requires
-
-- Claude Code; `python3` + `pyyaml` for the renderer and lint.
-- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` only for the `team` archetype
-  (persistent rosters); the workflow archetype and direct execution don't need it.
+A Claude Code plugin that turns a vague ask into a **verified problem contract** —
+your actual problem, interrogated, plus verification steps the model can run
+without you — and then executes against it. Agent teams and workflow machinery
+are opt-in extras, generated only when the contract earns them. Why this shape:
+[GOAL.md](./GOAL.md).
 
 ## Install
-
-**From GitHub (teammates — use this):**
 
 ```bash
 /plugin marketplace add shirleyfuxw/team-forge
 /plugin install team-forge@team-forge-dev
 ```
 
-Pin a release if you want a known-good version — [releases](https://github.com/shirleyfuxw/team-forge/releases)
-(current: `v0.10.0`). Update later with `/plugin marketplace update team-forge-dev`.
+Needs `python3` + `pyyaml`. Set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` only if
+you use the persistent-roster `team` archetype. Releases:
+[v0.10.0](https://github.com/shirleyfuxw/team-forge/releases); update with
+`/plugin marketplace update team-forge-dev`.
 
-**From a local clone (development):**
+## Use
 
-```bash
-/plugin marketplace add ~/8888/team-forge
-/plugin install team-forge@team-forge-dev
+Start every engagement the same way:
+
+```
+Use team-forge:contract — I want to <your ask>.
 ```
 
-## Reference libraries (prior art, not installed)
+It interrogates the problem behind the ask and writes
+`docs/team-forge/<team>/contract.yaml`: a problem statement, `done_when` entries
+that each carry a `check:` the model can run (anything uncheckable is honestly
+parked in `open_items`), and a `lead_decides` / `user_decides` split. A lint
+(`tools/contract_lint.py`) enforces the bar — prose conditions don't pass.
 
-Phase-3 asset discovery can mine pinned external corpora (e.g. ECC —
-`reference-libraries/ecc.yaml`) without installing them: fetched on demand to
-`~/.cache/team-forge/`, domain-filtered, proposed as **adapt** candidates with
-provenance. Pins advance only via the weekly `bump-references` PR.
+Then one of two routes, recorded in the contract:
 
-## Roadmap
+- **`direct-execution` (default)** — the work is done right here with existing
+  skills and subagents. Nothing is forged.
+- **`machinery` (must be earned)** — a needed check has no backing capability, the
+  work spans sessions or runs unattended, or there's genuine fan-out. Then:
+  `team-forge:design` (archetype triage, roster/tasks, gates, skill gaps) →
+  `python3 tools/forge.py <design.yaml>` (deterministic emission) → launch with
+  `/<team>-workflow` or `/<team>-team`.
 
-- [x] Contract pivot: contract skill + lint + derived goal directive + generic
-  runtime + thin pointers + contract-strip dashboard (v0.10.0)
-- [x] Capability ablation: forge/rehydrate/tracker/monitor skills retired
-- [ ] Dogfood: a real project end-to-end through contract → direct execution,
-  and one through the machinery route
-- [ ] Goal-enforcement hooks (opt-in Stop-hook + post-compaction re-injection)
-- [ ] CI: run the harness on every push
+Forged runtimes are driven by **`team-forge:run`** — one shared skill holding all
+lead policy (autonomy against the goal directive, discipline rules, dispatch and
+gate rules), which updates with the plugin. The per-team launcher is a ~25-line
+pointer, so nothing policy-shaped goes stale in your repo. `team-forge:teardown`
+closes a finished team out.
+
+## What a forge emits
+
+```
+<target_repo>/
+  .claude/
+    agents/<team>-*.md                  # worker/advisor profiles (or team roster)
+    skills/<team>-workflow/SKILL.md     # thin pointer to team-forge:run
+    team-forge/<team>/
+      design.yaml · TASKS.yaml · manifest.json
+      tracker/status.json               # ledger + contract-derived goal_directive
+      gates/ · skill-drafts/            # your gate scripts; skill DRAFTs to promote
+      playground/                       # dashboard, when the run earns one
+  docs/team-forge/<team>/
+    contract.yaml                       # the product, stashed durably
+    brainstorms/ team-plans/ artifacts/ runtime/
+```
+
+**Observation:** the dashboard renders the contract — statement plus each
+`done_when` and its check — above every panel, so you're always auditing the run
+against what was promised. A dispatched **drift audit** (cold agent: pull
+authoritative state, reconcile, report) verifies the ledger at milestone
+boundaries; one-shot workflows skip the dashboard entirely and live in
+`status.json` + `TASKS.yaml`.
+
+**Skills are the product:** a needed check with no backing capability becomes a
+`skill_gaps` entry with a runnable acceptance check; forge emits a DRAFT per gap
+and a human promotes it to `.claude/skills/` once the acceptance runs green.
+Gates that call an unpromoted skill fail-closed. These skills outlive the team.
+
+## Development
+
+```bash
+git clone https://github.com/shirleyfuxw/team-forge && cd team-forge
+/plugin marketplace add .                # local marketplace for development
+python3 tests/check_dashboard.py         # the harness: emission + elicitation checks
+```
+
+The harness forges three fixtures and asserts both halves of the product:
+emission (self-contained dashboard with contract strip, thin pointers, panel-id
+registry, three negative checks) and elicitation (`tests/check_contract.py`, the
+lint's bar against good/bad contract fixtures).
+
+Migrating a team forged before v0.10.0: `python3 tools/forge.py --check <its
+design.yaml>`, then `--resync` (regenerates template-derived files, preserves
+the ledger). Design-phase asset discovery can also mine pinned reference
+libraries (see `reference-libraries/`) without installing them.
+
+Historical design docs — [SCOPING.md](./SCOPING.md),
+[WORKFLOW-SCOPING.md](./WORKFLOW-SCOPING.md), and
+[docs/specs/](./docs/specs/) — record how the project got here; errata banners
+mark what's superseded.
 
 ## License
 
