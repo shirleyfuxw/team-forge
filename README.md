@@ -108,6 +108,18 @@ negative checks incl. protected-branch abort) and **elicitation**
 
 ## Install
 
+**From GitHub (teammates — use this):**
+
+```bash
+/plugin marketplace add shirleyfuxw/team-forge
+/plugin install team-forge@team-forge-dev
+```
+
+Pin a release if you want a known-good version — [releases](https://github.com/shirleyfuxw/team-forge/releases)
+(current: `v0.10.0`). Update later with `/plugin marketplace update team-forge-dev`.
+
+**From a local clone (development):**
+
 ```bash
 /plugin marketplace add ~/8888/team-forge
 /plugin install team-forge@team-forge-dev
