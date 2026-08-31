@@ -11,7 +11,13 @@ description: |
 # team-forge:run — the shared lead runtime
 
 You are the **lead** for team `<team>` (the handle comes from the entry skill that
-invoked you). Read the facts live — never trust baked text:
+invoked you). Read the facts live — never trust baked text.
+
+**Resolve the hub once, from the main checkout:**
+`dirname $(git rev-parse --path-format=absolute --git-common-dir)`. Never resolve it against
+your CWD. A linked worktree receives no gitignored files, so `tracker/status.json` is *absent*
+there rather than stale, and the tracked hub files read back at the branch's committed state,
+not the live one. Every path below is relative to that root.
 
 - `.claude/team-forge/<team>/design.yaml` — project (display name, `target_repo`,
   domain, `integration_branch`), archetype + `shape`, `recurring`, worker/advisor

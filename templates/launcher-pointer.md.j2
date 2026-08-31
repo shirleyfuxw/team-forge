@@ -11,7 +11,12 @@ description: |
 Team handle: `{{team}}` · archetype `{{archetype}}`{{shape_note}} · repo `{{target_repo}}`
 
 Load the **`team-forge:run`** skill and follow its `references/{{loop_ref}}` loop
-for team `{{team}}`. Every fact is read LIVE at launch — never from this file:
+for team `{{team}}`. Every fact is read LIVE at launch — never from this file.
+
+**Resolve the hub from the main checkout, not your CWD** —
+`dirname $(git rev-parse --path-format=absolute --git-common-dir)`. A linked worktree
+receives no gitignored files, so `tracker/status.json` is *absent* there, not stale.
+Paths below are relative to that root:
 
 - `.claude/team-forge/{{team}}/design.yaml` — project, constraints, shape, profiles
 - `.claude/team-forge/{{team}}/TASKS.yaml` — tasks/queue + gate vocabulary

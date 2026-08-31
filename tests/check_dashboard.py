@@ -197,6 +197,56 @@ def check_reforge_guard_protects_ledger():
     assert r.returncode == 0, f"--force re-forge failed\n{r.stdout}\n{r.stderr}"
     assert json.loads(ledger.read_text())["events"] == [], "--force should reseed the ledger"
     print("\u2713 re-forge over a live hub refused (ledger intact); --force overrides")
+def check_hub_resolves_from_worktree():
+    """The hub has ONE address, resolved from the main checkout — never from the caller's CWD.
+
+    A linked worktree receives no gitignored files, so tracker/status.json is ABSENT there
+    (not stale), and tracked hub files read back at whatever the worktree's branch committed.
+    Proof: corrupt a template-derived file in the MAIN checkout, run --resync against the
+    WORKTREE's copy of design.yaml, and assert the main checkout is what got repaired.
+
+    The non-git fallback is covered by the three fixtures above: they forge into plain /tmp
+    directories that are not repositories at all."""
+    import yaml
+    main_co, linked = Path("/tmp/tf-hub-main"), Path("/tmp/tf-hub-linked")
+    for d in (linked, main_co):
+        shutil.rmtree(d, ignore_errors=True)
+    main_co.mkdir(parents=True)
+    git = lambda *a: subprocess.run(["git", "-C", str(main_co), *a], check=True,
+                                    capture_output=True, text=True)
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@t"); git("config", "user.name", "t")
+    (main_co / "README.md").write_text("scratch\n")
+    git("add", "-A"); git("commit", "-qm", "init")
+    git("checkout", "-q", "-b", "feature/forge")   # forge refuses a protected default branch
+
+    design = yaml.safe_load((REPO / "tests" / "fixtures" / "workflow-tidy" / "design.yaml").read_text())
+    design["contract"] = str(REPO / "tests" / "fixtures" / "workflow-tidy" / "contract.yaml")
+    design["project"]["target_repo"] = str(main_co)
+    tmp_design = Path("/tmp/tf-hub-design.yaml")
+    tmp_design.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design), "--force"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, f"hub-worktree: forge failed\n{r.stdout}\n{r.stderr}"
+
+    git("add", "-A"); git("commit", "-qm", "forge")
+    git("worktree", "add", "-q", str(linked), "-b", "wt/side")
+
+    hub = ".claude/team-forge/tidy"
+    assert (main_co / hub / "tracker" / "status.json").exists(), "main checkout lost its ledger"
+    assert not (linked / hub / "tracker" / "status.json").exists(), \
+        "expected the worktree to LACK the gitignored ledger — premise of this check"
+
+    launcher = main_co / ".claude" / "skills" / "tidy-workflow" / "SKILL.md"
+    launcher.write_text("CORRUPTED\n")
+
+    # --resync against the WORKTREE's design copy must repair the MAIN checkout.
+    r = subprocess.run([sys.executable, str(FORGE), str(linked / hub / "design.yaml"), "--resync"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, f"hub-worktree: --resync from worktree failed\n{r.stdout}\n{r.stderr}"
+    assert "team-forge:run" in launcher.read_text(), \
+        "--resync from a worktree did not reach the main checkout — hub resolved to the wrong root"
+    print("\u2713 hub resolves to the main checkout from inside a linked worktree")
 
 
 def main():
@@ -207,7 +257,8 @@ def main():
     check_prose_panel_rejected()
     check_protected_branch_abort()
     check_reforge_guard_protects_ledger()
-    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 4 negative checks)")
+    check_hub_resolves_from_worktree()
+    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 5 negative checks)")
     # Elicitation half of the harness — contract quality (GOAL.md pivot).
     r = subprocess.run([sys.executable, str(REPO / "tests" / "check_contract.py")])
     assert r.returncode == 0, "contract checks failed"
