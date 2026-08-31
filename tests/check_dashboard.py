@@ -96,7 +96,18 @@ def check(fixture, dash_path):
     ltext = launcher.read_text()
     assert "team-forge:run" in ltext, f"{fixture}: launcher is not a runtime pointer"
     assert len(ltext.splitlines()) < 40, f"{fixture}: launcher is fat ({len(ltext.splitlines())} lines) — policy belongs in team-forge:run"
-    print(f"   contract strip in shell · thin pointer launcher ({len(ltext.splitlines())} lines)")
+
+    # Settled decision 3: status.json is the single runtime surface. TASKS.yaml is a derived
+    # artifact for humans — nothing emitted may send the runtime there for facts, or the
+    # runtime is back to reading a copy a branch or worktree can silently disagree with.
+    assert "TASKS.yaml" not in ltext, \
+        f"{fixture}: launcher still points the runtime at TASKS.yaml (settled decision 3)"
+    assert "status.json" in ltext, f"{fixture}: launcher does not name the runtime surface"
+    for prof in sorted((repo_root / ".claude" / "agents").glob(f"{hub.name}-*.md")):
+        assert "TASKS.yaml" not in prof.read_text(), \
+            f"{fixture}: {prof.name} still points a dispatched agent at TASKS.yaml"
+    print(f"   contract strip in shell · thin pointer launcher ({len(ltext.splitlines())} lines) · "
+          f"runtime reads status.json only")
 
 
 def check_one_shot_default_no_dashboard():

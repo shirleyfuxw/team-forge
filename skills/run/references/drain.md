@@ -7,7 +7,8 @@ one-shot, drain once and close.
 
 ## Step 1 — open the cycle (this IS resume)
 
-Read `TASKS.yaml` (`queue` + `gates`) + `status.json`. Stamp `current_cycle_id` +
+Read `status.json` — `plan.queue` + `plan.gates` for the shape of the work, the
+live keys for where you left off. Stamp `current_cycle_id` +
 `cycle_box_deadline` from the box. Carry-overs (`in_review` items in
 `status.json.tickets[]`) re-attach before new triage. Log `cycle_started`;
 refresh the dashboard.

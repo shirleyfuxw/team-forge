@@ -4,7 +4,8 @@ description: |
   The shared runtime for every forged team/workflow. Invoked via a team's thin
   entry skill (/<team>-workflow or /<team>-team): adopt the lead role and drive
   the loop — sequential-gated, parallel-drain, or agent-team — reading ALL facts
-  live from the team's hub (design.yaml, TASKS.yaml, status.json, contract.yaml).
+  live from the team's hub — status.json is the single runtime surface, with
+  design.yaml and contract.yaml behind it.
   Nothing is baked per team; this skill updates with the plugin.
 ---
 
@@ -19,16 +20,25 @@ your CWD. A linked worktree receives no gitignored files, so `tracker/status.jso
 there rather than stale, and the tracked hub files read back at the branch's committed state,
 not the live one. Every path below is relative to that root.
 
-- `.claude/team-forge/<team>/design.yaml` — project (display name, `target_repo`,
-  domain, `integration_branch`), archetype + `shape`, `recurring`, worker/advisor
+- `.claude/team-forge/<team>/tracker/status.json` — **your single runtime
+  surface.** Two halves, and the split is the whole point:
+  - `plan` — design-derived: `gates`, task definitions, `queue`, and
+    `gate_backing`. Forge bakes it; `--resync` re-bakes it. **Never edit it.**
+  - everything else — live state you own: `tasks[]` status, `events`,
+    `current_*`, and the **authoritative `goal_directive`** (contract-derived;
+    the ledger copy always wins).
+- `.claude/team-forge/<team>/design.yaml` — project (display name,
+  `integration_branch`), archetype + `shape`, `recurring`, worker/advisor
   profiles, roster, `constraints` (they bind you; re-read them now).
-- `.claude/team-forge/<team>/TASKS.yaml` — tasks or `queue`, plus the `gates`
-  vocabulary. `queue.wave_size` must be an integer; if it isn't, treat TASKS.yaml
-  as the authority and flag the design defect.
-- `.claude/team-forge/<team>/tracker/status.json` — state + the **authoritative
-  `goal_directive`** (contract-derived; the ledger copy always wins).
 - `docs/team-forge/<team>/contract.yaml` — the problem + checkable done_when this
   whole runtime exists to satisfy.
+
+**`TASKS.yaml` is not yours to read.** It is a derived, tracked artifact for
+humans and PR diffs — a mirror of `design.yaml`, not a source of truth
+(`WORKFLOW-SCOPING.md`, settled decision 3). Reading it invites acting on a copy
+that a branch or worktree can silently disagree with; read `plan` instead.
+If `plan.queue.wave_size` isn't an integer, flag the design defect and treat the
+cap as 1 rather than guessing.
 
 Then follow the loop for the shape: `references/sequential.md`
 (workflow/sequential-gated) · `references/drain.md` (workflow/parallel-drain) ·
@@ -57,8 +67,12 @@ ledger + dashboard, not to a paused prompt. After `/resume`, resume the loop.
 Each bought with real rework in a prior run. They bind YOU.
 
 1. **Defect triage — fixing beats filing.** Blocks current work → dispatch a fix
-   worker now, keep other eligible work moving. In-scope, non-blocking → append to
-   `TASKS.yaml`. Out of scope → file with evidence + continue. Filing an issue is
+   worker now, keep other eligible work moving. In-scope, non-blocking → append a
+   task to `status.json.tasks[]` (live state, yours to write) and log it. Work you
+   discover mid-run belongs in the ledger, not in `plan` — `plan` mirrors
+   `design.yaml`, so a re-bake would drop anything you added there. If the new work
+   changes the *design* (a new gate, a different shape), revise `design.yaml` and
+   run `--resync`. Out of scope → file with evidence + continue. Filing an issue is
    a record, not a fix — a real run filed issues for its own scaffold defects and
    the work never happened.
 2. **Hinge-task priority.** A pending task that IS the measurement your decisions
@@ -69,8 +83,8 @@ Each bought with real rework in a prior run. They bind YOU.
    independent evidence chains beat one). Read job liveness from the process
    surface (process table, output mtime) — never log lines: "Connection pool
    closed" was twice misread as death while the job ran 77 more minutes.
-4. **Write-ahead coordination.** Update the durable record (`TASKS.yaml` /
-   `status.json` / task record) **before** acting on a plan change. A rule you
+4. **Write-ahead coordination.** Update the durable record (`status.json` / the
+   task record) **before** acting on a plan change. A rule you
    changed but didn't rewrite makes your new behavior indistinguishable from a
    stranger breaking the old one.
 5. **Evals are work products — optimize, don't downgrade.** Slow/flaky gate →
@@ -127,7 +141,7 @@ human audits the run against the contract. Resolve ownership live:
   `python3 .claude/team-forge/<team>/playground/gen_dashboard.py`. It derives
   `head_sha`/`current_task` live, but `current_milestone`/`pr_url`/`budget` are
   yours to refresh. No `playground/` at all (one-shot, no opt-in) → `status.json`
-  + `TASKS.yaml` is the whole surface.
+  is the whole surface.
 
 Either way, at milestone/cycle boundaries and before the end-of-run summary,
 run the **drift audit** (`references/drift-audit.md`) — a dispatched cold check
@@ -139,13 +153,29 @@ the producer of the ledger; the audit is its verifier.
 A gate result or discovery that invalidates the plan: write a new dated plan
 (`team-plans/<slug>-plan-<YYYY-MM-DD>.md`, content-descriptive slug, `-v2` on
 same-day collision) with a one-line why; re-cut only not-yet-done work in
-`TASKS.yaml`; update `current_plan`/`plan_history`, log `replanned`. **Scope
-changed → revise the contract first** (`team-forge:contract`, which re-lints and
-re-syncs `goal_directive`) — before the first task of the new scope runs.
+`status.json.tasks[]`; update `current_plan`/`plan_history`, log `replanned`.
+
+**Machinery changed** (gates, task DAG, queue shape) → edit `design.yaml`, then:
+
+```bash
+python3 <team-forge>/tools/forge.py <hub>/design.yaml --check     # what is stale
+python3 <team-forge>/tools/forge.py <hub>/design.yaml --resync    # land it
+```
+
+`--resync` re-bakes `plan` and regenerates `TASKS.yaml` while preserving every
+live key. Hand-editing `plan` instead is silently undone by the next re-bake.
+
+**Scope changed → revise the contract first** (`team-forge:contract`), then land
+the new standing orders in the live ledger — before the first task of the new
+scope runs:
+
+```bash
+python3 <team-forge>/tools/forge.py <hub>/design.yaml --sync-goal
+```
 
 ## Naming discipline (IDs stay internal)
 
-Task/item/milestone IDs live only in `TASKS.yaml` + `status.json`. Commits, PR
+Task/item/milestone IDs are internal addressing — they live in the hub. Commits, PR
 titles, comments, artifact files use human-readable names; artifacts are
 content-descriptive **+ dated** (`<subject>-<kind>-<YYYY-MM-DD>.md`), directories
 descriptive slugs. Fixed-name machine contracts (`design.yaml`, `contract.yaml`,
