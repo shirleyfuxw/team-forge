@@ -249,6 +249,74 @@ def check_hub_resolves_from_worktree():
     print("\u2713 hub resolves to the main checkout from inside a linked worktree")
 
 
+def check_design_drift_propagates():
+    """A design.yaml change must REACH a forged team, and --check must SAY so.
+
+    This is issue #36: --resync could only ever see template drift, so it printed
+    "already current" at a team whose gate list was materially behind its own design.
+    Now TASKS.yaml is derived (regenerated) and the ledger's design-derived `plan` block is
+    re-baked, while every live sibling key is preserved."""
+    import yaml
+    target = Path("/tmp/tf-drift-main")
+    shutil.rmtree(target, ignore_errors=True)
+    target.mkdir(parents=True)
+    git = lambda *a: subprocess.run(["git", "-C", str(target), *a], check=True,
+                                    capture_output=True, text=True)
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@t"); git("config", "user.name", "t")
+    (target / "README.md").write_text("scratch\n")
+    git("add", "-A"); git("commit", "-qm", "init")
+    git("checkout", "-q", "-b", "feature/forge")
+
+    fx = REPO / "tests" / "fixtures" / "workflow-drain"
+    design = yaml.safe_load((fx / "design.yaml").read_text())
+    design["contract"] = str(fx / "contract.yaml")
+    design["project"]["target_repo"] = str(target)
+    dpath = Path("/tmp/tf-drift-design.yaml")
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--force"], capture_output=True, text=True)
+    assert r.returncode == 0, f"drift: forge failed\n{r.stdout}\n{r.stderr}"
+
+    hub = target / ".claude" / "team-forge" / "drain"
+    ledger = hub / "tracker" / "status.json"
+    n_gates = len(design["gates"])
+
+    # live progress the lead has made since the forge
+    live = json.loads(ledger.read_text())
+    live["events"] = [{"kind": "cycle_started"}]
+    live["current_cycle_id"] = "c-42"
+    ledger.write_text(json.dumps(live, indent=2))
+
+    # the #36 edit: a new gate and a new queue sub-block
+    design["gates"]["parity"] = "run tools/parity_check.py — exit 0"
+    design["queue"]["trigger"] = "label:ready"
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--check"], capture_output=True, text=True)
+    assert r.returncode == 0, f"drift: --check failed\n{r.stdout}\n{r.stderr}"
+    assert "already current" not in r.stdout, \
+        "--check reported a false clean against a design-stale team (#36)"
+    assert "parity" in r.stdout and "trigger" in r.stdout, \
+        f"--check must NAME the drift, not just flag it:\n{r.stdout}"
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--resync"], capture_output=True, text=True)
+    assert r.returncode == 0, f"drift: --resync failed\n{r.stdout}\n{r.stderr}"
+
+    after = json.loads(ledger.read_text())
+    assert len(after["plan"]["gates"]) == n_gates + 1, "ledger plan.gates did not pick up the new gate"
+    assert "trigger" in after["plan"]["queue"], "ledger plan.queue did not pick up the new key"
+    assert after["events"] == [{"kind": "cycle_started"}], "--resync clobbered live events"
+    assert after["current_cycle_id"] == "c-42", "--resync clobbered live state"
+
+    tasks_doc = yaml.safe_load((hub / "TASKS.yaml").read_text())
+    assert len(tasks_doc["gates"]) == n_gates + 1, "TASKS.yaml is still stale — it is derived now"
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--check"], capture_output=True, text=True)
+    assert "already current" in r.stdout, \
+        f"the drift signal never clears after --resync:\n{r.stdout}"
+    print("\u2713 design drift reaches the team: --check names it, --resync lands it, live state survives")
+
+
 def main():
     for fixture, dash in FIXTURES:
         forge(fixture)
@@ -258,7 +326,8 @@ def main():
     check_protected_branch_abort()
     check_reforge_guard_protects_ledger()
     check_hub_resolves_from_worktree()
-    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 5 negative checks)")
+    check_design_drift_propagates()
+    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 6 negative checks)")
     # Elicitation half of the harness — contract quality (GOAL.md pivot).
     r = subprocess.run([sys.executable, str(REPO / "tests" / "check_contract.py")])
     assert r.returncode == 0, "contract checks failed"
