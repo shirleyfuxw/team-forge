@@ -46,6 +46,11 @@ Then one of two routes, recorded in the contract:
   `python3 tools/forge.py <design.yaml>` (deterministic emission) → launch with
   `/<team>-workflow` or `/<team>-team`.
 
+A workflow team gets two entry points into the same runtime: `/<team>-workflow`,
+and `claude --agent <team>-lead`, which carries persistent memory across runs so a
+recurring drain stops re-deriving last cycle's lessons. The slash command starts
+cold every time.
+
 Forged runtimes are driven by **`team-forge:run`** — one shared skill holding all
 lead policy (autonomy against the goal directive, discipline rules, dispatch and
 gate rules), which updates with the plugin. The runtime reads exactly one file:
@@ -60,6 +65,7 @@ closes a finished team out.
 <target_repo>/
   .claude/
     agents/<team>-*.md                  # worker/advisor profiles (or team roster)
+    agents/<team>-lead.md               # workflow lead, with persistent memory
     skills/<team>-workflow/SKILL.md     # thin pointer to team-forge:run
     team-forge/<team>/
       design.yaml · TASKS.yaml · manifest.json

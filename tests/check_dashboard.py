@@ -31,8 +31,14 @@ NODE = shutil.which("node")
 
 def forge(fixture):
     design = REPO / "tests" / "fixtures" / fixture / "design.yaml"
-    # --force: fixtures re-forge into the same /tmp hubs every run, so the second run would
-    # otherwise trip the re-forge guard. Exercises the flag as a side effect.
+    # Clear the emission target first. Fixtures forge into the same /tmp paths every run, so a
+    # file the forge STOPPED emitting would otherwise linger and keep passing its own check —
+    # a check that cannot observe a deletion is not checking emission.
+    target = Path(yaml.safe_load(design.read_text())["project"]["target_repo"])
+    assert str(target).startswith("/tmp/"), f"fixture target must live under /tmp: {target}"
+    shutil.rmtree(target / ".claude", ignore_errors=True)
+    shutil.rmtree(target / "docs", ignore_errors=True)
+    # --force is still passed: it exercises the re-forge guard's override path.
     r = subprocess.run([sys.executable, str(FORGE), str(design), "--force"], capture_output=True, text=True)
     assert r.returncode == 0, f"{fixture}: forge failed\n{r.stdout}\n{r.stderr}"
 
@@ -118,7 +124,22 @@ def check(fixture, dash_path):
         assert hub.name in desc, \
             f"{fixture}: {prof.name} description is not team-bound — it reads as general-purpose"
         assert "team-forge:run" in desc, \
-            f"{fixture}: {prof.name} description does not say who dispatches it"
+            f"{fixture}: {prof.name} description does not name the runtime it drives"
+
+    # Workflow teams get a <team>-lead agent alongside the launcher: same runtime, but launched
+    # as an agent so the lead gets native persistent memory. A /<team>-workflow session starts
+    # cold every run, which is what a recurring drain pays for. Team archetype has an
+    # orchestrator in its roster already, so it gets none.
+    lead = repo_root / ".claude" / "agents" / f"{hub.name}-lead.md"
+    if payload["meta"].get("archetype") == "team":
+        pass                      # the roster may legitimately contain an agent named `lead`
+    else:
+        assert lead.exists(), f"{fixture}: workflow team has no {hub.name}-lead agent"
+        fm = yaml.safe_load(lead.read_text().split("---")[1])
+        assert fm.get("memory") == "project", \
+            f"{fixture}: {hub.name}-lead has no native memory — that is the only reason it exists"
+        assert "tools" not in fm, \
+            f"{fixture}: {hub.name}-lead pins a tools allowlist — an omitted tool is silently gone"
     print(f"   contract strip in shell · thin pointer launcher ({len(ltext.splitlines())} lines) · "
           f"runtime reads status.json only")
 

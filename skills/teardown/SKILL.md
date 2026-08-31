@@ -82,7 +82,7 @@ The launcher is ephemeral — it exists to drive THIS team and is dead weight af
 - Remove the forged agents — **enumerate them from the manifest, never from a `<team>-*` glob**:
 
   ```
-  jq -r '.generated_files[] | select(.kind | test("agent_md|workflow_profile|monitor_agent")) | .path' \
+  jq -r '.generated_files[] | select(.kind | test("agent_md|workflow_profile|monitor_agent|lead_agent")) | .path' \
     <target_repo>/.claude/team-forge/<team>/manifest.json
   ```
 
@@ -94,6 +94,8 @@ The launcher is ephemeral — it exists to drive THIS team and is dead weight af
   exactly one team — no other team can be depending on it, so there is nothing to spare.
 - Remove each removed agent's native memory dir, `.claude/agent-memory/<agent-name>/` (see
   Step 7) — it is keyed by the agent's forged name, so use the same names from the manifest.
+  `<team>-lead` has one too: persistent memory is the point of that agent, so it is the one
+  most likely to hold real content, and equally the one that must not outlive its team.
 - If the forge registered a **hook trigger** for the launcher (a `settings.json` hook, a cron
   entry, or a `SessionStart` line), remove that entry too — a trigger for a deleted skill is a
   latent error. Grep the target repo's `.claude/settings*.json` for `<team>` and clean it.

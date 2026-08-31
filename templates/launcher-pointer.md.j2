@@ -25,6 +25,10 @@ Paths below are relative to that root:
 - `.claude/team-forge/{{team}}/design.yaml` — project, constraints, shape, profiles
 - `docs/team-forge/{{team}}/contract.yaml` — the problem contract this runtime serves
 
+> **Same runtime, other entry:** `claude --agent {{team}}-lead` runs this exact loop as an
+> agent with persistent memory across runs — worth it when the team runs repeatedly. This
+> slash command starts cold every time.
+
 > **Staleness:** only this pointer + `gen_dashboard.py` are baked copies. On
 > template drift (`tools/forge.py --check .claude/team-forge/{{team}}/design.yaml`),
 > `--resync` regenerates them and preserves the ledger. The runtime policy itself
