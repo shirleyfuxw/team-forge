@@ -317,6 +317,124 @@ def check_design_drift_propagates():
     print("\u2713 design drift reaches the team: --check names it, --resync lands it, live state survives")
 
 
+def _scratch_repo(path):
+    """A throwaway git repo on a non-protected branch (forge refuses main/master/production)."""
+    target = Path(path)
+    shutil.rmtree(target, ignore_errors=True)
+    target.mkdir(parents=True)
+    git = lambda *a: subprocess.run(["git", "-C", str(target), *a], check=True,
+                                    capture_output=True, text=True)
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@t"); git("config", "user.name", "t")
+    (target / "README.md").write_text("scratch\n")
+    git("add", "-A"); git("commit", "-qm", "init")
+    git("checkout", "-q", "-b", "feature/forge")
+    return target
+
+
+def check_sync_goal_reaches_live_ledger():
+    """A revised contract must reach a RUNNING team's standing orders.
+
+    team-forge:run treats status.json.goal_directive as authoritative and the contract skill
+    requires it to match the contract before the first task of a revised scope runs — but
+    forge.py derived it once, at initial forge, and nothing could re-derive it into a live
+    ledger (--resync preserves live state; a full forge destroys it). So the runtime kept
+    executing forge-time orders after every contract revision, invisibly."""
+    import yaml
+    target = _scratch_repo("/tmp/tf-goal-main")
+    fx = REPO / "tests" / "fixtures" / "workflow-tidy"
+    contract = Path("/tmp/tf-goal-contract.yaml")
+    shutil.copyfile(fx / "contract.yaml", contract)
+    design = yaml.safe_load((fx / "design.yaml").read_text())
+    design["contract"] = str(contract)
+    design["project"]["target_repo"] = str(target)
+    dpath = Path("/tmp/tf-goal-design.yaml")
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--force"], capture_output=True, text=True)
+    assert r.returncode == 0, f"sync-goal: forge failed\n{r.stdout}\n{r.stderr}"
+
+    ledger = target / ".claude" / "team-forge" / "tidy" / "tracker" / "status.json"
+    live = json.loads(ledger.read_text())
+    live["current_task"] = "t2"                       # live state that must not move
+    ledger.write_text(json.dumps(live, indent=2))
+    before = json.loads(ledger.read_text())
+    n_before = len(before["goal_directive"]["done_when"])
+
+    c = yaml.safe_load(contract.read_text())
+    c["done_when"].append({"signal": "Deprecated exporter migrated",
+                           "check": "grep -rn 'def slugify' src/exporter_v1/ returns nothing"})
+    c["user_decides"].append("Whether to drop exporter v1 entirely")
+    contract.write_text(yaml.safe_dump(c, sort_keys=False))
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--sync-goal"], capture_output=True, text=True)
+    assert r.returncode == 0, f"--sync-goal failed\n{r.stdout}\n{r.stderr}"
+    after = json.loads(ledger.read_text())
+    assert len(after["goal_directive"]["done_when"]) == n_before + 1, \
+        "--sync-goal did not re-derive done_when into the live ledger"
+    assert "Whether to drop exporter v1 entirely" in after["goal_directive"]["user_decides"]
+    assert [e for e in after["events"] if e.get("kind") == "goal_revised"], \
+        "--sync-goal must log a goal_revised event"
+    assert after["current_task"] == "t2", "--sync-goal touched live state beyond goal_directive"
+    assert after["plan"] == before["plan"], "--sync-goal touched the plan block"
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--sync-goal"], capture_output=True, text=True)
+    assert "no change" in r.stdout, f"--sync-goal is not idempotent:\n{r.stdout}"
+    assert len([e for e in json.loads(ledger.read_text())["events"]
+                if e.get("kind") == "goal_revised"]) == 1, "idempotent run still logged an event"
+    print("\u2713 --sync-goal re-derives a live ledger's standing orders, logs it, touches nothing else")
+
+
+def check_skill_gap_second_pass():
+    """The PRODUCT joins the second pass: an unpromoted DRAFT tracks its skill_gaps spec, a
+    PROMOTED skill is human-owned and never overwritten, and gate backing is recorded so
+    "gates that call an unpromoted skill fail-closed" is checkable instead of merely asserted."""
+    import yaml
+    target = _scratch_repo("/tmp/tf-gap-main")
+    fx = REPO / "tests" / "fixtures" / "workflow-tidy"
+    design = yaml.safe_load((fx / "design.yaml").read_text())
+    design["contract"] = str(fx / "contract.yaml")
+    design["project"]["target_repo"] = str(target)
+    design["gates"]["parity"] = "gate `parity`: tools/parity_check.py — exit 0"
+    design["skill_gaps"] = [{"name": "tidy-parity-check", "kind": "verification",
+                             "backing": "parity",
+                             "purpose": "Prove byte-identical output across the refactor.",
+                             "trigger": "Use when verifying a behavior-preserving refactor.",
+                             "spec": "Run the corpus before and after; diff.",
+                             "acceptance": "python3 tools/parity_check.py exits 0"}]
+    dpath = Path("/tmp/tf-gap-design.yaml")
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--force"], capture_output=True, text=True)
+    assert r.returncode == 0, f"gap: forge failed\n{r.stdout}\n{r.stderr}"
+
+    hub = target / ".claude" / "team-forge" / "tidy"
+    ledger = hub / "tracker" / "status.json"
+    draft = hub / "skill-drafts" / "tidy-parity-check" / "SKILL.md"
+    plan = json.loads(ledger.read_text())["plan"]
+    assert "gate_backing" in plan, \
+        "ledger records no gate backing — 'unpromoted skill fails the gate closed' stays unverifiable"
+    assert plan["gate_backing"]["parity"] == {"skill": "tidy-parity-check", "promoted": False}, \
+        f"gate backing not recorded at forge time: {plan['gate_backing']}"
+
+    # sharpening the spec must reach the unpromoted draft
+    design["skill_gaps"][0]["acceptance"] = "tools/parity_check.py exits 0 AND max_diff == 0"
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+    assert "max_diff" not in draft.read_text()
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--resync"], capture_output=True, text=True)
+    assert r.returncode == 0, f"gap: --resync failed\n{r.stdout}\n{r.stderr}"
+    assert "max_diff" in draft.read_text(), "an unpromoted DRAFT did not track its skill_gaps spec"
+
+    # promotion is human-owned: --resync must never overwrite it, and backing must flip
+    promoted = target / ".claude" / "skills" / "tidy-parity-check" / "SKILL.md"
+    promoted.parent.mkdir(parents=True)
+    promoted.write_text("---\nname: tidy-parity-check\ndescription: HUMAN-EDITED\n---\n")
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--resync"], capture_output=True, text=True)
+    assert r.returncode == 0, f"gap: --resync after promotion failed\n{r.stdout}\n{r.stderr}"
+    assert "HUMAN-EDITED" in promoted.read_text(), "--resync overwrote a promoted, human-owned skill"
+    assert json.loads(ledger.read_text())["plan"]["gate_backing"]["parity"]["promoted"] is True, \
+        "gate backing did not flip after promotion"
+    print("\u2713 skill gaps join the second pass: drafts track the spec, promoted skills are untouched")
+
+
 def main():
     for fixture, dash in FIXTURES:
         forge(fixture)
@@ -327,7 +445,9 @@ def main():
     check_reforge_guard_protects_ledger()
     check_hub_resolves_from_worktree()
     check_design_drift_propagates()
-    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 6 negative checks)")
+    check_sync_goal_reaches_live_ledger()
+    check_skill_gap_second_pass()
+    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 8 negative checks)")
     # Elicitation half of the harness — contract quality (GOAL.md pivot).
     r = subprocess.run([sys.executable, str(REPO / "tests" / "check_contract.py")])
     assert r.returncode == 0, "contract checks failed"
