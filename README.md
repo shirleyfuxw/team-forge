@@ -87,12 +87,15 @@ python3 tests/check_dashboard.py         # the harness: emission + elicitation c
 
 The harness forges three fixtures and asserts both halves of the product:
 emission (self-contained dashboard with contract strip, thin pointers, panel-id
-registry, six negative checks) and elicitation (`tests/check_contract.py`, the
+registry, eight negative checks) and elicitation (`tests/check_contract.py`, the
 lint's bar against good/bad contract fixtures).
 
 Landing changes on an already-forged team: `python3 tools/forge.py --check <its
-design.yaml>`, then `--resync` (regenerates template-derived files, preserves
-the ledger). A bare re-forge over a live hub is **refused** — it would rewrite
+design.yaml>` reports both staleness axes — template drift and design drift —
+then `--resync` lands them, re-baking the ledger's derived `plan` block and any
+unpromoted skill draft while preserving live state. After revising a contract,
+`--sync-goal` re-derives `goal_directive` into the live ledger and logs a
+`goal_revised` event; it writes only that key. A bare re-forge over a live hub is **refused** — it would rewrite
 `tracker/status.json` and reset task progress, gate results, and events; pass
 `--force` only when you mean to discard that state. Design-phase asset discovery can also mine pinned reference
 libraries (see `reference-libraries/`) without installing them.
