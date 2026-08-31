@@ -375,6 +375,36 @@ def render_dashboard(design, status=None):
 
 # ───────── Workflow archetype (the second fork) ─────────
 
+def render_workflow_lead(design):
+    """The `<team>-lead` agent — same runtime as the launcher, launched as an agent so the
+    lead gets Claude Code's native per-agent memory (`memory: project`).
+
+    A `/<team>-workflow` session starts cold every time; the ledger holds the team's state but
+    nothing holds the LEAD's. On a recurring drain that means re-deriving last cycle's lessons
+    every cycle. Emitted alongside the launcher, never instead of it — both load team-forge:run,
+    so there is one runtime with two entry points.
+
+    Deliberately no `tools:` allowlist. It would be an allowlist, not a filter, so any tool
+    omitted is silently unavailable — parallel-drain needs the Workflow tool for its pipeline()
+    wave, and a lead that cannot fan out fails in a way that reads as a model problem. It buys
+    nothing here either: forged agents live in .claude/agents/ and are visible to every session
+    regardless (subagents have no visibility field), so restricting what the LEAD may spawn
+    contains nothing."""
+    project = design['project']
+    team = project['name']
+    shape = design.get('shape')
+    tmpl = (TEMPLATES_DIR / "workflow" / "lead.md.j2").read_text()
+    return substitute_simple(tmpl, {
+        'team': team,
+        'project_display_name': project['display_name'],
+        'shape': shape or 'sequential-gated',
+        'model': (design.get('worker') or {}).get('model', 'inherit'),
+        'recurring_note': " · recurring" if design.get('recurring') else "",
+        'entry_suffix': 'workflow',
+        'loop_ref': 'drain.md' if shape == 'parallel-drain' else 'sequential.md',
+    }), f"{team}-lead.md"
+
+
 def render_workflow_profile(entry, profile_role, team, project_basename):
     """Render templates/workflow/profile.md.j2 for the worker or advisor default profile."""
     agent_name = f"{team}-{profile_role}"
@@ -629,6 +659,11 @@ def forge_workflow(design):
             generated.append({"path": str((agents_dir / fname).relative_to(target_repo)), "kind": "workflow_profile"})
             print(f"✓ profile {fname}: {md.count(chr(10)) + 1} lines")
 
+    lead_md, lead_fname = render_workflow_lead(design)
+    (agents_dir / lead_fname).write_text(lead_md)
+    generated.append({"path": str((agents_dir / lead_fname).relative_to(target_repo)), "kind": "lead_agent"})
+    print(f"✓ lead agent {lead_fname} (memory: project — `claude --agent {team}-lead`)")
+
     # Skill-gap scaffolds — the primary deliverable (skills outlive the team; W5).
     emit_skill_gap_scaffolds(design, hub_dir, target_repo, generated)
 
@@ -744,6 +779,8 @@ def _regen_content(design, team, basename, fmeta, target_repo):
         return render_launcher_pointer(design)
     if kind == 'dashboard_renderer':
         return render_gen_dashboard(design)
+    if kind == 'lead_agent':
+        return render_workflow_lead(design)[0]
     if kind == 'problem_contract':
         # The KB copy is a DERIVED stash of the contract, and it is what the
         # direct-execution close reads (contract Step 8 → verify_contract.py). Left
