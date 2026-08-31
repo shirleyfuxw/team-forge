@@ -38,6 +38,10 @@ Every forged file is exactly one of:
   the dispatch-profile agent `.md` files, the trigger hook, worktrees, agent memory.
   These are REMOVED (or archived, see Step 1).
 
+- **Outlives the team** — a promoted skill-gap skill (`.claude/skills/<gap-name>/`). Not
+  durable-in-the-KB and not ephemeral: it is a working capability the team produced and
+  handed to the project. It STAYS, but it needs an owner (Step 6).
+
 If you are unsure which bucket a file is in, it is durable — ask the user before removing.
 
 ## Procedure
@@ -89,10 +93,14 @@ The launcher is ephemeral — it exists to drive THIS team and is dead weight af
   session of the target project forever. Every forged agent is `<team>-<name>.md` and belongs to
   exactly one team — no other team can be depending on it, so there is nothing to spare.
 - Remove each removed agent's native memory dir, `.claude/agent-memory/<agent-name>/` (see
-  Step 6) — it is keyed by the agent's forged name, so use the same names from the manifest.
+  Step 7) — it is keyed by the agent's forged name, so use the same names from the manifest.
 - If the forge registered a **hook trigger** for the launcher (a `settings.json` hook, a cron
   entry, or a `SessionStart` line), remove that entry too — a trigger for a deleted skill is a
   latent error. Grep the target repo's `.claude/settings*.json` for `<team>` and clean it.
+
+Removing the launcher does NOT touch promoted skill-gap skills — they are unprefixed
+(`<gap-name>/`, not `<team>-…`), deliberately, because they outlive the team. Step 6 hands
+them over rather than deleting them.
 
 If `manifest.json` is missing (hand-edited hub, or a pre-0.6 forge), fall back to the
 `<team>-*.md` glob and say in the report that the removal was reconstructed, not receipted.
@@ -108,7 +116,7 @@ file, check before removing it:
 grep -l '"path": ".claude/agents/<agent>.md"' <target_repo>/.claude/team-forge/*/manifest.json
 ```
 
-A sibling manifest lists it → keep that **single legacy file** and say so in the Step 7 report.
+A sibling manifest lists it → keep that **single legacy file** and say so in the Step 8 report.
 Nothing else is spared. This applies only to pre-0.9.0 teams; nothing forged since can hit it.
 
 ### Step 4 — Remove ephemeral runtime state
@@ -131,7 +139,37 @@ If the lead authored gate scripts (parity checks, deletion-safety certs), decide
 
 (See the gate-harness convention in SCOPING.md / WORKFLOW-SCOPING.md.)
 
-### Step 6 — Native runtime dirs
+### Step 6 — Hand over the promoted skills (the team's actual output)
+
+Skills are the product: a `skill_gaps` entry becomes a DRAFT, a human promotes it, and the
+skill **outlives the team**. Teardown is where it either gets an owner or quietly becomes
+residue — nobody remembers which retired team produced it, and a stale trigger then misfires
+in every session forever.
+
+Enumerate what this team produced and what happened to each:
+
+```
+jq -r '.generated_files[] | select(.kind == "skill_gap_scaffold") | .path' \
+  <target_repo>/.claude/team-forge/<team>/manifest.json
+```
+
+For each `skill_gaps` name, the draft path tells you the state:
+
+- **Promoted** (`.claude/skills/<name>/SKILL.md` exists) → **KEEP.** Then, in the same commit:
+  1. Confirm its acceptance check still passes — a skill nobody can verify is not a deliverable.
+     If it fails, say so in the Step 8 report rather than handing over something broken.
+  2. Strip the team from its description if it names one — its trigger has to make sense to a
+     reader who never heard of `<team>`, since it now matches in every session.
+  3. Name it in the Step 8 report as a surviving deliverable, with its acceptance command.
+- **Never promoted** (draft only) → the capability was specified and never built. Remove the
+  draft with the rest of the hub, and record in the report that the gap was **not** filled —
+  any gate that named it was failing closed for the whole run, which is a result worth stating,
+  not a loose end to swallow.
+
+Do not delete a promoted skill because this team is retiring. If the user wants it gone, that is
+their call and a separate one — surface it, don't assume it.
+
+### Step 7 — Native runtime dirs
 
 **Session-derived dirs — no action needed.** The platform's own team dirs are keyed by session
 (`session-<8chars>`), not by the team slug, so team-forge can't target them by name — and doesn't
@@ -155,14 +193,20 @@ ephemeral scaffolding keyed to the agent, so it goes when the agent goes:
 If a memory dir holds notes the user would want (hard-won codebase gotchas), offer to fold them
 into the Step 1 run summary before removing — when unsure, it is durable; ask.
 
-### Step 7 — Report + one commit
+### Step 8 — Report + one commit
 
 Summarize what was archived vs removed, then make ONE teardown commit (message names the team
 and that it was retired — not a phase ID). Show the user the surviving durable set:
 
 ```
-docs/team-forge/<team>/   ← brainstorms, team-plans, artifacts, run-summary.md, final-ledger.json
+docs/team-forge/<team>/     ← brainstorms, team-plans, artifacts, run-summary.md, final-ledger.json
+.claude/skills/<name>/      ← each promoted skill this team produced (Step 6), with its
+                              acceptance command — the deliverable that outlives the team
 ```
+
+Name any `skill_gaps` entry that was never promoted, and say that the gate it backed was
+failing closed for the run. A retired team that filled none of its gaps is a result, and the
+report is the only place it gets said.
 
 Confirm with the user before committing if anything was ambiguous.
 
@@ -177,9 +221,12 @@ Confirm with the user before committing if anything was ambiguous.
   agent can be spared, only when a sibling manifest still lists it, and it spares that one file —
   never the launcher, hub, memory dirs, or any `<team>-*` agent.
 - **Agent memory orphaned** → `.claude/agent-memory/<agent-name>/` outlives a deleted agent and
-  accumulates silently. Remove it alongside its agent (Step 6).
+  accumulates silently. Remove it alongside its agent (Step 7).
 - **Trigger hook left behind** → a `SessionStart`/cron entry firing a deleted skill errors every
   session; always grep `settings*.json` for `<team>` in Step 3.
+- **Deleting a promoted skill because the team retired** → it outlives the team by design; that
+  is the whole point of skill_gaps. Removing it is the user's call, not an inference from
+  teardown. Hand it over (Step 6) instead.
 - **Deleting a durable artifact** → when unsure, it is durable; ask. The KB is the audit trail.
 - **Tearing down mid-flight** → refuse if tasks are still `in_progress` or the integration branch
   has open work.
