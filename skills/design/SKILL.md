@@ -23,9 +23,21 @@ parallel**, each focused on a different lens; their reciprocal review catches ga
 before the human approval gate.
 
 **Follow-on for an already-forged team/workflow** reusing its roster + gate
-vocabulary skips this phase too: the contract's task sketch carries everything
-`TASKS.yaml` needs — append the tasks to the existing `TASKS.yaml`, sync
-`status.json.goal_directive` from the revised contract, and resume the runtime loop.
+vocabulary skips this phase too — but it is not a hand-edit. Add the contract's
+task sketch to `design.yaml`, then run, from the team-forge extension:
+
+```bash
+python3 tools/forge.py <hub>/design.yaml --check      # what is stale
+python3 tools/forge.py <hub>/design.yaml --resync     # land it: re-bakes the
+                                                      # ledger's `plan`, regenerates
+                                                      # TASKS.yaml, preserves live state
+python3 tools/forge.py <hub>/design.yaml --sync-goal  # new standing orders from the
+                                                      # revised contract
+```
+
+Then resume the runtime loop. Editing `TASKS.yaml` or the ledger's `plan` block by
+hand is undone by the next re-bake — `design.yaml` is the source
+(`WORKFLOW-SCOPING.md`, settled decision 3).
 
 ## Step 0 — machinery interrogation (absorbed from the old Phase 1)
 
@@ -100,7 +112,7 @@ the **skill quality bar** below.
   `current_plan`/`plan_history` runtime fields — events, dashboard_panels), the `fan_out`
   points (where the lead bursts via the Workflow tool), and (parallel-drain) the `recurring` block.
   **Dashboard sizing:** a one-shot workflow (no `recurring`) gets NO dashboard by default —
-  `status.json` + `TASKS.yaml` is the whole observability surface; only add
+  `status.json` is the whole observability surface; only add
   `ledger.dashboard: true` when the run is long/recurring enough that a rendered page earns
   its keep. If a dashboard IS declared, `dashboard_panels` entries must be **renderer ids from
   the shell's registry** (see `templates/design.yaml.j2` — forge.py aborts on anything else);

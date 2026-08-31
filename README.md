@@ -44,7 +44,9 @@ Then one of two routes, recorded in the contract:
 
 Forged runtimes are driven by **`team-forge:run`** — one shared skill holding all
 lead policy (autonomy against the goal directive, discipline rules, dispatch and
-gate rules), which updates with the plugin. The per-team launcher is a ~25-line
+gate rules), which updates with the plugin. The runtime reads exactly one file:
+`tracker/status.json`, whose `plan` block is design-derived (re-baked by
+`--resync`) and whose every other key is live state the lead owns. The per-team launcher is a ~25-line
 pointer, so nothing policy-shaped goes stale in your repo. `team-forge:teardown`
 closes a finished team out.
 

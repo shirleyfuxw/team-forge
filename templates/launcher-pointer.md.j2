@@ -18,10 +18,11 @@ for team `{{team}}`. Every fact is read LIVE at launch — never from this file.
 receives no gitignored files, so `tracker/status.json` is *absent* there, not stale.
 Paths below are relative to that root:
 
+- `.claude/team-forge/{{team}}/tracker/status.json` — the single runtime surface:
+  live state + the authoritative `goal_directive`, plus a design-derived `plan`
+  block (gates, task/queue definitions, gate backing). Read `plan`, never edit
+  it — `--resync` re-bakes it from design.yaml.
 - `.claude/team-forge/{{team}}/design.yaml` — project, constraints, shape, profiles
-- `.claude/team-forge/{{team}}/TASKS.yaml` — tasks/queue + gate vocabulary
-- `.claude/team-forge/{{team}}/tracker/status.json` — state + the authoritative
-  `goal_directive`
 - `docs/team-forge/{{team}}/contract.yaml` — the problem contract this runtime serves
 
 > **Staleness:** only this pointer + `gen_dashboard.py` are baked copies. On
