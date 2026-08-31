@@ -1,12 +1,15 @@
 ---
 name: team-forge:contract
 description: |
-  Use when starting ANY team-forge engagement (this replaces the old Phase 1–2
-  brainstorming + writing-plans skills), or when scope shifts mid-project.
-  Interrogates the user's actual problem and designs its verification steps,
-  producing docs/team-forge/<team>/contract.yaml — every done_when entry carries a
-  check the model can run without the user. Ends by routing: direct execution
-  (default) or the machinery path (design → forge), which must be earned.
+  Use at the START of any non-trivial piece of work whose real problem or finish
+  line is not yet pinned down — "our flaky tests keep blocking releases", "clean
+  up the duplicate helpers", "make onboarding not take a week" — and again
+  whenever scope shifts mid-project. Interrogates the problem behind the ask,
+  then writes the verification steps for it: docs/team-forge/<team>/contract.yaml,
+  where every done_when entry carries a check the model can run without the user.
+  Ends by routing the work — direct execution here and now (the default), or the
+  opt-in machinery path, which has to be earned. Reach for this before planning
+  or building when "done" is still fuzzy.
 ---
 
 # team-forge:contract — the problem + its verification steps
@@ -116,9 +119,17 @@ Write `contract.yaml`, run the lint (must exit 0), then run the review checklist
 ### Step 6 — Sync a live runtime (if one exists)
 
 If a forged runtime is present, its `status.json.goal_directive` must match the
-contract **before the first task of the new scope runs** — derive it (statement +
-flattened done_when + decision split), log a `goal_revised` event with the delta.
-A stale directive is the write-ahead failure aimed at yourself.
+contract **before the first task of the new scope runs**. Do not hand-edit the
+ledger — one command re-derives the directive, writes only that key, and logs
+`goal_revised` with the delta:
+
+```bash
+python3 <team-forge>/tools/forge.py <hub>/design.yaml --sync-goal
+```
+
+It no-ops when already current, so running it after any contract revision is free.
+A stale directive is the write-ahead failure aimed at yourself: the runtime keeps
+executing the orders it was forged with, and nothing says so.
 
 ### Step 7 — Route and confirm
 
@@ -136,9 +147,41 @@ demands standing machinery, i.e. at least one of:
 
 Non-empty `open_items` that block a route choice → resolve or surface first.
 Show the user the contract + the route and its earned criteria; they approve, or
-redirect. If direct execution later outgrows itself (skill gaps appear, work spills
-across sessions), come back, set `route: machinery`, and run the design phase then
-— the fast path is an on-ramp, not a lock-in.
+redirect. **The user approves the route; you carry it out — they should not have to
+know the plugin's map to get to the next step:**
+
+- `direct-execution` → work the contract now, then **Step 8** to close it.
+- `machinery` → **invoke `team-forge:design`** and continue there. Don't stop and
+  tell the user to run the design phase.
+
+If direct execution later outgrows itself (skill gaps appear, work spills across
+sessions), set `route: machinery` and invoke `team-forge:design` then — the fast
+path is an on-ramp, not a lock-in.
+
+### Step 8 — Close (direct-execution only)
+
+`route: machinery` closes inside `team-forge:run`. **`direct-execution` closes
+here** — and this is the step that makes the contract *verified* rather than
+merely checkable. The lint proved each `check:` is runnable; nothing has run it.
+
+When the work is done, enumerate the conditions and run them:
+
+```bash
+python3 <team-forge>/tools/verify_contract.py docs/team-forge/<team>/contract.yaml
+```
+
+It prints every `done_when` entry with its `check:`, in order — it does **not**
+execute them (a `check:` is a description of a mechanical step, not a shell line).
+Run each one yourself and report ✓/✗ against the list. Then:
+
+- **All ✓** → say so, naming what you ran for each. Done.
+- **Any ✗** → not done. A red check is the next task, not a caveat in a summary.
+- **Exit 1** (open_items remain, or a check is missing) → surface them; whether to
+  close anyway is the user's call, not yours.
+
+Nothing is written and nothing is forged — direct execution stays direct. Do not
+report work complete without this step: "looks right" is exactly the signal this
+whole skill exists to replace.
 
 ## What this skill is NOT
 

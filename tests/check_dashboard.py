@@ -103,9 +103,21 @@ def check(fixture, dash_path):
     assert "TASKS.yaml" not in ltext, \
         f"{fixture}: launcher still points the runtime at TASKS.yaml (settled decision 3)"
     assert "status.json" in ltext, f"{fixture}: launcher does not name the runtime surface"
-    for prof in sorted((repo_root / ".claude" / "agents").glob(f"{hub.name}-*.md")):
-        assert "TASKS.yaml" not in prof.read_text(), \
+    agents = sorted((repo_root / ".claude" / "agents").glob(f"{hub.name}-*.md"))
+    assert agents, f"{fixture}: no forged agents found"
+    for prof in agents:
+        ptext = prof.read_text()
+        assert "TASKS.yaml" not in ptext, \
             f"{fixture}: {prof.name} still points a dispatched agent at TASKS.yaml"
+        # Containment: `description` is the delegation surface a main session matches on —
+        # the body's "dormant until dispatched" never enters that decision. A forged agent
+        # must read as team-bound there, or it sits in every session in the repo looking like
+        # a general-purpose offer.
+        desc = ptext.split("---")[1].split("description:")[1].split("\nmodel:")[0]
+        assert hub.name in desc, \
+            f"{fixture}: {prof.name} description is not team-bound — it reads as general-purpose"
+        assert "team-forge:run" in desc, \
+            f"{fixture}: {prof.name} description does not say who dispatches it"
     print(f"   contract strip in shell · thin pointer launcher ({len(ltext.splitlines())} lines) · "
           f"runtime reads status.json only")
 

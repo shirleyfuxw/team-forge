@@ -1,9 +1,10 @@
 ---
 name: team-forge:run
 description: |
-  The shared runtime for every forged team/workflow. Invoked via a team's thin
-  entry skill (/<team>-workflow or /<team>-team): adopt the lead role and drive
-  the loop — sequential-gated, parallel-drain, or agent-team — reading ALL facts
+  The shared runtime for every forged team/workflow — load it whenever driving a
+  forged team's work loop, whether a team's thin entry skill (/<team>-workflow or
+  /<team>-team) sent you here or you are resuming one mid-flight. Adopt the lead
+  role and drive the loop — sequential-gated, parallel-drain, or agent-team — reading ALL facts
   live from the team's hub — status.json is the single runtime surface, with
   design.yaml and contract.yaml behind it.
   Nothing is baked per team; this skill updates with the plugin.

@@ -277,7 +277,12 @@ def render_agent_md(entry, team, project_basename):
     mem_scope = entry.get('memory', 'project' if role in DISPATCHED_MEMORY_ROLES else None)
 
     tmpl = (TEMPLATES_DIR / "agent.md.j2").read_text()
-    purpose = entry['purpose'].rstrip()
+    # The description is what a main session matches on when deciding to delegate; the body's
+    # "dormant until the lead dispatches you" never enters that decision. Bind it to the team
+    # so a forged agent stops reading as a general-purpose offer in every session in the repo.
+    purpose = (f"Member of the `{team}` forged team — dispatched by that team's lead running "
+               f"team-forge:run, against its ledger. Not for general use.\n\n"
+               + entry['purpose'].rstrip())
     return substitute_simple(tmpl, {
         'agent_name': agent_name,
         'purpose': purpose,
@@ -376,7 +381,9 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
     skills = entry.get('skills', [])
     skills_block = "\n".join(f"- `{s}`" for s in skills) if skills else "*None proposed — inherits project + user skills at runtime.*"
     if profile_role == 'worker':
-        purpose = "Shared-default coding profile. One dispatch per task in its own worktree — design-before-code, TDD, run the gate set."
+        purpose = (f"Dispatched ONLY by the `{team}` lead running team-forge:run, at a fan-out "
+                   f"point in that team's task loop. Not a general-purpose coding agent: it is "
+                   f"inert without a scoped brief and a task id from the `{team}` ledger.")
         dispatch_note = ("One dispatch per task, in your own git worktree. Dispatched ONLY at fan-out points: "
                          "(a) parallel build, (b) a large self-contained task kept out of the lead's context, or "
                          "(c) independent-perspective verification. On the sequential spine the lead works inline — you stay dormant.")
@@ -385,7 +392,9 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
                        "Code). Consult its `MEMORY.md` for codebase patterns/gotchas before you start; "
                        "update it when you finish. The lead owns status.json + artifacts.")
     else:  # advisor
-        purpose = "Shared-default advisor profile. On-demand call to unblock the lead on hard 2+ module questions."
+        purpose = (f"Dispatched ONLY by the `{team}` lead running team-forge:run, to unblock it on "
+                   f"a hard 2+ module question. Not a general-purpose advisor: it answers against "
+                   f"the `{team}` KB slice named in its brief.")
         dispatch_note = "An on-demand call (not a standing teammate). The lead calls you to unblock a hard 2+ module question; you return advice and stop."
         memory_note = ("Read-only on the codebase — no durable writes to the team KB. But consult and "
                        "update your own **persistent agent memory** (native `memory: project` → "
