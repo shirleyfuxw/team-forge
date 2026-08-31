@@ -5,6 +5,12 @@
 > opt-in — reached only when the contract demands it. The dashboard is kept as the
 > agent-behavior observation surface.
 
+> ⚠️ **ERRATA (2026-08-30) — `TASKS.yaml` ownership reversed (ships with `FORGE_VERSION` 0.11.0).**
+> Open decision 3 leaned "`design.yaml` = initial, `TASKS.yaml` = live runtime copy," and W3/W7
+> built on that lean. It is **settled the other way**: `TASKS.yaml` is a *derived, tracked build
+> artifact* that the runtime never reads or writes, and **`status.json` is the single runtime
+> surface**. See the settled decision 3 below, plus the errata on W3 and W7.
+
 Drafted 2026-06-19 · the maintainer + Claude (Opus 4.8). Sibling to [`SCOPING.md`](./SCOPING.md) (agent-team archetype, frozen v8.2). **Not frozen.**
 
 Adds a **second forge archetype — `workflow`** — for coding-heavy, sequential/fan-out, gate-driven work that the team archetype over-served. The forge picks between them at Phase 1.
@@ -21,7 +27,7 @@ Three reusable layers that **compose** (a style dispatches profiles that load sk
 |---|---|---|
 | **Skills** *(foundational)* | capability/harness — `combiner-parity-check`, gate tools, domain procedures. Model/human-agnostic, composable. | `.claude/skills/` |
 | **Subagents** | dispatch *profiles* that carry skills — worker/advisor/reviewer/skeptic, as **shared defaults** (not standing rosters). | `.claude/agents/` |
-| **Workflow styles** | orchestration patterns — lead-loop + gate ledger + the shapes below. | `<team>-workflow/SKILL.md` + `TASKS.yaml` |
+| **Workflow styles** | orchestration patterns — lead-loop + gate ledger + the shapes below. | `<team>-workflow/SKILL.md` + `tracker/status.json` |
 
 > **Terminology:** "styles" here means **orchestration patterns** (a team-forge concept). It is
 > unrelated to Claude Code **output styles** (`~/.claude/output-styles/`, which shift the
@@ -31,7 +37,7 @@ The product *is* the output layout. **Forging = compose:** pick a style → staf
 
 ## The archetype
 
-`workflow` = a **lead-driven task/gate loop** + bounded fan-out via Claude Code's **Workflow tool**. The lead does design→implement→gate **inline** (one followable diff); it dispatches a subagent **only** at fan-out / context-isolation / independent-verification points. No standing teammates; `status.json` is a thin index; resume = re-read `TASKS.yaml` + `status.json` (no rehydrate). The loop also has a **re-plan step**: when a gate result or implementation discovery invalidates the design, the lead re-cuts the remaining tasks before continuing (W7).
+`workflow` = a **lead-driven task/gate loop** + bounded fan-out via Claude Code's **Workflow tool**. The lead does design→implement→gate **inline** (one followable diff); it dispatches a subagent **only** at fan-out / context-isolation / independent-verification points. No standing teammates; `status.json` is the **single runtime surface** (forge bakes the gate vocabulary, task definitions, and queue config into it alongside live state); resume = re-read `status.json` (no rehydrate; 2026-08-30 errata). The loop also has a **re-plan step**: when a gate result or implementation discovery invalidates the design, the lead re-cuts the remaining tasks before continuing (W7).
 
 **Pick `workflow` vs `team`** by one question: *do the parallel agents hold distinct persistent peer-context they defend across rounds?* No → `workflow` (even when heavily parallel). Yes (research debate) → `team`. Stateless fan-out over independent items is a pipeline, not a team.
 
@@ -50,11 +56,11 @@ The product *is* the output layout. **Forging = compose:** pick a style → staf
 
 - **W1 — Two archetypes, one forge.** `design.yaml` gains `archetype: team|workflow`, chosen at Phase 1 triage; Phases 1–3 shared, Phase 4 branches. `workflow` is the default for refactor / migration / ticket-drain / bug-batch.
 - **W2 — Runtime is a lead-driven loop.** Workflow tool reinstated for fan-out; agent-teams is **not** the runtime substrate.
-- **W3 — Ledger is lead-written.** `TASKS.yaml` + `status.json`, single-writer = lead; dashboard is a render step (`gen_dashboard.py`). No tracker/monitor/verify teammates.
+- **W3 — Ledger is lead-written.** `TASKS.yaml` + `status.json`, single-writer = lead; dashboard is a render step (`gen_dashboard.py`). No tracker/monitor/verify teammates. — *Erratum (2026-08-30):* the ledger is **`status.json` alone**. `TASKS.yaml` left the ledger when it became a derived build artifact (settled decision 3); single-writer = lead is unchanged for `status.json`.
 - **W4 — Default dispatch is the lead, inline.** The subagent is a **shared-default profile**, dispatched only at fan-out points.
 - **W5 — Gates are codebase-derived, scaled to `blast_radius`.** The *machinery* is general (named gates, blast-radius scaling, advance-only-on-green); the *vocabulary* is **discovered per project from the detailed codebase** — its test suites, CI, build targets, invariants — never a fixed list team-forge ships. A gate needs a backing capability; where none exists (e.g. no pre/post-refactor parity harness), the forge **produces the skill** that backs it → gate discovery *is* skill-gap discovery for verification.
 - **W6 — Resume is trivial.** Read the ledger; no rehydrate / `respawn_order`.
-- **W7 — Design is a living artifact; re-plan is first-class.** Refactor design is a hypothesis the code keeps correcting (herc-cleanup rejected `SharedCombinerBase`, split numeric bugs out of parity-gated commits, re-cut into two layers). `TASKS.yaml` + the plan doc are **versioned**, not frozen Phase-3 output: the lead can re-plan mid-loop — new plan version + one-line *why* (the `team_plan_history` pattern, inherited), re-cut only the not-yet-done tasks + gates, preserve gated work, review before executing.
+- **W7 — Design is a living artifact; re-plan is first-class.** Refactor design is a hypothesis the code keeps correcting (herc-cleanup rejected `SharedCombinerBase`, split numeric bugs out of parity-gated commits, re-cut into two layers). `TASKS.yaml` + the plan doc are **versioned**, not frozen Phase-3 output: the lead can re-plan mid-loop — new plan version + one-line *why* (the `team_plan_history` pattern, inherited), re-cut only the not-yet-done tasks + gates, preserve gated work, review before executing. — *Erratum (2026-08-30):* re-plan is still first-class, but the lead re-cuts in **`status.json`**, never in `TASKS.yaml` (settled decision 3). A design-level pivot goes `design.yaml` → `forge.py --resync`, which re-bakes definitions and preserves live state. This clause is what put the `# Lead-editable:` header on the emitted `TASKS.yaml`; that header goes away with 0.11.0.
 - **W8 — Subagent memory is Claude Code native, not hand-rolled.** A dispatched worker/advisor is stateless per call, but persistence is a platform feature — use it. Forge emits `memory: project` frontmatter on the worker + advisor profiles → Claude Code gives each a private `.claude/agent-memory/<name>/` directory, auto-injects its `MEMORY.md`, and enables Read/Write/Edit so the agent **self-curates** codebase patterns, gotchas, and ruled-out approaches across dispatches. This is why a recurring drain stops re-deriving each wave: the worker carries its own memory forward. The lead hands each dispatch a **scoped brief** (task + exact artifacts) but does NOT harvest anything back — there is no team-level memory store. Scope overridable per roster entry (`user|project|local`). *Accepted limitation:* native memory is per-agent-siloed (name-derived dir, not poolable), so there's no cross-agent shared dead-end corpus; cross-agent knowledge travels via the lead's KB + briefs. Verified against code.claude.com/docs/en/sub-agents#enable-persistent-memory (`FORGE_VERSION` 0.7.0).
 
 - **W9 — Self-modifying tasks need a fresh session, not a worker (`dispatch: fresh_session`).** A task that edits the files the *running* session loads and depends on — `.claude/agents/**`, `.claude/skills/**`, hooks, `settings.json` — cannot be done by ANY in-session agent: inline, a `worker`, or any `Agent`-tool subagent all inherit this session's loaded config + permissions, so the edit races the very files in play (hook conflicts + partial state; cf. the combiner CLAUDE.md agent-edit rule). These are a distinct third dispatch value: the lead does NOT dispatch — it **prepares the scoped brief + branch, marks the task `blocked_on: fresh_session_handoff`, keeps draining any still-eligible tasks, and hands off** to a freshly-launched full-permission Claude session (split window). A legitimate autonomy pause only when nothing else is eligible. Root cause it fixes: `worker` and "fresh full-permission session" are *different mechanisms* — the combiner design conflated them, labeling agent-file authoring `dispatch: worker` (unsatisfiable, since a worker is an in-session subagent). `worker`/`advisor` profiles now also carry a self-guard: refuse an agent/skill/hook/settings brief and bounce it back to the lead. Validated in `forge.py` (`dispatch ∈ inline|worker|fresh_session`); `FORGE_VERSION` 0.8.0.
@@ -75,7 +81,9 @@ fan_out:[{when, shape, n, synthesize_to}]    # optional Workflow bursts
 ledger: {state_shape: [current_plan, plan_history, ...], events: [...,replanned], dashboard_panels,
          dashboard_owner: render_step|monitor_agent,   # default render_step (lead runs gen_dashboard.py). monitor_agent -> forge emits a
          monitor: {name: monitor, model: inherit}}      #   standing monitor teammate that PULLS git/task state + flags drift (see skills/monitor). optional.
-# lead-written, thin. current_plan/plan_history are RUNTIME fields (forge seeds null/[]), not contract literals (W7)
+# lead-written. current_plan/plan_history are RUNTIME fields (forge seeds null/[]), not contract literals (W7).
+# 2026-08-30: no longer "thin" — forge also bakes gates + task definitions + queue config in, so the
+# runtime reads status.json and nothing else (settled decision 3).
 ```
 
 ## Output layout (committed)
@@ -85,7 +93,8 @@ ledger: {state_shape: [current_plan, plan_history, ...], events: [...,replanned]
   skills/<team>-<domain-skill>/SKILL.md   ★ THE PRODUCT — gap-fill skills (e.g. combiner-parity-check)
   skills/<team>-workflow/SKILL.md         entry point /<team>-workflow (the lead loop)
   agents/<team>-worker.md, -advisor.md    thin overlays → shared default + project skills (dormant)
-  team-forge/<team>/{design.yaml, TASKS.yaml, tracker/status.json (thin),
+  team-forge/<team>/{design.yaml, TASKS.yaml (derived; tracked; runtime-invisible),
+                     tracker/status.json (the single runtime surface),
                      gates/<descriptive-name>.{py,sh},          ← lead-owned gate harness (tracked)
                      playground/{dashboard.html, gen_dashboard.py},  ← ephemeral (gitignored)
                      .gitignore}                                 ← ignores playground/ + tracker/status.json
@@ -96,7 +105,7 @@ agents/<team>-worker.md, -advisor.md → memory: project → .claude/agent-memor
 **Lead gate-harness home (retro #1687, item 10).** Producer≠verifier parity scripts and other
 lead-authored gate checks are load-bearing evidence, not throwaway — they get a standard home at
 `.claude/team-forge/<team>/gates/` with content-descriptive names (`parity-check.py`,
-`post-deletion-parity.py`), referenced by the `gates:` commands in `TASKS.yaml`. They are TRACKED
+`post-deletion-parity.py`), referenced by the `gates:` commands (in `design.yaml`, baked into `status.json`; 2026-08-30 errata). They are TRACKED
 (not under the ephemeral `playground/`). Teardown classifies each: reusable-beyond-this-team → move
 to the project's standard tools location; single-use → remove with the rest of the scaffolding.
 
@@ -115,7 +124,7 @@ No `-tracker/-monitor/-verifier.md`; no `respawn_order`.
 
 1. Naming (`/<team>-workflow`; `archetype` field values).
 2. One `design.yaml` with an `archetype` field vs two schemas — lean: one.
-3. `TASKS.yaml` separate vs a `tasks:` block — lean: `design.yaml` = initial, `TASKS.yaml` = live runtime copy.
+3. ~~`TASKS.yaml` separate vs a `tasks:` block — lean: `design.yaml` = initial, `TASKS.yaml` = live runtime copy.~~ **Settled (0.11.0), against the lean:** `TASKS.yaml` is a **derived, tracked build artifact** — generated from `design.yaml`, reviewable in a PR, **never read or written by the runtime**. **`status.json` is the single runtime surface**: forge bakes gates + task definitions + queue config into it next to live state, and `--resync` re-bakes the derived half while preserving the live half. *Why the lean failed:* it made one file simultaneously forge-owned (full forge rebuilds it from `design.yaml`) and lead-owned (W3/W7 call it live runtime state `--resync` must preserve). Both behaviours are correct under their own clause and no clause governed the intersection, so a design change had no operation that reached a forged team — `--resync` reported "already current" against a materially stale file (issue #36). *Durability consequence, accepted:* definitions now live in the gitignored `status.json`, so `status.json` is a **regenerable cache over a durable source** — `design.yaml` (tracked) stays the truth, `--resync` re-bakes definitions without touching live state, and losing the ledger costs progress, never the plan. This makes two things load-bearing rather than optional: one canonical hub address (a git worktree gets no ignored files, so it would otherwise have no definitions at all), and a guard on the full forge, which currently reseeds `status.json` unconditionally (`forge.py:557`, `:843`).
 4. Fan-out: declare in contract vs leave to lead's judgment — lean: declare known, allow ad-hoc.
 5. Team archetype stays; the *default* flips to triage-decides (most wjsl_trader work → `workflow`).
 6. Re-forge the two existing teams under the new archetype? Lean: re-forge `ticket-drainer` as the parallel-drain reference (exercises cron + `pipeline()` + rotation).
