@@ -22,17 +22,18 @@ TEMPLATES_DIR = EXT_DIR / "templates"
 FORGE_VERSION = "0.10.1"
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
-# (report drift, read-only).
+# (report drift, read-only) · --force (re-forge over an already-forged hub, DESTROYING its ledger).
 _DEFAULT_DESIGN = "/tmp/test-team-forge-greeter/.claude/team-forge/greeter/design.yaml"
 _ARGV = sys.argv[1:]
 _FLAGS = {a for a in _ARGV if a.startswith("--")}
 _POS = [a for a in _ARGV if not a.startswith("--")]
 RESYNC = "--resync" in _FLAGS
 CHECK = "--check" in _FLAGS
+FORCE = "--force" in _FLAGS
 DESIGN_PATH = Path(_POS[0] if _POS else _DEFAULT_DESIGN)
 if not DESIGN_PATH.exists():
     print(f"ERROR: design.yaml not found at {DESIGN_PATH}")
-    print("Usage: python3 forge.py <path-to-design.yaml> [--resync | --check]")
+    print("Usage: python3 forge.py <path-to-design.yaml> [--resync | --check | --force]")
     sys.exit(1)
 _NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -759,6 +760,26 @@ if _branch in ("main", "master", "production") and not os.environ.get("FORGE_ALL
 if RESYNC or CHECK:
     resync(design, target_repo, team, basename, do_write=RESYNC)
     sys.exit(0)
+
+# Re-forge guard. A full forge REBUILDS every output unconditionally — including
+# tracker/status.json, which is reseeded to its initial state (every task back to `pending`,
+# events emptied). On an already-forged team that is silent destruction of the live ledger, so
+# the command that CREATES a team must not also be the command that wipes it. --resync is the
+# supported way to land template/design changes on a live team; --force is the deliberate override.
+_manifest_path = target_repo / f".claude/team-forge/{team}/manifest.json"
+if _manifest_path.exists() and not FORCE:
+    try:
+        _m = json.loads(_manifest_path.read_text())
+        _forged = f"forged at {_m.get('forge_version', '?')}, {_m.get('forged_at_iso', 'unknown date')}"
+    except Exception:
+        _forged = "unreadable manifest"
+    print(f"STOP: `{team}` is already forged at {_manifest_path} ({_forged}).\n"
+          "A full forge rebuilds every file, including tracker/status.json — the live ledger\n"
+          "(task progress, gate results, events) would be reset to its initial state.\n\n"
+          f"  Inspect drift first:  python3 forge.py {DESIGN_PATH} --check\n"
+          f"  Land the changes:     python3 forge.py {DESIGN_PATH} --resync\n"
+          f"  Re-forge anyway (DESTROYS the ledger):  add --force")
+    sys.exit(1)
 
 # Fork on archetype: workflow takes the lead-loop path and exits; default is the team path.
 if design.get('archetype') == 'workflow':

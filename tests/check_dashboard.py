@@ -30,7 +30,9 @@ NODE = shutil.which("node")
 
 def forge(fixture):
     design = REPO / "tests" / "fixtures" / fixture / "design.yaml"
-    r = subprocess.run([sys.executable, str(FORGE), str(design)], capture_output=True, text=True)
+    # --force: fixtures re-forge into the same /tmp hubs every run, so the second run would
+    # otherwise trip the re-forge guard. Exercises the flag as a side effect.
+    r = subprocess.run([sys.executable, str(FORGE), str(design), "--force"], capture_output=True, text=True)
     assert r.returncode == 0, f"{fixture}: forge failed\n{r.stdout}\n{r.stderr}"
 
 
@@ -109,7 +111,7 @@ def check_one_shot_default_no_dashboard():
     Path("/tmp/test-team-forge-tidy-nodash").mkdir(exist_ok=True)
     tmp_design = Path("/tmp/tf-tidy-nodash-design.yaml")
     tmp_design.write_text(yaml.safe_dump(design, sort_keys=False))
-    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design)], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design), "--force"], capture_output=True, text=True)
     assert r.returncode == 0, f"one-shot-no-dashboard: forge failed\n{r.stdout}\n{r.stderr}"
     pg = Path("/tmp/test-team-forge-tidy-nodash/.claude/team-forge/tidy/playground")
     assert not (pg / "dashboard.html").exists(), "one-shot workflow emitted a dashboard without opt-in"
@@ -156,6 +158,47 @@ def check_protected_branch_abort():
     print("✓ protected-branch target: forge aborts before emission")
 
 
+def check_reforge_guard_protects_ledger():
+    """A bare re-forge over an already-forged hub must REFUSE. A full forge rewrites every
+    output unconditionally, including tracker/status.json — which is reseeded to its initial
+    state, silently destroying live task progress, gate results, and events. --force is the
+    deliberate override."""
+    import yaml
+    design = yaml.safe_load((REPO / "tests" / "fixtures" / "workflow-tidy" / "design.yaml").read_text())
+    design["contract"] = str(REPO / "tests" / "fixtures" / "workflow-tidy" / "contract.yaml")
+    target = Path("/tmp/test-team-forge-tidy-reforge")
+    design["project"]["target_repo"] = str(target)
+    target.mkdir(exist_ok=True)
+    tmp_design = Path("/tmp/tf-tidy-reforge-design.yaml")
+    tmp_design.write_text(yaml.safe_dump(design, sort_keys=False))
+
+    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design), "--force"], capture_output=True, text=True)
+    assert r.returncode == 0, f"reforge-guard: initial forge failed\n{r.stdout}\n{r.stderr}"
+
+    ledger = target / ".claude" / "team-forge" / "tidy" / "tracker" / "status.json"
+    live = json.loads(ledger.read_text())
+    live["events"] = [{"kind": "gate_passed", "task": "t1"}]
+    if live.get("tasks"):
+        live["tasks"][0]["status"] = "done"
+    ledger.write_text(json.dumps(live, indent=2))
+
+    # Bare re-forge: refused, and the mutated ledger is untouched.
+    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design)], capture_output=True, text=True)
+    assert r.returncode != 0, "bare re-forge over a live hub was allowed — the ledger guard is missing"
+    out = r.stdout + r.stderr
+    assert "--resync" in out and "--force" in out, "refusal should name --resync and --force"
+    after = json.loads(ledger.read_text())
+    assert after["events"] == live["events"], "refused re-forge still mutated the ledger"
+    if live.get("tasks"):
+        assert after["tasks"][0]["status"] == "done", "refused re-forge still reset task state"
+
+    # --force is the deliberate override: it proceeds and reseeds.
+    r = subprocess.run([sys.executable, str(FORGE), str(tmp_design), "--force"], capture_output=True, text=True)
+    assert r.returncode == 0, f"--force re-forge failed\n{r.stdout}\n{r.stderr}"
+    assert json.loads(ledger.read_text())["events"] == [], "--force should reseed the ledger"
+    print("\u2713 re-forge over a live hub refused (ledger intact); --force overrides")
+
+
 def main():
     for fixture, dash in FIXTURES:
         forge(fixture)
@@ -163,7 +206,8 @@ def main():
     check_one_shot_default_no_dashboard()
     check_prose_panel_rejected()
     check_protected_branch_abort()
-    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 3 negative checks)")
+    check_reforge_guard_protects_ledger()
+    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 4 negative checks)")
     # Elicitation half of the harness — contract quality (GOAL.md pivot).
     r = subprocess.run([sys.executable, str(REPO / "tests" / "check_contract.py")])
     assert r.returncode == 0, "contract checks failed"
