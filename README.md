@@ -26,7 +26,8 @@ Start every engagement the same way:
 Use team-forge:contract — I want to <your ask>.
 ```
 
-It interrogates the problem behind the ask and writes
+You don't have to name it — a non-trivial ask whose finish line is still fuzzy
+should reach it on its own. It interrogates the problem behind the ask and writes
 `docs/team-forge/<team>/contract.yaml`: a problem statement, `done_when` entries
 that each carry a `check:` the model can run (anything uncheckable is honestly
 parked in `open_items`), and a `lead_decides` / `user_decides` split. A lint
@@ -35,7 +36,10 @@ parked in `open_items`), and a `lead_decides` / `user_decides` split. A lint
 Then one of two routes, recorded in the contract:
 
 - **`direct-execution` (default)** — the work is done right here with existing
-  skills and subagents. Nothing is forged.
+  skills and subagents. Nothing is forged. It closes by running every `done_when`
+  check and reporting ✓/✗ (`tools/verify_contract.py` enumerates them, so none is
+  skipped) — that step is what makes the contract *verified* rather than merely
+  checkable.
 - **`machinery` (must be earned)** — a needed check has no backing capability, the
   work spans sessions or runs unattended, or there's genuine fan-out. Then:
   `team-forge:design` (archetype triage, roster/tasks, gates, skill gaps) →

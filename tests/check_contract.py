@@ -16,6 +16,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 from contract_lint import validate_contract, goal_directive_from_contract  # noqa: E402
+from verify_contract import checklist, render  # noqa: E402
 
 try:
     import yaml
@@ -38,6 +39,31 @@ def main():
         "derived goal directive must carry the checks"
     print(f"✓ contract-good.yaml: valid · {len(good['done_when'])} checkable done_when · "
           f"derived goal directive OK")
+
+    # The CLOSE half: the lint proves a check is runnable, this proves none was skipped when
+    # the time came to run it. Direct-execution has no ledger and no gates, so this enumerator
+    # is the only thing standing between "wrote checks" and "verified".
+    items = checklist(good)
+    assert len(items) == len(good["done_when"]), "checklist dropped a done_when entry"
+    assert all(i["signal"] and i["check"] for i in items), "checklist lost a signal or check"
+    assert [i["n"] for i in items] == list(range(1, len(items) + 1)), "checklist is not ordered"
+
+    lines, ok = render(good)
+    body = "\n".join(lines)
+    assert not ok, "contract-good has an open_item — closing it is a user call, not automatic"
+    assert "open_item" in body and "the call is theirs" in body, \
+        "unresolved open_items must be surfaced to the user, not swallowed"
+    for e in good["done_when"]:
+        assert e["check"] in body, "every check must reach the model verbatim"
+
+    clean = {k: v for k, v in good.items() if k != "open_items"}
+    lines, ok = render(clean)
+    assert ok, "a contract with no open_items and complete checks must be closeable"
+
+    _, ok = render({"problem": {"statement": "x"}, "done_when": []})
+    assert not ok, "a contract with no exit criteria must never report closeable"
+    print(f"✓ verify_contract.py: enumerates {len(items)} condition(s) verbatim · "
+          f"open_items block an unattended close · empty done_when rejected")
 
     bad_errs = validate_contract(load("contract-bad.yaml"))
     expected_fragments = [
