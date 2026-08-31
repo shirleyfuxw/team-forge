@@ -87,7 +87,7 @@ python3 tests/check_dashboard.py         # the harness: emission + elicitation c
 
 The harness forges three fixtures and asserts both halves of the product:
 emission (self-contained dashboard with contract strip, thin pointers, panel-id
-registry, four negative checks) and elicitation (`tests/check_contract.py`, the
+registry, five negative checks) and elicitation (`tests/check_contract.py`, the
 lint's bar against good/bad contract fixtures).
 
 Landing changes on an already-forged team: `python3 tools/forge.py --check <its

@@ -63,10 +63,14 @@ step needed). Unlisted project + user skills stay reachable via the Skill tool, 
 
 ## Context on dispatch
 
-Your dispatch prompt provides your task. Derive read paths from the universal layout:
+Your dispatch prompt provides your task. Derive read paths from the universal layout, rooted at
+the **main checkout** — `dirname $(git rev-parse --path-format=absolute --git-common-dir)`, NOT
+your CWD. You are dispatched into your own worktree, and a worktree never receives gitignored
+files: resolved against your CWD, `tracker/status.json` does not exist and the tracked files read
+back at whatever your branch committed, not the lead's live state.
 - Team: `{{team}}`
-- Hub: `.claude/team-forge/{{team}}/` — read `TASKS.yaml` + `tracker/status.json`
-- KB: `docs/team-forge/{{team}}/`
+- Hub: `<repo-root>/.claude/team-forge/{{team}}/` — read `tracker/status.json`
+- KB: `<repo-root>/docs/team-forge/{{team}}/`
 
 ## Naming discipline
 

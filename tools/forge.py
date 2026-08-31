@@ -2,7 +2,7 @@
 """End-to-end test of the team-forge MVP procedure.
 Reads design.yaml + templates, renders all output files per the forge skill spec.
 """
-import os, sys, json, hashlib, datetime, re, shutil
+import os, sys, json, hashlib, datetime, re, shutil, subprocess
 from pathlib import Path
 
 # Try yaml; if not available, fall back to a minimal parser hint
@@ -19,7 +19,7 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.10.1"
+FORGE_VERSION = "0.11.0"
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
 # (report drift, read-only) · --force (re-forge over an already-forged hub, DESTROYING its ledger).
@@ -36,6 +36,40 @@ if not DESIGN_PATH.exists():
     print("Usage: python3 forge.py <path-to-design.yaml> [--resync | --check | --force]")
     sys.exit(1)
 _NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def resolve_repo_root(design_path, declared):
+    """The ONE canonical repo root for a team's hub.
+
+    Anchor order: the design.yaml's own location when it is the hub-stashed copy
+    (`.claude/team-forge/<team>/design.yaml`) — that copy sits inside the repo it belongs to,
+    so it beats `project.target_repo`, which is a machine-specific absolute path baked at
+    design time and stale after any clone or move — then the declared path.
+
+    The anchor is then normalized through git: from inside a LINKED WORKTREE,
+    `--git-common-dir` points at the main checkout's `.git`, so its parent is the single
+    place the hub lives. This matters because a worktree never receives gitignored files and
+    `tracker/status.json` is gitignored: resolved to a worktree, the ledger is ABSENT, not
+    stale, and the runtime has no state at all.
+
+    Falls back to the anchor when git is unavailable — fixtures forge into plain directories
+    that are not repositories, so a repo must never be a requirement.
+    """
+    anchor = declared
+    d = design_path.resolve()
+    pr = d.parents
+    if (d.name == "design.yaml" and len(pr) >= 4
+            and pr[1].name == "team-forge" and pr[2].name == ".claude"):
+        anchor = pr[3]
+    try:
+        r = subprocess.run(["git", "-C", str(anchor), "rev-parse",
+                            "--path-format=absolute", "--git-common-dir"],
+                           capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip():
+            return Path(r.stdout.strip()).parent
+    except Exception:
+        pass
+    return anchor
 
 # ───────── Per-role text banks (mirrors forge SKILL.md) ─────────
 
@@ -500,10 +534,9 @@ def validate_workflow(design):
 
 
 def forge_workflow(design):
-    import subprocess
     project = design['project']
     team = project['name']
-    target_repo = Path(project['target_repo'])
+    target_repo = resolve_repo_root(DESIGN_PATH, Path(project['target_repo']))
     basename = project.get('target_repo_basename') or Path(project['target_repo']).name
 
     validate_workflow(design)
@@ -735,7 +768,10 @@ if design.get('contract'):
 
 project = design['project']
 team = project['name']
-target_repo = Path(project['target_repo'])
+target_repo = resolve_repo_root(DESIGN_PATH, Path(project['target_repo']))
+if target_repo != Path(project['target_repo']):
+    print(f"· hub root resolved to {target_repo} "
+          f"(design.yaml declares {project['target_repo']})")
 # target_repo_basename is OPTIONAL + display-only (never a durable-path component); derive it
 # from target_repo when absent so paths never depend on the config field being set (retro #1687, item 3).
 basename = project.get('target_repo_basename') or Path(project['target_repo']).name
@@ -744,9 +780,8 @@ project['target_repo_basename'] = basename   # normalize so all downstream reads
 # Pre-flight (absorbed from the retired forge skill): forge writes into <target_repo>/.claude/
 # + docs/, which many repos hook-protect on the default branch. Abort BEFORE emission rather
 # than failing midway. FORGE_ALLOW_PROTECTED=1 overrides for repos where main is writable.
-import subprocess as _sp
 try:
-    _branch = _sp.run(["git", "-C", str(target_repo), "branch", "--show-current"],
+    _branch = subprocess.run(["git", "-C", str(target_repo), "branch", "--show-current"],
                       capture_output=True, text=True, timeout=5).stdout.strip()
 except Exception:
     _branch = ""
