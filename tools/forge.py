@@ -744,6 +744,15 @@ def _regen_content(design, team, basename, fmeta, target_repo):
         return render_launcher_pointer(design)
     if kind == 'dashboard_renderer':
         return render_gen_dashboard(design)
+    if kind == 'problem_contract':
+        # The KB copy is a DERIVED stash of the contract, and it is what the
+        # direct-execution close reads (contract Step 8 → verify_contract.py). Left
+        # preserved, a revised contract meant the close enumerated the OLD conditions and
+        # reported all-green while a new done_when was never even shown to the model.
+        if not CONTRACT_PATH:
+            return None
+        p = target_repo / fmeta['path']
+        return None if CONTRACT_PATH.resolve() == p.resolve() else CONTRACT_PATH.read_text()
     if kind == 'tasks_yaml':
         return render_tasks_yaml(design, team)      # derived since settled decision 3
     if kind == 'skill_gap_scaffold':
@@ -856,6 +865,16 @@ def sync_goal(design, target_repo, team):
     if not p.exists():
         print(f"✗ no ledger at {p} — nothing to sync. Forge the team first.")
         sys.exit(1)
+    # The ledger is not the only copy. The KB stash is what the direct-execution close
+    # enumerates (contract Step 8 → verify_contract.py), and it drifts INDEPENDENTLY of the
+    # directive — so refresh it before any early return, or a run whose ledger is already
+    # current leaves the close verifying the old condition list.
+    kb = target_repo / "docs" / "team-forge" / team / "contract.yaml"
+    if CONTRACT_PATH and kb.exists() and CONTRACT_PATH.resolve() != kb.resolve() \
+            and kb.read_text() != CONTRACT_PATH.read_text():
+        shutil.copyfile(CONTRACT_PATH, kb)
+        print(f"✓ {team}: KB contract copy refreshed ({kb})")
+
     live = json.loads(p.read_text())
     old, new = live.get('goal_directive') or {}, design['goal']
     if old == new:

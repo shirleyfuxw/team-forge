@@ -13,6 +13,7 @@ Usage:  python3 tests/check_dashboard.py
 Exit 0 = all green; exit 1 = a contract violation.
 """
 import json, re, shutil, subprocess, sys
+import yaml
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -400,11 +401,65 @@ def check_sync_goal_reaches_live_ledger():
     assert after["current_task"] == "t2", "--sync-goal touched live state beyond goal_directive"
     assert after["plan"] == before["plan"], "--sync-goal touched the plan block"
 
+    # The ledger is not the only copy of the contract. docs/team-forge/<team>/contract.yaml is
+    # what the direct-execution close enumerates (contract Step 8 -> verify_contract.py), and it
+    # drifts independently — so a revision that reaches the ledger but not the KB makes the close
+    # verify the OLD condition list and report all-green while a new done_when was never shown.
+    kb = target / "docs" / "team-forge" / "tidy" / "contract.yaml"
+    kb_after = yaml.safe_load(kb.read_text())
+    assert len(kb_after["done_when"]) == n_before + 1, \
+        "KB contract copy is stale after --sync-goal — the close would verify the wrong list"
+
     r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--sync-goal"], capture_output=True, text=True)
     assert "no change" in r.stdout, f"--sync-goal is not idempotent:\n{r.stdout}"
     assert len([e for e in json.loads(ledger.read_text())["events"]
                 if e.get("kind") == "goal_revised"]) == 1, "idempotent run still logged an event"
     print("\u2713 --sync-goal re-derives a live ledger's standing orders, logs it, touches nothing else")
+
+
+def check_kb_contract_canonical_layout_untouched():
+    """The CANONICAL layout — `contract:` points at docs/team-forge/<team>/contract.yaml, which
+    is where team-forge:contract writes it and what design.yaml.j2 calls typical.
+
+    There, the KB file IS the source, so treating it as derived must be a strict no-op — the
+    contract is durable KB content that teardown keeps, and the drift handling only applies when
+    a design deliberately points `contract:` somewhere else.
+
+    What this catches: a refresh that drops its same-file guard. `shutil.copyfile` raises
+    SameFileError when src and dst are one file, so an unconditional copy turns the DEFAULT
+    layout into a hard crash on --sync-goal. Verified as a live control, not assumed."""
+    import yaml
+    target = _scratch_repo("/tmp/tf-kbcanon-main")
+    kb_dir = target / "docs" / "team-forge" / "tidy"
+    kb_dir.mkdir(parents=True)
+    kb = kb_dir / "contract.yaml"
+    shutil.copyfile(REPO / "tests" / "fixtures" / "workflow-tidy" / "contract.yaml", kb)
+
+    design = yaml.safe_load((REPO / "tests" / "fixtures" / "workflow-tidy" / "design.yaml").read_text())
+    design["contract"] = str(kb)                      # canonical: the KB file IS the source
+    design["project"]["target_repo"] = str(target)
+    dpath = Path("/tmp/tf-kbcanon-design.yaml")
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--force"], capture_output=True, text=True)
+    assert r.returncode == 0, f"kb-canon: forge failed\n{r.stdout}\n{r.stderr}"
+
+    c = yaml.safe_load(kb.read_text())
+    c["done_when"].append({"signal": "extra condition", "check": "grep -c x file"})
+    kb.write_text(yaml.safe_dump(c, sort_keys=False))
+    edited = kb.read_text()
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--resync"], capture_output=True, text=True)
+    assert r.returncode == 0, f"kb-canon: --resync failed\n{r.stdout}\n{r.stderr}"
+    assert kb.read_text() == edited, \
+        "--resync rewrote the KB contract when it IS the source — durable content clobbered"
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--sync-goal"], capture_output=True, text=True)
+    assert r.returncode == 0, f"kb-canon: --sync-goal failed\n{r.stdout}\n{r.stderr}"
+    assert kb.read_text() == edited, "--sync-goal rewrote the KB contract when it IS the source"
+    ledger = json.loads((target / ".claude" / "team-forge" / "tidy" / "tracker" / "status.json").read_text())
+    assert len(ledger["goal_directive"]["done_when"]) == len(c["done_when"]), \
+        "the canonical layout still has to reach the ledger"
+    print("\u2713 canonical contract layout: KB file is the source and is never rewritten")
 
 
 def check_skill_gap_second_pass():
@@ -469,8 +524,9 @@ def main():
     check_hub_resolves_from_worktree()
     check_design_drift_propagates()
     check_sync_goal_reaches_live_ledger()
+    check_kb_contract_canonical_layout_untouched()
     check_skill_gap_second_pass()
-    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 8 negative checks)")
+    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 9 negative checks)")
     # Elicitation half of the harness — contract quality (GOAL.md pivot).
     r = subprocess.run([sys.executable, str(REPO / "tests" / "check_contract.py")])
     assert r.returncode == 0, "contract checks failed"
