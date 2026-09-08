@@ -1,0 +1,32 @@
+{
+  "_fixture": "PAIRING fixture for tools/evolve_mine.py — blocked->resolved shapes that a real run logs and that the first pairing rule could not see. Four pairs MUST be found and two rows MUST stay anecdotes, so the same file proves the rule both bites and does not over-pair. (a) issue 1885: the block names the task and the resolution names the task AND the ticket, so a first-hit-wins identity compared 'task=T-9' against 'issue=1885' and missed. (b) issue 1902: a worker blocks and the LEAD logs the unblock, which is routine and which an agent-equality test lost. (c) no ticket id anywhere: a complete, honest record whose only identity is the blocker's own words. (d) two agents blocked on DIFFERENT issues with a resolution for only one — t-beta must NOT pair. (e) a resolution payload of {\"resolution\": null}: str(payload.get(f, \"\")) returned the truthy \"None\" and rendered as 'resolved in-run by: None', an explicit null read as a recorded workaround.",
+  "current_cycle_id": "cycle-2026-09-02-001",
+  "events": [
+    {"ts": "2026-09-02T09:10:00Z", "agent": "t-worker", "kind": "agent_blocked",
+     "payload": {"task": "T-9", "reason": "the fixture generator writes into the repo root and the branch-safety hook rejects it", "stage": "fix"}},
+    {"ts": "2026-09-02T09:31:00Z", "agent": "t-worker", "kind": "ticket_unblocked",
+     "payload": {"issue": 1885, "task": "T-9", "status": "resolved", "workaround": "point the generator at /tmp and copy the result in once it is written"}},
+
+    {"ts": "2026-09-02T09:44:00Z", "agent": "t-worker", "kind": "agent_blocked",
+     "payload": {"issue": 1902, "reason": "the migration lock is held by the previous wave's worktree", "stage": "gate"}},
+    {"ts": "2026-09-02T09:58:00Z", "agent": "t-lead", "kind": "ticket_unblocked",
+     "payload": {"issue": 1902, "agent": "t-worker", "status": "resolved", "resolved_by": "prune the previous wave's worktree before dispatching the next one; the lock is per-worktree"}},
+
+    {"ts": "2026-09-02T10:05:00Z", "agent": "t-fixture", "kind": "agent_blocked",
+     "payload": {"reason": "pre-commit secret hook flags generated fixtures", "stage": "commit"}},
+    {"ts": "2026-09-02T10:22:00Z", "agent": "t-fixture", "kind": "drift_corrected",
+     "payload": {"resolution": "generated fixtures now live under tests/fixtures/ where the secret hook skips them; the pre-commit run passes untouched"}},
+
+    {"ts": "2026-09-02T10:30:00Z", "agent": "t-alpha", "kind": "agent_blocked",
+     "payload": {"issue": 3001, "reason": "npm install fails behind the corporate proxy"}},
+    {"ts": "2026-09-02T10:33:00Z", "agent": "t-beta", "kind": "agent_blocked",
+     "payload": {"issue": 3002, "reason": "the schema migration needs a column the staging database has not got"}},
+    {"ts": "2026-09-02T10:51:00Z", "agent": "t-alpha", "kind": "ticket_unblocked",
+     "payload": {"issue": 3001, "status": "resolved", "workaround": "set npm_config_proxy from the shell profile before install"}},
+
+    {"ts": "2026-09-02T11:04:00Z", "agent": "t-null", "kind": "agent_blocked",
+     "payload": {"issue": 4001, "reason": "the review gate has no reviewer seat to dispatch"}},
+    {"ts": "2026-09-02T11:12:00Z", "agent": "t-null", "kind": "drift_corrected",
+     "payload": {"issue": 4001, "status": "noted", "resolution": null}}
+  ]
+}

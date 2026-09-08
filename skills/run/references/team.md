@@ -38,4 +38,6 @@ set `current_milestone` ← first id, pointers, log `milestone_started`.
 
 ## Step 4 — close
 
-Per SKILL.md Close, plus: shut down each teammate before `team-forge:teardown`.
+Per SKILL.md Close — its `team-forge:evolve` step runs there, before teardown
+removes the agents and memory dirs it mines — plus: shut down each teammate
+before `team-forge:teardown`.

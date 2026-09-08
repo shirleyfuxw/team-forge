@@ -1,0 +1,4 @@
+[
+  {"_fixture": "A ledger that is valid JSON and is NOT an object — the shape a hand-edited or partially-exported status.json takes when someone saves the events array alone. load_json used to hand it straight back, and the first ledger.get('events') exited the miner with an uncaught AttributeError: no candidates document at all, so the cycle lost its memory notes, its budget line and its design inputs to a type error. Mining this must warn and still write a document."},
+  {"ts": "2026-09-01T09:00:00Z", "agent": "lead", "kind": "cycle_started", "payload": {"cycle_id": "cycle-2026-09-01-002"}}
+]

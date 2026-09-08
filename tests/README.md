@@ -10,10 +10,11 @@ A 6-agent "greeter" team forged into a temp target_repo at
 orchestrator, two milestones, custom domain, and a minimal tracking spec. It is now
 version-controlled at `fixtures/team-greeter/design.yaml` (was a throwaway).
 
-The test was run via `tools/forge.py` (the optional deterministic renderer),
-which mirrors the procedure described in `skills/forge/SKILL.md`. Both paths —
-the Python renderer and the skill-procedure-by-hand — operate on the same
-logic-free `{{VAR}}` + named placeholder template format, so either is valid.
+The test was run via `tools/forge.py`. (It originally mirrored a
+`skills/forge/SKILL.md` that let a model do the emission by hand; that skill was
+retired when emission became script-only, so `tools/forge.py` is now the single
+path. The paragraph is kept for the history, not as a pointer — the skill does
+not exist.)
 
 ## What it validated
 
@@ -42,7 +43,8 @@ logic-free `{{VAR}}` + named placeholder template format, so either is valid.
 
 ## Open issue surfaced by the test
 
-- Strict "2–5 milestones" validation in `skills/forge/SKILL.md` rejects genuinely-one-shot
+- Strict "2–5 milestones" validation (then in the retired `skills/forge/`, now in
+  `tools/forge.py`) rejects genuinely-one-shot
   projects. The test had to use 2 milestones to pass; the validator should be relaxed to
   "1–5 milestones" since one-shot CLI/build projects need only one. Not blocking but
   worth fixing.
@@ -105,3 +107,39 @@ Asserts: no leftover `{{SLOT}}` markers · the payload is embedded as
 `const DASHBOARD_DATA = {…}` and parses as JSON with `meta.team` + a non-empty `panels`
 list · no external resource references (works offline / from `file://`) · and — when `node`
 is on PATH — the inline `<script>` passes `node --check`. Exit 0 = all green.
+
+## Contract check (`check_contract.py`)
+
+The elicitation half of the product: `tools/contract_lint.py`'s bar against a good and a
+deliberately-defective contract fixture, plus `tools/verify_contract.py`'s enumeration of
+`done_when` conditions. `check_dashboard.py` runs it at the end of its own pass, so
+`python3 tests/check_dashboard.py` covers both halves; run it alone while iterating on
+the lint.
+
+## Evolve check (`check_evolve.py`)
+
+The evolve phase's harness — `tools/evolve_mine.py`'s evidence bar and the lessons
+register:
+
+```
+python3 tests/check_evolve.py
+```
+
+Asserts against `fixtures/evolve/`: the six admissible signals are each detected exactly
+once in `ledger-signals.json` · a deliberately-inadmissible ledger (`ledger-clean.json`,
+the negative control) admits nothing while still recording its anecdotes · two runs at a
+fixed `--now` are byte-identical · candidate ids continue an existing register instead of
+restarting · `lessons-good.md` lints clean while `lessons-bad.md` (four row-level defects)
+and `lessons-structural-bad.md` (four structural defects) are each rejected with every
+seeded defect named individually · unreadable and truncated ledgers warn and still produce
+a valid document.
+
+It ends with a meta-check, because this repo has twice shipped a check that stayed green
+while its fix was reverted: every critical assertion above is re-run against a deliberately
+mutated copy of its fixture and must FAIL. An assertion nobody has watched fail is a
+comment.
+
+The seam between the two harnesses is asserted in `check_dashboard.py`: the `lessons.md`
+each forge emits is fed to `evolve_mine.py --lint-register`. The template and the linter
+were written separately and nothing else makes them agree — a reworded section heading on
+either side would otherwise ship every team a register its own linter rejects.

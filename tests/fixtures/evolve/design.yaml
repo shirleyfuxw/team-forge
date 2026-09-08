@@ -1,0 +1,83 @@
+# team-forge / evolve-miner fixture — the design half of a finished `drain` cycle.
+# Shared by BOTH ledger fixtures on purpose: ledger-signals.json and ledger-clean.json
+# differ only in what the run logged, so a difference in the miner's output is a difference
+# in the EVIDENCE and never in the declarations. Not forged by check_dashboard.py — this
+# file exists to feed evolve_mine.py the team's own vocabulary, gates and skill gaps.
+# ============================================================================
+
+archetype: workflow
+shape: parallel-drain
+
+recurring:
+  schedule: "weekly off-hours via /schedule"
+  cycle_box: "90 min wall-clock OR 200k tokens"
+  unattended: true
+  carry_over_state: status.json
+
+project:
+  name: drain
+  display_name: "Issue-Queue Drainer"
+  target_repo: "/tmp/test-team-forge-evolve"
+  target_repo_basename: test-team-forge-evolve
+  domain: ticket-drain
+  integration_branch: debugging
+
+evolve:
+  # Deliberately NOT the default 3. A team whose waves are lumpy raises its own bar, and the
+  # fixture pins that the override is actually read: ledger-signals.json carries a 4.1x line
+  # that a factor of 3 would flag and 5 correctly leaves alone.
+  budget_overrun_factor: 5
+
+goal:
+  statement: "Keep the bug/refactor/chore issue queue drained every cycle."
+  done_when:
+    - "Cycle end: queue_eligible == 0 OR the cycle box was hit with carry-overs logged"
+  lead_decides: ["Triage/routing; wave dispatch"]
+  user_decides: ["Merging PRs"]
+
+queue:
+  eligibility: "open issues labelled bug/refactor/chore, minus wontfix/duplicate/assigned"
+  triage: "classify, set blast_radius + gate_set, route full-drain vs plan-gate"
+  wave_size: 4
+  routes: [full-drain, plan-gate]
+
+gates:
+  import_check: "python -c 'import <pkg>' && pytest --collect-only -q"
+  unit_scoped:  "pytest <touched paths> -q"
+  review:       "code-review agent returns Approve in-context"
+  leak_guard:   "test_*_future_leak.py green pre AND post"
+
+skill_gaps:
+  - name: queue-triage-rubric
+    kind: domain-procedure
+    purpose: "One rubric for full-drain vs plan-gate, so triage does not re-argue it per item."
+    trigger: "Use when classifying an eligible queue item."
+    acceptance: "Two leads triaging the same ten items agree on the route for at least nine."
+
+worker:
+  model: sonnet
+  isolation: worktree
+  procedure: route -> fix -> run gate_set -> PR
+  skills: [bug-fix-loop, git-worktree-workflow]
+  escalation: advisor
+
+advisor:
+  model: opus
+  procedure: codebase-context + prior-history for hard routing questions
+  skills: [knowledge-retrieval]
+
+ledger:
+  state_shape:
+    - {id: current_cycle_id, type: string}
+    - {id: tickets, type: list}
+    - {id: budget, type: object}
+  # The team's OWN vocabulary. evolve_mine.py unions this with KNOWN_EVENT_KINDS; anything
+  # outside the union is a noun the lead minted mid-run because the schema had no slot.
+  events: [cycle_started, ticket_triaged, ticket_routed, ticket_dispatched, ticket_gated,
+           ticket_pr_ready, ticket_blocked, ticket_unblocked, cycle_box_hit, cycle_completed,
+           replanned]
+  dashboard_panels: [queue_state, ticket_table, recent_events]
+  dashboard_owner: monitor_agent
+
+constraints:
+  - "Unattended: plan-gate items HOLD awaiting human approval."

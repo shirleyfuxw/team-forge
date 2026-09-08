@@ -16,7 +16,7 @@ scripts), git worktrees, and agent memory. Reaching "all milestones done" does N
 any of it. Without an explicit teardown the repo accumulates dead skills, stale dashboards,
 orphaned worktrees, and trigger hooks that fire for a team that no longer exists.
 
-Teardown is the **fifth phase** of the lifecycle: brainstorm → plan → design → forge → **teardown**.
+Teardown is the **last phase** of the lifecycle: contract → design → forge → run → evolve → **teardown**.
 
 ## When to use
 
@@ -50,10 +50,42 @@ If you are unsure which bucket a file is in, it is durable — ask the user befo
 
 Before deleting runtime state, snapshot it into the durable KB so the run is reconstructable:
 
-1. Write a one-page **run summary** to `docs/team-forge/<team>/run-summary.md`: final status,
+1. **Confirm `team-forge:evolve` has run in close mode against this final state** — read the
+   `evolve` marker that evolve's own Step 8 stamps into the ledger:
+
+   ```
+   jq -r '.evolve as $e |
+     if $e == null then "MISSING — no evolve pass has ever stamped this hub"
+     elif $e.mode != "close" then "STALE — last pass was \($e.mode) mode at \($e.last_run)"
+     elif ([.events[]?.ts // empty] | map(select(. > $e.last_run)) | length) > 0
+       then "STALE — the ledger carries events after \($e.last_run)"
+     else "fresh · \($e.candidates) · mined_at \($e.mined_at)" end' \
+     .claude/team-forge/<team>/tracker/status.json
+   ```
+
+   Then confirm the marker points at a real mining run rather than at a filename someone typed:
+   `jq -r .mined_at` on the file `$e.candidates` names equals `$e.mined_at`, and no other
+   `docs/team-forge/<team>/evolve/candidates-*.json` carries a later `mined_at`. Anything but
+   `fresh` → say so and run evolve (close mode) NOW, before anything below.
+
+   Every question above is about content, deliberately. An mtime gate on
+   `candidates-*.json` versus `tracker/status.json` can never pass: the miner writes the
+   candidates file first and evolve's Step 8 then appends its `lesson` events to the ledger, so
+   a *correctly finished* pass always leaves `status.json` the newer file. Such a gate reports
+   "evolve never ran", prescribes the evolve pass that re-creates the same ordering, and every
+   teardown re-runs a full evolve forever. Re-running evolve does answer the three content
+   questions, which is what makes them a gate rather than a loop.
+
+   Steps 3 and 7 are about to delete
+   `.claude/agent-memory/<agent-name>/` for every forged agent and Step 4 deletes the live
+   ledger; those are evolve's two richest inputs, and teardown is the last moment either
+   exists.
+2. Write a one-page **run summary** to `docs/team-forge/<team>/run-summary.md`: final status,
    what shipped (link the merged PRs / commits by their human-readable subjects), gates that
    fired, and any carry-overs. Use names, not phase IDs (see Naming discipline in SCOPING.md).
-2. Copy the final `tracker/status.json` to `docs/team-forge/<team>/final-ledger.json` (the
+   Link `docs/team-forge/<team>/lessons.md` from it: the summary says what happened, the
+   register says what it taught and how each row is checked.
+3. Copy the final `tracker/status.json` to `docs/team-forge/<team>/final-ledger.json` (the
    immutable record). The live `status.json` is ephemeral and goes in Step 4.
 
 ### Step 2 — Prune git worktrees
@@ -94,8 +126,10 @@ The launcher is ephemeral — it exists to drive THIS team and is dead weight af
   exactly one team — no other team can be depending on it, so there is nothing to spare.
 - Remove each removed agent's native memory dir, `.claude/agent-memory/<agent-name>/` (see
   Step 7) — it is keyed by the agent's forged name, so use the same names from the manifest.
-  `<team>-lead` has one too: persistent memory is the point of that agent, so it is the one
-  most likely to hold real content, and equally the one that must not outlive its team.
+  A workflow's `<team>-lead` has one too — the manifest lists it as `lead_agent`, and only the
+  workflow archetype emits one: persistent memory is the point of that agent, so it is the one
+  most likely to hold real content, and equally the one that must not outlive its team. On a
+  team archetype the memory dirs belong to the roster's dispatched `advise` agents instead.
 - If the forge registered a **hook trigger** for the launcher (a `settings.json` hook, a cron
   entry, or a `SessionStart` line), remove that entry too — a trigger for a deleted skill is a
   latent error. Grep the target repo's `.claude/settings*.json` for `<team>` and clean it.
@@ -192,8 +226,12 @@ ephemeral scaffolding keyed to the agent, so it goes when the agent goes:
   `~/.claude/agent-memory/<agent-name>/` instead — check `design.yaml` rather than assuming the
   project-local path.
 
-If a memory dir holds notes the user would want (hard-won codebase gotchas), offer to fold them
-into the Step 1 run summary before removing — when unsure, it is durable; ask.
+Evolve already harvested these dirs into `docs/team-forge/<team>/lessons.md` (Step 1), so what
+is left here is a copy of something durable and safe to remove. If the Step 1 evolve check did
+not pass, go back to Step 1 rather than hand-folding notes into the run summary — an
+agent-memory note about a hook false positive once sat for two months before it became a code
+fix, and prose in a summary is not what shortens that; a register row with its evidence and its
+check is.
 
 ### Step 8 — Report + one commit
 
@@ -202,6 +240,10 @@ and that it was retired — not a phase ID). Show the user the surviving durable
 
 ```
 docs/team-forge/<team>/     ← brainstorms, team-plans, artifacts, run-summary.md, final-ledger.json
+  lessons.md                ← the lessons register — what the run taught, each row with the
+                              evidence that admitted it and the check that proves it
+  evolve/                   ← each evolve pass: candidates-<date>.json, plugin-feedback-<date>.md
+agent_evals/<team>/         ← the per-agent eval scaffolds
 .claude/skills/<name>/      ← each promoted skill this team produced (Step 6), with its
                               acceptance command — the deliverable that outlives the team
 ```
@@ -230,5 +272,12 @@ Confirm with the user before committing if anything was ambiguous.
   is the whole point of skill_gaps. Removing it is the user's call, not an inference from
   teardown. Hand it over (Step 6) instead.
 - **Deleting a durable artifact** → when unsure, it is durable; ask. The KB is the audit trail.
+- **Tearing down before evolving** → Steps 3 + 7 remove every forged agent's memory dir and Step 4
+  removes the live ledger. Both are evolve inputs, neither comes back, and the run's lessons then
+  survive only as whatever a human happened to remember — which is the exact loss the evolve phase
+  was added to stop. Check the ledger's `evolve` marker in Step 1 — `mode: close`, a `mined_at`
+  matching the candidates file it names, and no event later than its `last_run` — and run evolve
+  first. Never gate this on mtimes: evolve writes the ledger after the candidates file, so an
+  mtime gate fails on a pass that succeeded.
 - **Tearing down mid-flight** → refuse if tasks are still `in_progress` or the integration branch
   has open work.

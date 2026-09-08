@@ -15,7 +15,7 @@ are opt-in extras, generated only when the contract earns them. Why this shape:
 
 Needs `python3` + `pyyaml`. Set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` only if
 you use the persistent-roster `team` archetype. Releases:
-[v0.10.0](https://github.com/shirleyfuxw/team-forge/releases); update with
+[v0.12.0](https://github.com/shirleyfuxw/team-forge/releases); update with
 `/plugin marketplace update team-forge-dev`.
 
 ## Use
@@ -44,7 +44,7 @@ Then one of two routes, recorded in the contract:
   work spans sessions or runs unattended, or there's genuine fan-out. Then:
   `team-forge:design` (archetype triage, roster/tasks, gates, skill gaps) →
   `python3 tools/forge.py <design.yaml>` (deterministic emission) → launch with
-  `/<team>-workflow` or `/<team>-team`.
+  `/<team>-workflow` or `/<team>-team` → `run` → `evolve` → `teardown`.
 
 A workflow team gets two entry points into the same runtime: `/<team>-workflow`,
 and `claude --agent <team>-lead`, which carries persistent memory across runs so a
@@ -56,8 +56,10 @@ lead policy (autonomy against the goal directive, discipline rules, dispatch and
 gate rules), which updates with the plugin. The runtime reads exactly one file:
 `tracker/status.json`, whose `plan` block is design-derived (re-baked by
 `--resync`) and whose every other key is live state the lead owns. The per-team launcher is a ~25-line
-pointer, so nothing policy-shaped goes stale in your repo. `team-forge:teardown`
-closes a finished team out.
+pointer, so nothing policy-shaped goes stale in your repo. `team-forge:evolve`
+runs at each cycle end and once more at close, turning the run's own artifacts
+into lessons the next cycle starts from; `team-forge:teardown` then closes a
+finished team out.
 
 ## What a forge emits
 
@@ -74,6 +76,7 @@ closes a finished team out.
       playground/                       # dashboard, when the run earns one
   docs/team-forge/<team>/
     contract.yaml                       # the product, stashed durably
+    lessons.md                          # lessons register, written by team-forge:evolve
     brainstorms/ team-plans/ artifacts/ runtime/
 ```
 
@@ -89,18 +92,62 @@ boundaries; one-shot workflows skip the dashboard entirely and live in
 and a human promotes it to `.claude/skills/` once the acceptance runs green.
 Gates that call an unpromoted skill fail-closed. These skills outlive the team.
 
+## Evolve
+
+A finished cycle already contains its own lessons; nothing was reading them.
+`team-forge:evolve` runs at every cycle end of a recurring workflow and once more
+at close, mining the ledger in `status.json` — event kinds that recur, an
+`agent_blocked` that a later event resolves, gate failures carrying a root cause,
+a budget line that blew past its soft target, `policy_adopted` rules the lead
+applied mid-run that live in no file — plus every agent `MEMORY.md`, which native
+per-agent memory writes but nothing ever harvested. The durable output is one
+register per team: `docs/team-forge/<team>/lessons.md`, versioned against the
+plugin, with an id per row that is never renumbered.
+
+**Evidence, not impressions.** A lesson is *applied* only when a signal admits it
+— the same normalized event kind seen twice or a payload counter that says so, a
+block with a matching resolution, a gate failure with a root cause, a budget
+overrun against its soft target, or a rule already adopted mid-run. Everything
+else goes to a **Candidates** table and waits for a second sighting. One vivid
+one-off is an anecdote, and anecdotes are what turn a register into folklore.
+
+**Three layers, three autonomies.** L1 is team-local — the register,
+`contract.yaml` open items, whichever agent memories the archetype forged, and
+the team's gate surface (a workflow's gate scripts; a team's `go_no_go` criteria
+are a `design.yaml` edit, so they land in L2) — and is auto-applied once the bar
+is met. L2 is the project harness — `design.yaml` (then
+`forge.py --resync`; a baked agent file is never hand-edited), `.claude/rules/`,
+promoted skills — and lands on an `evolve/<team>-<date>` branch for you to
+approve. L3 is team-forge itself, which is never edited from a target repo:
+evolve writes `docs/team-forge/<team>/evolve/plugin-feedback-<date>.md`, and
+filing it upstream is your call. An unattended cycle is L1-only; its L2
+candidates queue for the next attended close.
+
+**It prunes as well as accretes.** Every applied lesson names the check that
+proves it and that check is run, against a snapshot that is restored if it fails.
+Falsified rows are kept with what killed them — delete one and the next reader
+re-derives the same wrong belief from the same plausible reasoning — and anything
+that has gone several runs without a trace lands on the ablation queue, to be
+deleted on a branch and re-added only if an observed failure asks for it.
+
 ## Development
 
 ```bash
 git clone https://github.com/shirleyfuxw/team-forge && cd team-forge
 /plugin marketplace add .                # local marketplace for development
-python3 tests/check_dashboard.py         # the harness: emission + elicitation checks
+python3 tests/check_dashboard.py         # emission + elicitation checks
+python3 tests/check_evolve.py            # evidence admission + lessons register
 ```
 
-The harness forges three fixtures and asserts both halves of the product:
-emission (self-contained dashboard with contract strip, thin pointers, panel-id
-registry, eight negative checks) and elicitation (`tests/check_contract.py`, the
-lint's bar against good/bad contract fixtures).
+`check_dashboard.py` forges three fixtures and asserts both halves of the
+product: emission (self-contained dashboard with contract strip, thin pointers,
+panel-id registry, nine negative checks) and elicitation
+(`tests/check_contract.py`, the lint's bar against good/bad contract fixtures).
+`check_evolve.py` covers the evolve phase — that the evidence bar admits what it
+claims to admit, that a single anecdote reaches the Candidates table and no
+further, and that the register survives a round trip. Each of its checks carries
+a negative control: a check that stays green when its fix is reverted has tested
+nothing, which this repo learned twice.
 
 Landing changes on an already-forged team: `python3 tools/forge.py --check <its
 design.yaml>` reports both staleness axes — template drift and design drift —

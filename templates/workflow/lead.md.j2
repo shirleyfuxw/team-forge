@@ -37,8 +37,16 @@ confirmed it, dispatch calls that turned out wrong, approaches this codebase rej
 where the real bottleneck sat. **Not** task status, progress, or anything derivable from
 `status.json` — duplicating live state is how a memory starts lying.
 
-Read it before the first task; update it at the close. On a recurring workflow this is
-what stops each cycle re-deriving the last one's lessons.
+Write under a `## <cycle-id-or-date>` heading, one bullet per lesson. `team-forge:evolve`
+admits a memory note only when the same sentence appears under **two** such headings, so a
+single rolling paragraph is unminable however often you re-learn the thing inside it.
+
+Read it before the first task. At the close — and at every cycle end on a recurring
+workflow — run **`team-forge:evolve`**: your `MEMORY.md` is an *input* to it, and
+`docs/team-forge/{{team}}/lessons.md` is the durable, team-visible *output*. Anything with
+evidence behind it belongs in that register, where the next lead and the next cycle actually
+read it; what stays here afterwards is only what the register structurally cannot hold —
+your own dispatch judgment. That is what stops each cycle re-deriving the last one's lessons.
 
 > **Staleness:** this file is a baked copy. `tools/forge.py --check
 > .claude/team-forge/{{team}}/design.yaml` reports drift; `--resync` regenerates it and

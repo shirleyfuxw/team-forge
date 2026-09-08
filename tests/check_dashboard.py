@@ -12,12 +12,13 @@ self-contained, interactive, single-file explorer:
 Usage:  python3 tests/check_dashboard.py
 Exit 0 = all green; exit 1 = a contract violation.
 """
-import json, re, shutil, subprocess, sys
+import hashlib, json, re, shutil, subprocess, sys
 import yaml
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 FORGE = REPO / "tools" / "forge.py"
+MINER = REPO / "tools" / "evolve_mine.py"
 
 # fixture design.yaml → emitted dashboard.html (target_repo is encoded in each fixture)
 FIXTURES = [
@@ -27,6 +28,11 @@ FIXTURES = [
 ]
 
 NODE = shutil.which("node")
+
+# Quoted only in a failure message. Read from forge.py so a version bump cannot make this
+# harness lie about which release the team was upgraded to.
+FORGE_VERSION_HINT = re.search(r'^FORGE_VERSION = "([^"]+)"',
+                               (REPO / "tools" / "forge.py").read_text(), re.M).group(1)
 
 
 def forge(fixture):
@@ -534,10 +540,207 @@ def check_skill_gap_second_pass():
     print("\u2713 skill gaps join the second pass: drafts track the spec, promoted skills are untouched")
 
 
+def check_lessons_register_lints(fixture):
+    """The seam between two separately-written halves: templates/lessons.md.j2 writes the
+    register, tools/evolve_mine.py --lint-register judges it. Nothing else makes them agree,
+    and they were authored by different passes — a section heading reworded on one side
+    means the forge emits, on every single team, a register its own linter rejects. That
+    defect is invisible to both halves' own checks and only shows up here, where a real
+    forged file meets the real linter.
+
+    It also caught the template line-wrapping a sentence onto `## Candidates`, which the
+    parser reads as a section switch: a phantom heading mid-prose that silently reassigns
+    whatever table follows it."""
+    design = REPO / "tests" / "fixtures" / fixture / "design.yaml"
+    d = yaml.safe_load(design.read_text())
+    target = Path(d["project"]["target_repo"])
+    team = d["project"]["name"]
+    reg = target / "docs" / "team-forge" / team / "lessons.md"
+    assert reg.exists(), f"{fixture}: no lessons register at {reg} — team-forge:evolve has " \
+                         f"nowhere to write, and teardown has nothing to classify"
+
+    manifest = json.loads((target / ".claude" / "team-forge" / team / "manifest.json").read_text())
+    kinds = {e["path"]: e["kind"] for e in manifest["generated_files"]}
+    rel = str(reg.relative_to(target))
+    assert kinds.get(rel) == "lessons_register", \
+        f"{fixture}: manifest records {rel} as {kinds.get(rel)!r}, not 'lessons_register' — " \
+        f"--resync and teardown both dispatch on that kind to preserve the file"
+
+    r = subprocess.run([sys.executable, str(MINER), "--lint-register", str(reg)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, \
+        f"{fixture}: the register the forge just emitted FAILS its own linter — the template " \
+        f"and evolve_mine.py have drifted apart\n{r.stdout}{r.stderr}"
+
+    # Negative control: a check that has never been watched fail is a comment. Blank the
+    # banner line and the same lint must go red — otherwise it is asserting on exit codes
+    # from a file it never really parsed.
+    probe = Path("/tmp") / f"tf-lessons-probe-{team}.md"
+    probe.write_text("\n".join(l for l in reg.read_text().splitlines()
+                               if "Verified against team-forge" not in l))
+    rn = subprocess.run([sys.executable, str(MINER), "--lint-register", str(probe)],
+                        capture_output=True, text=True)
+    assert rn.returncode == 1 and "no version banner" in rn.stdout + rn.stderr, \
+        f"{fixture}: the register lint stayed green on a bannerless copy — it is not reading " \
+        f"the file it was handed\n{rn.stdout}{rn.stderr}"
+    # An EDITED register must come back byte-identical from --resync. Preservation rests
+    # entirely on _regen_content returning None for kind 'lessons_register', and nothing
+    # asserted it: add a lessons_register branch there and every forged team's accrued rows —
+    # each one bought with real rework and recoverable from nothing — are silently replaced by
+    # an empty scaffold while this whole harness stays green.
+    reg.write_text(reg.read_text() + "\n| L-999 | sentinel row the harness appended |\n")
+    edited_sha = hashlib.sha256(reg.read_bytes()).hexdigest()
+
+    # NEGATIVE CONTROL, same check, same --resync: a template-derived file corrupted the same
+    # way, which --resync MUST rebuild. Without it, "the register did not change" is equally
+    # consistent with --resync having done nothing at all — and this repo has twice shipped a
+    # check that passed while the fix under it was reverted.
+    control = next(target / e["path"] for e in manifest["generated_files"]
+                   if e["kind"] in ("team_launcher_skill", "workflow_launcher_skill"))
+    control_before = control.read_text()
+    control.write_text(control_before + "\nCORRUPTED BY THE HARNESS\n")
+
+    rs = subprocess.run([sys.executable, str(FORGE), str(design), "--resync"],
+                        capture_output=True, text=True)
+    assert rs.returncode == 0, f"{fixture}: --resync failed\n{rs.stdout}\n{rs.stderr}"
+    assert control.read_text() == control_before, \
+        f"{fixture}: the control file was NOT rebuilt, so the register surviving proves " \
+        f"nothing — this --resync regenerated no template-derived file at all\n{rs.stdout}"
+    assert hashlib.sha256(reg.read_bytes()).hexdigest() == edited_sha, \
+        f"{fixture}: --resync rewrote an EDITED lessons register — the evolve phase's accrued " \
+        f"rows are the one emitted file no re-forge can reproduce"
+    print(f"\u2713 {fixture}: emitted lessons.md lints clean against evolve_mine.py "
+          f"(manifest kind lessons_register; bannerless copy still rejected; an edited "
+          f"register survives --resync byte-identical while the launcher control is rebuilt)")
+
+
+def check_lessons_register_backfilled_by_resync():
+    """An ALREADY-FORGED team has to get a register too — that population is the whole reason
+    --resync and the FORGE_VERSION bump exist.
+
+    The register was emitted only on the two full-forge paths, so every team forged before
+    0.12.0 upgraded with no lessons.md and no manifest entry. evolve's Step 8 lint then runs
+    against a file that is not there and exits 1, or the lead hand-rolls a register that drifts
+    from the template and fails the same lint. The pre-0.12.0 state is simulated the only
+    honest way — strip the file and its manifest entry from a real forged hub."""
+    import yaml
+    target = _scratch_repo("/tmp/tf-backfill-main")
+    fx = REPO / "tests" / "fixtures" / "workflow-tidy"
+    design = yaml.safe_load((fx / "design.yaml").read_text())
+    design["contract"] = str(fx / "contract.yaml")
+    design["project"]["target_repo"] = str(target)
+    dpath = Path("/tmp/tf-backfill-design.yaml")
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--force"], capture_output=True, text=True)
+    assert r.returncode == 0, f"backfill: forge failed\n{r.stdout}\n{r.stderr}"
+
+    mpath = target / ".claude" / "team-forge" / "tidy" / "manifest.json"
+    reg = target / "docs" / "team-forge" / "tidy" / "lessons.md"
+    m = json.loads(mpath.read_text())
+    m["generated_files"] = [e for e in m["generated_files"] if e["kind"] != "lessons_register"]
+    m["forge_version"] = "0.11.0"
+    mpath.write_text(json.dumps(m, indent=2))
+    reg.unlink()
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--resync"], capture_output=True, text=True)
+    assert r.returncode == 0, f"backfill: --resync failed\n{r.stdout}\n{r.stderr}"
+    assert reg.exists(), \
+        f"--resync upgraded the team to {FORGE_VERSION_HINT} with no lessons register — evolve " \
+        f"Step 8 lints a file that does not exist\n{r.stdout}"
+    entries = json.loads(mpath.read_text())["generated_files"]
+    assert [e["kind"] for e in entries].count("lessons_register") == 1, \
+        f"backfilled register is not tracked exactly once in the manifest that --resync wrote " \
+        f"back — teardown and _regen_content both dispatch on that kind: {entries}"
+    rl = subprocess.run([sys.executable, str(MINER), "--lint-register", str(reg)],
+                        capture_output=True, text=True)
+    assert rl.returncode == 0, f"backfilled register fails its own linter\n{rl.stdout}{rl.stderr}"
+
+    # And a second pass must neither blank the accrued rows nor double the entry.
+    reg.write_text(reg.read_text() + "\n| L-1 | accrued row |\n")
+    edited = reg.read_bytes()
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--resync"], capture_output=True, text=True)
+    assert r.returncode == 0, f"backfill: second --resync failed\n{r.stdout}\n{r.stderr}"
+    assert reg.read_bytes() == edited, "the backfill is not idempotent — it blanked a live register"
+    assert [e["kind"] for e in json.loads(mpath.read_text())["generated_files"]].count("lessons_register") == 1, \
+        "the backfill appended a duplicate manifest entry on the second --resync"
+    print("\u2713 lessons register backfilled into an already-forged team by --resync "
+          "(tracked once, lints clean, idempotent)")
+
+
+def check_orphan_pruning_removes_only_design_derived():
+    """A seat cut from design.yaml has to actually leave the target repo.
+
+    This is evolve's Step 7 ablation — delete a seat, --resync, re-run the gates, keep the cut
+    if nothing breaks. _regen_content returned None for an agent whose roster/role source had
+    disappeared and resync() reads None as "human-owned, preserve", so the ablation deleted
+    nothing: the advisor stayed installed in .claude/agents/ loading into every future session,
+    the manifest still listed it, and the no-op was recorded as a success with a passing check.
+
+    The two controls are the point of the fix as much as the deletion is. A hub file the user
+    hand-added is not in the manifest and must be untouchable; a manifest entry of a preserved
+    kind — the live ledger, the lessons register — holds content design.yaml cannot reproduce
+    and must survive too. Deleting either would be a worse bug than the orphan."""
+    import yaml
+    target = _scratch_repo("/tmp/tf-orphan-main")
+    fx = REPO / "tests" / "fixtures" / "workflow-tidy"
+    kb = target / "docs" / "team-forge" / "tidy"
+    kb.mkdir(parents=True)
+    shutil.copyfile(fx / "contract.yaml", kb / "contract.yaml")   # canonical layout
+    design = yaml.safe_load((fx / "design.yaml").read_text())
+    design["contract"] = str(kb / "contract.yaml")
+    design["project"]["target_repo"] = str(target)
+    dpath = Path("/tmp/tf-orphan-design.yaml")
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--force"], capture_output=True, text=True)
+    assert r.returncode == 0, f"orphan: forge failed\n{r.stdout}\n{r.stderr}"
+
+    hub = target / ".claude" / "team-forge" / "tidy"
+    advisor = target / ".claude" / "agents" / "tidy-advisor.md"
+    worker = target / ".claude" / "agents" / "tidy-worker.md"
+    assert advisor.exists(), "orphan: fixture forged no advisor — nothing to ablate"
+
+    hand = hub / "HAND-NOTES.md"                      # never in the manifest
+    hand.write_text("notes the user typed by hand\n")
+    reg = kb / "lessons.md"
+    reg.write_text(reg.read_text() + "\n| L-1 | a lesson bought with real rework |\n")
+    ledger = hub / "tracker" / "status.json"
+    sha = lambda f: hashlib.sha256(f.read_bytes()).hexdigest()
+    before = {f: sha(f) for f in (hand, reg, ledger, worker)}
+
+    del design["advisor"]                             # the ablation
+    dpath.write_text(yaml.safe_dump(design, sort_keys=False))
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--check"], capture_output=True, text=True)
+    assert r.returncode == 0, f"orphan: --check failed\n{r.stdout}\n{r.stderr}"
+    assert "would be removed: .claude/agents/tidy-advisor.md" in r.stdout, \
+        f"--check stayed silent about a seat that is no longer in design.yaml\n{r.stdout}"
+    assert advisor.exists(), "--check is read-only and deleted the file anyway"
+
+    r = subprocess.run([sys.executable, str(FORGE), str(dpath), "--resync"], capture_output=True, text=True)
+    assert r.returncode == 0, f"orphan: --resync failed\n{r.stdout}\n{r.stderr}"
+    assert not advisor.exists(), \
+        f"--resync left the ablated advisor installed — it loads into every future session " \
+        f"and the ablation reports success while deleting nothing\n{r.stdout}"
+    entries = json.loads((hub / "manifest.json").read_text())["generated_files"]
+    paths = [e["path"] for e in entries]
+    assert not any("tidy-advisor" in q for q in paths), \
+        f"the file is gone but the manifest still lists it: {paths}"
+
+    for f, digest in before.items():
+        assert f.exists() and sha(f) == digest, \
+            f"orphan pruning touched {f} — only design-derived, manifest-listed files may go"
+    kinds = {e["kind"] for e in entries}
+    assert {"lessons_register", "ledger_initial_state"} <= kinds, \
+        f"pruning dropped a preserved kind from the manifest: {sorted(kinds)}"
+    print("\u2713 orphan pruning: an ablated seat leaves the repo and the manifest; a "
+          "hand-added hub file, the ledger and the lessons register all survive")
+
+
 def main():
     for fixture, dash in FIXTURES:
         forge(fixture)
         check(fixture, dash)
+        check_lessons_register_lints(fixture)
     check_one_shot_default_no_dashboard()
     check_prose_panel_rejected()
     check_protected_branch_abort()
@@ -547,7 +750,9 @@ def main():
     check_sync_goal_reaches_live_ledger()
     check_kb_contract_canonical_layout_untouched()
     check_skill_gap_second_pass()
-    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 9 negative checks)")
+    check_orphan_pruning_removes_only_design_derived()
+    check_lessons_register_backfilled_by_resync()
+    print(f"\nALL DASHBOARD CHECKS PASSED ({len(FIXTURES)} fixtures + 11 negative checks)")
     # Elicitation half of the harness — contract quality (GOAL.md pivot).
     r = subprocess.run([sys.executable, str(REPO / "tests" / "check_contract.py")])
     assert r.returncode == 0, "contract checks failed"

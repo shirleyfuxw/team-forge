@@ -1,0 +1,21 @@
+{
+  "team": "drain",
+  "archetype": "workflow",
+  "shape": "parallel-drain",
+  "forge_version": "0.12.0",
+  "design_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "forged_at_iso": "2026-08-25T09:00:00Z",
+  "generated_files": [
+    {"path": ".claude/team-forge/drain/.gitignore", "kind": "hub_gitignore"},
+    {"path": ".claude/agents/drain-worker.md", "kind": "workflow_profile"},
+    {"path": ".claude/agents/drain-advisor.md", "kind": "workflow_profile"},
+    {"path": ".claude/agents/drain-monitor.md", "kind": "monitor_agent"},
+    {"path": ".claude/agents/drain-lead.md", "kind": "lead_agent"},
+    {"path": ".claude/skills/drain-workflow/SKILL.md", "kind": "workflow_launcher_skill"},
+    {"path": ".claude/team-forge/drain/TASKS.yaml", "kind": "tasks_yaml"},
+    {"path": ".claude/team-forge/drain/design.yaml", "kind": "design_contract"},
+    {"path": ".claude/team-forge/drain/skill-drafts/queue-triage-rubric/SKILL.md", "kind": "skill_gap_scaffold", "status": "draft"},
+    {"path": ".claude/team-forge/drain/tracker/status.json", "kind": "ledger_initial_state"},
+    {"path": "docs/team-forge/drain/README.md", "kind": "kb_readme"}
+  ]
+}

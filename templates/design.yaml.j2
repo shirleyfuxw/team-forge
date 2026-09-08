@@ -34,7 +34,14 @@
 # teammate path; their durable context is this KB + the shared task list, so the lead
 # hands each a scoped brief. To override a role's scope, set `memory: user|project|local`
 # on its roster entry (default: project for dispatched roles, omitted otherwise). The
-# lead does NOT harvest agent memory — there is no team-level memory store.
+# lead harvests nothing mid-run — it hands out briefs and reads the ledger, never a
+# teammate's MEMORY.md. The team-level store arrived at cycle boundaries instead: as of
+# 0.12.0 `team-forge:evolve` reads every `.claude/agent-memory/<team>-*/MEMORY.md` at each
+# cycle end and once at close, and promotes only corroborated notes (the same normalized
+# sentence under two `## <cycle-id-or-date>` headings, or a note that corroborates a ledger
+# candidate) into docs/team-forge/<team>/lessons.md. Memory is still per-agent-siloed and
+# still not poolable by the platform; that register is the derived, evidence-admitted
+# surface that stands in for a pool. See WORKFLOW-SCOPING.md W8 and its 2026-09-08 erratum.
 # ============================================================================
 
 # ----------------------------------------------------------------------------
@@ -214,7 +221,7 @@ asset_discovery:
     project_local: [<skill-name>]            # <target_repo>/.claude/skills/
     user_global:   [<skill-name>]            # ~/.claude/skills/
     plugins:
-      team-forge: [contract, design, run, teardown]
+      team-forge: [contract, design, run, evolve, teardown]
       # <other-installed-plugin>: [...]
     reference_libraries:                     # domain-matched skills from reference libs
       ecc: [<skill-name>]                    # e.g. frontend-patterns, e2e-testing
@@ -285,3 +292,59 @@ skill_gaps:                                  # OPTIONAL — omit when discovery 
     acceptance: "<runnable check proving the skill works>"
     consumers: [<roster-or-profile-name | lead>]
     # adapted_from: <reference-library asset>      # OPTIONAL — cite prior art
+
+# ----------------------------------------------------------------------------
+# evolve — knobs for the post-run evolve phase. OPTIONAL; absent = all defaults.
+# ----------------------------------------------------------------------------
+# The evolve phase (team-forge:evolve) runs at every cycle end of a recurring
+# workflow and once at Close before teardown. It mines the run's own artifacts —
+# the ledger's events[], every .claude/agent-memory/<team>-*/MEMORY.md the
+# archetype actually forged, gate results, budget lines — and
+# turns what it can PROVE into applied changes, recording every row in
+# docs/team-forge/<team>/lessons.md. Claims it cannot prove are recorded as
+# candidates and left unapplied. The forge scaffolds that register once and never
+# rewrites it (--resync leaves it byte-identical): its rows are the one thing here
+# that no re-forge can regenerate.
+#
+# Autonomy is tiered by what a wrong lesson would damage:
+#   L1 team-local   — lessons.md, contract open_items, whichever agent MEMORY.md
+#                     files this archetype forged, and the team's gate surface.
+#                     Those last two are archetype-specific: a WORKFLOW has a
+#                     <team>-lead memory and tracked gate scripts under
+#                     .claude/team-forge/<team>/gates/; a TEAM has advisor
+#                     memories only, and its gate equivalent is the go_no_go on
+#                     each milestone, which is a design.yaml edit and therefore
+#                     L2. Blast radius is this team. AUTO-APPLIED when the
+#                     evidence bar is met. (skills/evolve/references/layers.md.)
+#   L2 project      — design.yaml (then forge.py --resync; never hand-edit a baked
+#                     agent file), .claude/rules/, promoted skills. Lands on a
+#                     branch `evolve/<team>-<date>` for the user to approve.
+#   L3 plugin       — team-forge's own skills/templates are never edited from a
+#                     target repo. Evolve writes a feedback file instead.
+evolve:
+  plugin_feedback: file                     # file | issue ; default file.
+                                            # `file`  — write docs/team-forge/<team>/evolve/
+                                            #           plugin-feedback-<date>.md and stop;
+                                            #           filing it is a user_decides pause.
+                                            # `issue` — pre-authorize filing that body as an
+                                            #           issue on shirleyfuxw/team-forge. Set this
+                                            #           only where the user has said an L3 finding
+                                            #           may leave the repo unattended: the plugin
+                                            #           is shared by every team on the machine,
+                                            #           so its issue tracker is not this team's
+                                            #           scratch pad.
+  budget_overrun_factor: 3                  # a budget line above N × its soft target is
+                                            # admissible evidence on its own. Bought by a real
+                                            # run that spent 1010% of target before anyone
+                                            # attributed it — the attribution ("six monitor
+                                            # dashboard renders at ~116k each") is what let a
+                                            # human cut the seat. Lower it on a tight budget;
+                                            # raising it past ~5 means only catastrophes admit.
+  cycle_mode_layers: [L1]                   # layers an UNATTENDED cycle-end evolve may apply.
+                                            # Default L1 only, and the default is the point: a
+                                            # recurring cycle ends with nobody watching, and L2
+                                            # rewrites the project harness every other session in
+                                            # the repo then loads. L2 candidates found mid-cycle
+                                            # queue for the next ATTENDED close instead of
+                                            # landing at 3am. Widen this only for a workflow a
+                                            # human actually watches each cycle.
