@@ -49,5 +49,27 @@ their current iteration, checkpoint the PR, carry as `in_review`. Log
 `budget`. Refresh the dashboard. Cycle report under `artifacts/<cycle-id>/`
 (dated, descriptive). Rotate detail to `runtime/<cycle-id>/`; log
 `cycle_completed`. Re-plan per SKILL.md if the routing predicate or gates proved
-wrong. One-shot → proceed to SKILL.md Close (including teardown after review);
-recurring → exit the cycle, the schedule owns the rest.
+wrong.
+
+**Recurring:** then, still inside the cycle, run **`team-forge:evolve` in cycle
+mode** — after `cycle_completed`, before you exit. It mines **this cycle only**:
+
+```bash
+python3 <team-forge>/tools/evolve_mine.py <hub> --out docs/team-forge/<team>/evolve/ \
+  --since "$(jq -r '.current_cycle_id' <hub>/tracker/status.json)"
+```
+
+Without `--since` the miner re-reads the whole ledger, so cycle six re-admits the
+`lesson` and `policy_adopted` events cycles one to five wrote — the phase's own
+exhaust returning as fresh proposals. Its output lands in
+`docs/team-forge/<team>/lessons.md`, and skipping the pass is how every cycle
+re-derives the previous one's lessons at full price. **L1 only by default**
+(`design.yaml`'s `evolve.cycle_mode_layers`): the lead's `MEMORY.md`, that
+register, `contract.yaml` `open_items`, and the team's gate scripts under
+`.claude/team-forge/<team>/gates/`. An unattended cycle does not rewrite the
+project harness with nobody watching, so L2 candidates (`design.yaml`,
+`.claude/rules/`, promoted skills) queue in the register for the next attended
+close.
+
+One-shot → proceed to SKILL.md Close (evolve in close mode, then teardown after
+review); recurring → exit the cycle, the schedule owns the rest.

@@ -75,7 +75,9 @@ Each bought with real rework in a prior run. They bind YOU.
    changes the *design* (a new gate, a different shape), revise `design.yaml` and
    run `--resync`. Out of scope → file with evidence + continue. Filing an issue is
    a record, not a fix — a real run filed issues for its own scaffold defects and
-   the work never happened.
+   the work never happened. A rule you adopt mid-run fails the same way: log it as
+   a `policy_adopted` event plus a `lesson` (Ledger vocabulary, below), or it dies
+   in the chat log with the session and the next run pays for it again.
 2. **Hinge-task priority.** A pending task that IS the measurement your decisions
    hinge on jumps the queue. A real run held a ~70-hour decision open for days of
    forensics while the deciding measurement sat pending as its own next task.
@@ -112,7 +114,8 @@ re-read (the most under-pulled trigger); (b) **repetition** — the worker's nat
 verification** — the check must come from a cold agent, not you re-reading your
 own diff. The coupled serial spine stays inline. Hand every dispatch a **scoped
 brief** (task + exact artifacts), never "go read the KB"; workers/advisors
-self-curate their own agent memory — you harvest nothing. Provider outage at
+self-curate their own agent memory — you harvest nothing mid-run, and
+`team-forge:evolve` is what reads those files at the cycle boundary. Provider outage at
 dispatch → retry one model tier down before marking blocked.
 
 **Worktree boundary — never edit a live worker's tree.** Your edits inside its
@@ -190,10 +193,83 @@ write only their worktrees; dispatched profiles self-curate their own
 `.claude/agent-memory/…`. Gate scripts you author live under
 `.claude/team-forge/<team>/gates/` with descriptive names — tracked.
 
+## Ledger vocabulary
+
+`status.json.events[]` draws on one shared vocabulary — the kinds below, which
+live in `tools/ledger_vocab.py` as `KNOWN_EVENT_KINDS` — plus whatever your own
+`design.yaml` declares: `ledger.events` on a workflow design, `tracking.events_to_log`
+on a team design (the two archetypes spell it differently; the evolve miner reads both):
+
+`task_completed` · `milestone_started` · `milestone_completed` · `cycle_started` ·
+`cycle_completed` · `cycle_box_hit` · `goal_revised` · `replanned` ·
+`gate_downgraded` · `drift_corrected` · `agent_blocked` · `policy_adopted` ·
+`lesson`
+
+`agent_blocked` and whatever event answers it are a **pair**, and only a shared
+identity key makes them readable as one. Evolve reads a block as evidence only
+when a later event from the SAME agent names the SAME issue and carries a
+resolution — that pairing is the entire `blocked_resolved` signal:
+
+```json
+{"kind": "agent_blocked", "agent": "<agent>", "ts": "…", "payload": {
+  "issue": "<stable id — issue/ticket/task/PR number, or a slug you reuse verbatim>",
+  "reason": "<what is blocking, one sentence>"}}
+
+{"kind": "task_completed", "agent": "<the same agent>", "ts": "…", "payload": {
+  "issue": "<the same field name AND the same value>", "status": "resolved",
+  "workaround": "<what actually cleared it — this is the lesson>"}}
+```
+
+Identity fields read: `issue`, `issue_number`, `issue_key`, `ticket`, `task`,
+`item`, `id`, `key`, `pr`. The two events pair when they **share any one of them
+at the same value**, so the answering event may name extra fields, or fewer, and
+still pair. Resolution is any of `resolution`, `workaround`, `resolved_by`,
+`fix`, `unblocked_by`, or a `status` containing `resolved`/`unblocked`/`cleared`
+— and the field has to carry text. An explicit `null` is a placeholder, not a
+workaround, and reads as unresolved.
+
+A shared identity key is enough on its own — **whoever logs the answer**. A
+worker blocks and the lead records the unblock against the same ticket is the
+routine shape, and the ticket is a stronger handle than who typed the event.
+
+A block that carries no identity key at all can still pair, but then the agent
+and the block's own words are the only identity there is, so the answering event
+has to come from that agent (or name it) *and* echo enough of what the block
+said. Give the block an identity key whenever you have one: the echo needs a
+`reason` with real words in it, so a block whose reason is one vague word pairs
+with nothing and the workaround dies with the session.
+
+Something worth recording that none of them names is a **`lesson`** event, never
+a new noun:
+
+```json
+{"kind": "lesson", "agent": "lead", "ts": "…", "payload": {
+  "claim": "…",
+  "evidence": {
+    "type": "recurrence|blocked_resolved|gate_failure|budget|policy_adopted|anecdote",
+    "refs": ["…"]},
+  "layer": "L1|L2|L3", "target": "<path#key>",
+  "action": "amend|add_gate|prune|open_item|plugin_feedback",
+  "status": "candidate|applied|rejected|queued", "register_id": "LL-n|C-n|null"}}
+```
+
+`team-forge:evolve` mines this ledger, and the two read very differently to it:
+an invented kind is a lone occurrence of a kind nobody else uses, so it is filed
+as an **anecdote** — recorded in the register's Candidates table, never applied —
+while a `lesson` carries its own evidence and is admissible. Minting the noun
+feels like recording the finding and is not. One 257-event run logged 78 distinct
+kinds, ~50 appearing exactly once, each an ad-hoc name for something the
+vocabulary had no slot for; none of it was ever harvested.
+
 ## Close
 
 All `done_when` checks green (run them — that IS "done") → final ledger update +
 dashboard render + summary; hand the integration branch to human review, **never
-self-merge**. After merge/stop: `team-forge:teardown` — archive the ledger,
-prune worktrees, remove the entry skill + profiles via the manifest. "Done" is
-not "cleaned up."
+self-merge**. Then **`team-forge:evolve`** in close mode — L1 lessons apply in
+place, L2 candidates land on branch `evolve/<team>-<date>` for the user to
+approve, L3 becomes `docs/team-forge/<team>/evolve/plugin-feedback-<date>.md`. It
+runs here rather than after teardown because teardown deletes the agent-memory
+dirs (its Steps 3 + 7) and the live ledger (its Step 4) that evolve reads — run
+it later and it mines a hub those inputs already left. After merge/stop:
+`team-forge:teardown` — archive the ledger, prune worktrees, remove the entry
+skill + profiles via the manifest. "Done" is not "cleaned up."

@@ -1,0 +1,57 @@
+<!-- Filled in BY HAND by the team-forge:evolve phase (references/layers.md, L3) — no
+     code renders this file. `forge.py` never emits it: an L3 finding exists only after a
+     run produced one, which is long after the forge ran, so there is nothing to emit it
+     from. Slots are plain `{{ }}` text to substitute, not Jinja. Slots: team ·
+     forge_version · archetype · shape · date ·
+     cycle · claim · evidence_type · evidence_count · evidence_refs · plugin_file ·
+     check · register_id · ledger_path.
+     Written to docs/team-forge/{{team}}/evolve/plugin-feedback-{{date}}.md in the TARGET
+     repo. L3 lessons never edit team-forge's own skills or templates from a target repo:
+     the plugin is shared by every team on this machine, so a fix that looks obvious from
+     one run is a change to everybody's runtime. This file is the handoff instead. -->
+
+# team-forge feedback — {{date}} · `{{team}}`
+
+## Claim
+
+{{claim}}
+
+## Evidence
+
+- **Type:** `{{evidence_type}}` · **count:** {{evidence_count}}
+- **Refs:** {{evidence_refs}}
+
+Refs are event ids / kinds from the run ledger named below; they are the raw material, not a
+summary of it. Anyone re-reading this in the plugin repo should be able to ask "does that
+event sequence actually say what the claim says" without the target repo in hand.
+
+## Observed on
+
+| | |
+|---|---|
+| team | `{{team}}` |
+| archetype / shape | {{archetype}} / {{shape}} |
+| forge_version | **{{forge_version}}** |
+| cycle | {{cycle}} |
+| ledger | `{{ledger_path}}` (target repo) |
+| register row | {{register_id}} |
+
+## Implicated plugin file
+
+`{{plugin_file}}`
+
+## Check that would prove a fix
+
+```
+{{check}}
+```
+
+A fix without a check that fails before it and passes after is how the register got its
+supersede rule: the repo has twice shipped a check that stayed green while its fix was
+reverted. Whatever lands in team-forge for this needs a negative control.
+
+## Filing
+
+Paste this body into an issue on `shirleyfuxw/team-forge`. Filing is a `user_decides`
+pause unless the team's `design.yaml` sets `evolve.plugin_feedback: issue` — the file is
+written either way, so nothing is lost by pausing.

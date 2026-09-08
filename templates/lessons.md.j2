@@ -1,0 +1,84 @@
+# {{team}} — lessons register
+
+> Verified against team-forge **{{forge_version}}** · last evolve — never (scaffolded {{forged_at}}) · events mined: 0
+> One version governs this file. Admission: a row needs evidence — recurrence ≥ 2, an
+> `agent_blocked`→resolved pair, a gate failure carrying a root cause, budget attribution,
+> or a mid-run `policy_adopted`. Single anecdotes go to ## Candidates, never to ## Active.
+
+<!-- Scaffolded once by team-forge (team: {{team}}). The forge NEVER regenerates this file:
+     `--resync` leaves it byte-identical, and a `--force` re-forge preserves it. Every other
+     emitted file is derived from design.yaml and safe to rebuild; this one is the opposite —
+     it holds what the team learned across every run it ever had. -->
+
+Written by the `team-forge:evolve` phase: at every cycle end of a recurring workflow, and
+once at Close before teardown. A row here is a claim the team already paid for.
+
+## The admission bar
+
+A lesson is **applied** only with evidence. The admissible signals, in the order the miner
+looks for them:
+
+1. **recurrence** — the same normalized event kind occurs twice or more, or a payload counter
+   says so (`occurrence` / `instance` / `tally`, or a kind naming *second* / *third* /
+   *rediscovered*).
+2. **blocked → resolved** — an `agent_blocked` event with a later matching resolution (same
+   agent, same issue key) carrying a status of resolved, or a workaround/resolution field.
+3. **gate failure with a root cause** — a gate failure event whose payload names the cause,
+   not just the red result.
+4. **budget attribution** — a budget line above `evolve.budget_overrun_factor` × its soft
+   target, with the spend attributed to a named consumer.
+5. **policy_adopted** — admissible by definition: a rule the lead already applied mid-run
+   that lives in no file. It is already governing behaviour; the only question is where it
+   gets written down.
+6. **lesson event** — a `lesson` event whose `payload.status` is not `candidate`.
+
+Everything else is an **anecdote**. One invented event kind is an anecdote. A memory note is
+admissible only when the same normalized sentence appears in two or more cycle sections of
+that `MEMORY.md`, or when it corroborates a ledger candidate. Anecdotes go to the
+Candidates table below and wait for a second sighting — they are not deleted, and they are
+not applied. (Never start a prose line with `## Candidates`: the register linter switches
+sections on any line beginning `##`, so a wrapped sentence becomes a phantom heading and the
+rows after it land in the wrong table.)
+
+## The rules that keep this file honest
+
+- **Ids are append-only.** `LL-1`, `LL-2`, … are never renumbered and never reused; candidate
+  ids are `C-1`, `C-2`, …. A promoted candidate keeps a pointer to the `C-` id it came from.
+- **Changing a row is a supersede, not an edit.** Add a new `LL-` row with the corrected
+  claim and move the old one to ## Superseded / falsified with what replaced it.
+- **Falsified rows are kept, with what killed them.** Deleting a wrong belief only means the
+  next reader re-derives it from the same plausible reasoning that produced it the first time.
+- **Every Active row names a check, and that check was run when the row landed.** A row whose
+  Check column reads "reviewed" or "by inspection" is a candidate wearing a lesson's clothes.
+- **Prune as well as accrete.** Anything in ## Unexercised that has gone several runs without
+  a trace gets ablated on a branch — delete it, run the harness plus a dogfood transcript, and
+  re-add only what an observed failure demands.
+
+## Active
+
+| # | Lesson | Evidence | Applied to (layer:path) | Check | Since |
+|---|--------|----------|-------------------------|-------|-------|
+
+_(empty — no claim has met the evidence bar yet.)_
+
+## Superseded / falsified
+
+| # | Lesson | Died at | Replaced by |
+|---|--------|---------|-------------|
+
+_(empty. Rows arrive here; they never leave.)_
+
+## Candidates (evidence pending)
+
+| C-id | Claim | Seen | First/last |
+|------|-------|------|------------|
+
+_(empty — this is where a single sighting waits for its second.)_
+
+## Unexercised (ablation queue)
+
+| What | Since | Runs without a trace | Decision |
+|------|-------|----------------------|----------|
+
+_(empty — rows here are applied lessons nothing has exercised since; each is a deletion
+candidate, not a keepsake.)_

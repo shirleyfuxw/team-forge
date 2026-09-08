@@ -1,0 +1,1 @@
+"tracker/status.json was clobbered by a shell redirect and holds this string; the miner must warn and still emit a document rather than abort the whole evolve phase"

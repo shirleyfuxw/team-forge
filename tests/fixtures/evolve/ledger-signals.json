@@ -1,0 +1,345 @@
+{
+  "_fixture": "POSITIVE fixture for tools/evolve_mine.py. Seeds EXACTLY ONE of each of the six admissible signals (recurrence by count, blocked->resolved, gate failure with a root cause, budget attribution, policy_adopted, a committed lesson event) plus one recurrence admitted by a hand-maintained payload counter \u2014 seven in total, so a harness can assert the admissible count precisely instead of asserting 'some'. Everything else here is negative material that must STAY inadmissible: one true singleton invented kind, and ordinary known-kind traffic. Gate `leak_guard`, agent `drain-monitor` and skill gap `queue-triage-rubric` are never named by any event, so the ablation queue has something to find.",
+  "current_cycle_id": "cycle-2026-09-01-001",
+  "cycle_box_deadline": "2026-09-01T11:30:00Z",
+  "cycle_box_hit": false,
+  "queue_eligible": 0,
+  "queue_pr_ready": 3,
+  "tickets": [
+    {
+      "issue": 1901,
+      "type": "bug",
+      "route": "full-drain",
+      "stage": "pr_ready"
+    },
+    {
+      "issue": 1885,
+      "type": "refactor",
+      "route": "full-drain",
+      "stage": "pr_ready"
+    },
+    {
+      "issue": 1903,
+      "type": "bug",
+      "route": "plan-gate",
+      "stage": "parked"
+    }
+  ],
+  "budget": {
+    "soft_target": 100000,
+    "spent": 1428000,
+    "per_task": {
+      "triage-wave-1": 82000,
+      "drain-wave-1": 240000,
+      "advisor-consults": 410000,
+      "monitor dashboard renders (six at ~116k each)": 696000
+    },
+    "by_unit": {
+      "worker": 322000,
+      "lead": 190000,
+      "advisor": 410000
+    }
+  },
+  "integration_branch": {
+    "name": "debugging",
+    "head_sha": "4abb027d5",
+    "pr_url": null
+  },
+  "plan": {
+    "gates": {
+      "import_check": "python -c 'import <pkg>' && pytest --collect-only -q",
+      "unit_scoped": "pytest <touched paths> -q",
+      "review": "code-review agent returns Approve in-context",
+      "leak_guard": "test_*_future_leak.py green pre AND post"
+    }
+  },
+  "events": [
+    {
+      "ts": "2026-09-01T09:00:00Z",
+      "agent": "lead",
+      "kind": "cycle_started",
+      "payload": {
+        "cycle_id": "cycle-2026-09-01-001",
+        "cycle_box_deadline": "2026-09-01T11:30:00Z",
+        "eligible": 3
+      }
+    },
+    {
+      "ts": "2026-09-01T09:02:10Z",
+      "agent": "lead",
+      "kind": "ticket_triaged",
+      "payload": {
+        "issue": 1901,
+        "type": "bug",
+        "blast_radius": "single-module"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:02:40Z",
+      "agent": "lead",
+      "kind": "ticket_triaged",
+      "payload": {
+        "issue": 1885,
+        "type": "refactor",
+        "blast_radius": "single-module"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:03:05Z",
+      "agent": "lead",
+      "kind": "ticket_triaged",
+      "payload": {
+        "issue": 1903,
+        "type": "bug",
+        "blast_radius": "cross-module"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:03:30Z",
+      "agent": "lead",
+      "kind": "ticket_routed",
+      "payload": {
+        "issue": 1901,
+        "route": "full-drain"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:03:45Z",
+      "agent": "lead",
+      "kind": "ticket_routed",
+      "payload": {
+        "issue": 1885,
+        "route": "full-drain"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:04:00Z",
+      "agent": "lead",
+      "kind": "ticket_routed",
+      "payload": {
+        "issue": 1903,
+        "route": "plan-gate",
+        "note": "parks for approval; unattended cycle"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:05:00Z",
+      "agent": "lead",
+      "kind": "ticket_dispatched",
+      "payload": {
+        "issue": 1901,
+        "dispatched_to": "drain-worker",
+        "wave": 1
+      }
+    },
+    {
+      "ts": "2026-09-01T09:05:05Z",
+      "agent": "lead",
+      "kind": "ticket_dispatched",
+      "payload": {
+        "issue": 1885,
+        "dispatched_to": "drain-worker",
+        "wave": 1
+      }
+    },
+    {
+      "ts": "2026-09-01T09:21:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1901,
+        "gate": "import_check",
+        "result": "pass"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:24:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1901,
+        "gate": "unit_scoped",
+        "result": "pass",
+        "tests": "18 passed"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:31:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1901,
+        "gate": "review",
+        "result": "pass",
+        "verdict": "approve"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:33:00Z",
+      "agent": "worker",
+      "kind": "ticket_pr_ready",
+      "payload": {
+        "issue": 1901,
+        "pr": 2401
+      }
+    },
+    {
+      "ts": "2026-09-01T09:40:00Z",
+      "agent": "worker",
+      "kind": "agent_blocked",
+      "payload": {
+        "issue": 1885,
+        "reason": "worktree scratch writes rejected by the branch-safety hook",
+        "stage": "fix"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:52:00Z",
+      "agent": "worker",
+      "kind": "ticket_unblocked",
+      "payload": {
+        "issue": 1885,
+        "status": "resolved",
+        "workaround": "keep scratch files outside the repo root (/tmp), the hook only guards paths under it"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:04:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1885,
+        "gate": "import_check",
+        "result": "pass"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:07:00Z",
+      "agent": "worker",
+      "kind": "ticket_pr_ready",
+      "payload": {
+        "issue": 1885,
+        "pr": 2402
+      }
+    },
+    {
+      "ts": "2026-09-01T10:12:00Z",
+      "agent": "advisor",
+      "kind": "verifier_prompt_contamination",
+      "payload": {
+        "issue": 1901,
+        "note": "the verify brief quoted the lead's own verdict text, so the verifier agreed with it"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:19:00Z",
+      "agent": "advisor",
+      "kind": "verifier_prompt_contamination",
+      "payload": {
+        "issue": 1885,
+        "note": "same shape: brief carried the lead's conclusion above the evidence"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:26:00Z",
+      "agent": "advisor",
+      "kind": "verifier_prompt_contamination",
+      "payload": {
+        "issue": 1903,
+        "note": "third brief this cycle built from the lead's summary rather than the diff"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:33:00Z",
+      "agent": "lead",
+      "kind": "gate_downgraded",
+      "payload": {
+        "gate": "review",
+        "issue": 1903,
+        "result": "failed",
+        "root_cause": "the review gate dispatches the code-review agent, and a workflow agent has no Agent tool to dispatch it with \u2014 the gate was unsatisfiable as written"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:41:00Z",
+      "agent": "lead",
+      "kind": "merge_before_gate",
+      "payload": {
+        "occurrence": 2,
+        "issue": 1903,
+        "issue_numbers": [
+          1619,
+          1600
+        ],
+        "note": "2nd time a PR merged before its gate finished; the first was #1619 last cycle"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:48:00Z",
+      "agent": "lead",
+      "kind": "policy_adopted",
+      "payload": {
+        "policy": "block-visibility",
+        "effective": "immediately",
+        "rule": "When the team blocks a PR, do BOTH: post a comment reading 'DO NOT MERGE \u2014 blocked by drain: <reason>', and convert the PR to draft.",
+        "rationale": "A blocked PR that still presents as green gets merged by whoever walks past it next."
+      }
+    },
+    {
+      "ts": "2026-09-01T10:55:00Z",
+      "agent": "lead",
+      "kind": "future_leak_ok_schema_gap",
+      "payload": {
+        "issue": 1903,
+        "note": "leak check passed but the schema had no field to record that it was a waiver"
+      }
+    },
+    {
+      "ts": "2026-09-01T11:02:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "the verify brief must be built from the diff, never from the lead's summary",
+        "evidence": {
+          "type": "recurrence",
+          "refs": [
+            "2026-09-01T10:12:00Z",
+            "2026-09-01T10:19:00Z",
+            "2026-09-01T10:26:00Z"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#worker.procedure",
+        "action": "amend",
+        "status": "applied",
+        "register_id": null
+      }
+    },
+    {
+      "ts": "2026-09-01T11:20:00Z",
+      "agent": "lead",
+      "kind": "cycle_completed",
+      "payload": {
+        "cycle_id": "cycle-2026-09-01-001",
+        "pr_ready": 2,
+        "parked": 1
+      }
+    },
+    {
+      "ts": "2026-08-25T15:40:00Z",
+      "agent": "lead",
+      "kind": "stale_queue_snapshot",
+      "payload": {
+        "finding": "Third instance this cycle of the queue snapshot going stale mid-wave: the lead re-read status.json after a worker pushed and acted on the pre-push counts.",
+        "source": "lead"
+      }
+    }
+  ],
+  "forge_metadata": {
+    "forged_at_iso": "2026-08-25T09:00:00Z",
+    "design_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "forge_version": "0.12.0",
+    "archetype": "workflow",
+    "shape": "parallel-drain"
+  }
+}

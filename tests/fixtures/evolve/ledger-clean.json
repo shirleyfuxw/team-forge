@@ -1,0 +1,353 @@
+{
+  "_fixture": "NEGATIVE CONTROL for tools/evolve_mine.py — the same shape and a comparable event count as ledger-signals.json, with every signal deliberately just below the bar: every kind is known or a TRUE singleton with no counter, no agent_blocked (so no blocked->resolved pair), every gate result is a pass, the one lesson event is still status=candidate, the budget is under target, and every declared gate, forged agent and skill gap is named by some event. Two of its rows are traps for substring matching: the kind `third_party_api_timeout` contains the counter word ‘third’ and asserts no recurrence, and a gate whose status is ‘human sign-off required’ contains the fail word ‘red’ and is a gate working exactly as designed — both were admitted before those rules matched on words rather than substrings. Mining this must yield summary.admissible == 0 and unexercised == []. If the miner reports anything admissible here, the admission rule is too loose — fix the miner, not this file. The repo has been burned twice by a check that passed for the wrong reason; a positive fixture alone cannot tell a working rule from one that admits everything.",
+  "current_cycle_id": "cycle-2026-08-25-001",
+  "cycle_box_deadline": "2026-08-25T11:30:00Z",
+  "cycle_box_hit": false,
+  "queue_eligible": 0,
+  "queue_pr_ready": 3,
+  "tickets": [
+    {
+      "issue": 1801,
+      "type": "bug",
+      "route": "full-drain",
+      "stage": "pr_ready"
+    },
+    {
+      "issue": 1802,
+      "type": "chore",
+      "route": "full-drain",
+      "stage": "pr_ready"
+    },
+    {
+      "issue": 1803,
+      "type": "refactor",
+      "route": "full-drain",
+      "stage": "pr_ready"
+    }
+  ],
+  "budget": {
+    "soft_target": 100000,
+    "spent": 214000,
+    "per_task": {
+      "triage-wave-1": 41000,
+      "drain-wave-1": 88000,
+      "monitor dashboard renders": 51000
+    },
+    "by_unit": {
+      "worker": 88000,
+      "lead": 41000,
+      "advisor": 34000,
+      "monitor": 51000
+    }
+  },
+  "integration_branch": {
+    "name": "debugging",
+    "head_sha": "9c1f0aa21",
+    "pr_url": null
+  },
+  "plan": {
+    "gates": {
+      "import_check": "python -c 'import <pkg>' && pytest --collect-only -q",
+      "unit_scoped": "pytest <touched paths> -q",
+      "review": "code-review agent returns Approve in-context",
+      "leak_guard": "test_*_future_leak.py green pre AND post"
+    }
+  },
+  "events": [
+    {
+      "ts": "2026-08-25T09:00:00Z",
+      "agent": "lead",
+      "kind": "cycle_started",
+      "payload": {
+        "cycle_id": "cycle-2026-08-25-001",
+        "cycle_box_deadline": "2026-08-25T11:30:00Z",
+        "eligible": 3
+      }
+    },
+    {
+      "ts": "2026-08-25T09:02:00Z",
+      "agent": "lead",
+      "kind": "ticket_triaged",
+      "payload": {
+        "issue": 1801,
+        "type": "bug",
+        "rubric": "queue-triage-rubric",
+        "blast_radius": "single-module"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:02:30Z",
+      "agent": "lead",
+      "kind": "ticket_triaged",
+      "payload": {
+        "issue": 1802,
+        "type": "chore",
+        "rubric": "queue-triage-rubric",
+        "blast_radius": "single-module"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:03:00Z",
+      "agent": "lead",
+      "kind": "ticket_triaged",
+      "payload": {
+        "issue": 1803,
+        "type": "refactor",
+        "rubric": "queue-triage-rubric",
+        "blast_radius": "single-module"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:03:30Z",
+      "agent": "lead",
+      "kind": "ticket_routed",
+      "payload": {
+        "issue": 1801,
+        "route": "full-drain"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:03:45Z",
+      "agent": "lead",
+      "kind": "ticket_routed",
+      "payload": {
+        "issue": 1802,
+        "route": "full-drain"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:04:00Z",
+      "agent": "lead",
+      "kind": "ticket_routed",
+      "payload": {
+        "issue": 1803,
+        "route": "full-drain"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:05:00Z",
+      "agent": "lead",
+      "kind": "ticket_dispatched",
+      "payload": {
+        "issue": 1801,
+        "dispatched_to": "drain-worker",
+        "wave": 1
+      }
+    },
+    {
+      "ts": "2026-08-25T09:05:10Z",
+      "agent": "lead",
+      "kind": "ticket_dispatched",
+      "payload": {
+        "issue": 1802,
+        "dispatched_to": "drain-worker",
+        "wave": 1
+      }
+    },
+    {
+      "ts": "2026-08-25T09:05:20Z",
+      "agent": "lead",
+      "kind": "ticket_dispatched",
+      "payload": {
+        "issue": 1803,
+        "dispatched_to": "drain-advisor",
+        "wave": 1,
+        "note": "advisor scoped the module split first"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:22:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1801,
+        "gate": "import_check",
+        "result": "pass"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:25:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1801,
+        "gate": "unit_scoped",
+        "result": "pass",
+        "tests": "22 passed"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:29:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1801,
+        "gate": "leak_guard",
+        "result": "pass"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:33:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1801,
+        "gate": "review",
+        "result": "pass",
+        "verdict": "approve"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:35:00Z",
+      "agent": "worker",
+      "kind": "ticket_pr_ready",
+      "payload": {
+        "issue": 1801,
+        "pr": 2301
+      }
+    },
+    {
+      "ts": "2026-08-25T09:48:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1802,
+        "gate": "import_check",
+        "result": "pass"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:51:00Z",
+      "agent": "worker",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1802,
+        "gate": "unit_scoped",
+        "result": "pass",
+        "tests": "9 passed"
+      }
+    },
+    {
+      "ts": "2026-08-25T09:54:00Z",
+      "agent": "worker",
+      "kind": "ticket_pr_ready",
+      "payload": {
+        "issue": 1802,
+        "pr": 2302
+      }
+    },
+    {
+      "ts": "2026-08-25T10:11:00Z",
+      "agent": "advisor",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1803,
+        "gate": "unit_scoped",
+        "result": "pass",
+        "tests": "31 passed"
+      }
+    },
+    {
+      "ts": "2026-08-25T10:16:00Z",
+      "agent": "advisor",
+      "kind": "ticket_pr_ready",
+      "payload": {
+        "issue": 1803,
+        "pr": 2303
+      }
+    },
+    {
+      "ts": "2026-08-25T10:22:00Z",
+      "agent": "monitor",
+      "kind": "drift_corrected",
+      "payload": {
+        "field": "head_sha",
+        "was": "stale",
+        "now": "9c1f0aa21",
+        "source": "git rev-parse"
+      }
+    },
+    {
+      "ts": "2026-08-25T10:30:00Z",
+      "agent": "lead",
+      "kind": "worktree_prune_deferred",
+      "payload": {
+        "note": "left three worktrees in place for the next cycle; nothing depended on it"
+      }
+    },
+    {
+      "ts": "2026-08-25T10:38:00Z",
+      "agent": "advisor",
+      "kind": "context_pack_trimmed",
+      "payload": {
+        "issue": 1803,
+        "note": "dropped two files from the brief that the diff never touched"
+      }
+    },
+    {
+      "ts": "2026-08-25T10:50:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "advisor-first routing may be worth it for cross-module refactors",
+        "evidence": {
+          "type": "anecdote",
+          "refs": [
+            "2026-08-25T09:05:20Z"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue.triage",
+        "action": "amend",
+        "status": "candidate",
+        "register_id": null
+      }
+    },
+    {
+      "ts": "2026-08-25T10:42:00Z",
+      "agent": "worker",
+      "kind": "third_party_api_timeout",
+      "payload": {
+        "issue": 1802,
+        "note": "the vendor status API returned 504 while the wave was draining; it recovered on its own and nothing was retried"
+      }
+    },
+    {
+      "ts": "2026-08-25T10:45:00Z",
+      "agent": "lead",
+      "kind": "ticket_gated",
+      "payload": {
+        "issue": 1803,
+        "gate": "review",
+        "status": "human sign-off required",
+        "reason": "plan-gate route: the design constraint holds these for a human, so the gate is doing its job"
+      }
+    },
+    {
+      "ts": "2026-08-25T11:05:00Z",
+      "agent": "lead",
+      "kind": "cycle_completed",
+      "payload": {
+        "cycle_id": "cycle-2026-08-25-001",
+        "pr_ready": 3,
+        "parked": 0
+      }
+    },
+    {
+      "ts": "2026-08-25T15:41:00Z",
+      "agent": "lead",
+      "kind": "differential_timing_note",
+      "payload": {
+        "finding": "The differential gate runs three times slower on the remote box than locally; ten times the diff size makes no difference to it.",
+        "source": "lead"
+      }
+    }
+  ],
+  "forge_metadata": {
+    "forged_at_iso": "2026-08-25T09:00:00Z",
+    "design_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "forge_version": "0.12.0",
+    "archetype": "workflow",
+    "shape": "parallel-drain"
+  }
+}

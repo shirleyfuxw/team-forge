@@ -46,4 +46,6 @@ this loop after.
 ## Step 4 — close
 
 Per SKILL.md Close: run every `done_when` check, final ledger + dashboard +
-summary, hand the branch over, never self-merge.
+summary, hand the branch over, never self-merge — then `team-forge:evolve` in
+close mode, which runs before `team-forge:teardown` deletes the memory dirs and
+live ledger it reads.

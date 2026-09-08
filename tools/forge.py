@@ -19,7 +19,12 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.11.0"
+FORGE_VERSION = "0.12.0"
+# The ledger event vocabulary lives in its own module because forge.py is NOT importable:
+# it parses argv and runs the whole forge at import time. tools/evolve_mine.py needs the
+# vocabulary without triggering a forge, so both import it from there.
+from ledger_vocab import KNOWN_EVENT_KINDS  # noqa: F401  (re-exported for callers)
+
 # design.yaml path: first positional CLI arg, else the test fixture.
 # Flags: --resync (regenerate template-derived files in place, preserve runtime state) · --check
 # (report drift, read-only) · --force (re-forge over an already-forged hub, DESTROYING its ledger)
@@ -190,6 +195,92 @@ def emit_contract_copy(kb_dir, target_repo, generated):
         shutil.copyfile(CONTRACT_PATH, dest)
     generated.append({"path": str(dest.relative_to(target_repo)), "kind": "problem_contract"})
     print("✓ contract.yaml stashed in KB")
+
+def render_lessons_register(design):
+    """Render templates/lessons.md.j2 — the scaffold of a team's lessons register."""
+    tmpl = (TEMPLATES_DIR / "lessons.md.j2").read_text()
+    return substitute_simple(tmpl, {
+        'team': design['project']['name'],
+        'forge_version': FORGE_VERSION,
+        'forged_at': _NOW[:10],
+    })
+
+
+def emit_lessons_register(design, kb_dir, target_repo, generated):
+    """Scaffold docs/team-forge/<team>/lessons.md — once, and never again.
+
+    Every other file the forge writes is derived from design.yaml and safe to rebuild. This
+    one is the opposite: the evolve phase accrues rows here across every run the team ever
+    has, each bought with real rework, and none of it is recoverable from design.yaml. A
+    re-forge (or a `--force` over a live hub) that rewrote the register would delete exactly
+    the durable knowledge the phase exists to accumulate — so the guard below is the file's
+    whole point. `_regen_content()` returns None for this kind for the same reason.
+
+    The manifest entry is appended either way: an existing register is still a generated
+    file teardown must classify, and --resync needs to see the kind to preserve it."""
+    dest = kb_dir / "lessons.md"
+    rel = str(dest.relative_to(target_repo))
+    if dest.exists():
+        print(f"– lessons register {rel} — preserved (a re-forge must never blank it)")
+    else:
+        dest.write_text(render_lessons_register(design))
+        print(f"✓ lessons register {rel} (empty — team-forge:evolve fills it)")
+    generated.append({"path": rel, "kind": "lessons_register"})
+
+
+EVOLVE_LAYERS = ('L1', 'L2', 'L3')
+
+def validate_evolve(design):
+    """The optional top-level `evolve:` block — knobs for the post-run evolve phase.
+
+    Absent means every default, and it has to stay that way: every team forged before
+    0.12.0 has no block, and --resync runs against those designs unchanged.
+
+    Shared by both archetypes. The layer list is the one knob with teeth — an UNATTENDED
+    cycle-end evolve applies only the layers named here, and the default [L1] keeps it
+    inside the team's own surfaces (its lead memory, its lessons register, contract open_items,
+    its gate scripts). L2 rewrites the project harness — design.yaml, .claude/rules/,
+    promoted skills — which is a branch a human approves, not something a 3am cycle does
+    with nobody watching."""
+    ev = design.get('evolve')
+    if ev is None:
+        return
+    assert isinstance(ev, dict), (
+        f"`evolve:` must be a mapping, got {type(ev).__name__} — see templates/design.yaml.j2 "
+        "`evolve:` for the three keys it takes, or drop the block entirely (absent = all defaults)")
+
+    pf = ev.get('plugin_feedback', 'file')
+    assert pf in ('file', 'issue'), (
+        f"evolve.plugin_feedback: {pf!r} is not a mode — use `file` (write "
+        "docs/team-forge/<team>/evolve/plugin-feedback-<date>.md and leave filing a "
+        "user_decides pause) or `issue` (pre-authorize filing on shirleyfuxw/team-forge). "
+        "Omit the key for `file`.")
+
+    bof = ev.get('budget_overrun_factor', 3)
+    assert isinstance(bof, (int, float)) and not isinstance(bof, bool) and bof > 0, (
+        f"evolve.budget_overrun_factor: {bof!r} is not a positive number — it is the multiple "
+        "of a soft target above which a budget line becomes admissible evidence (default 3). "
+        "Set a number like 3, or omit the key.")
+
+    layers = ev.get('cycle_mode_layers', ['L1'])
+    assert isinstance(layers, list), (
+        f"evolve.cycle_mode_layers: {layers!r} is not a list — write the layers an unattended "
+        f"cycle-end evolve may apply, e.g. [L1]. Valid: {', '.join(EVOLVE_LAYERS)}.")
+    bad = [l for l in layers if l not in EVOLVE_LAYERS]
+    assert not bad, (
+        f"evolve.cycle_mode_layers: unknown layer(s) {bad} — valid layers are "
+        f"{', '.join(EVOLVE_LAYERS)} (L1 team-local, L2 project harness, L3 plugin feedback). "
+        "Remove them, or use the default [L1].")
+
+    # Unknown keys warn instead of aborting: the block is read by the evolve skill too, and a
+    # typo silently taking the default is the failure that matters here — not the extra key.
+    unknown = sorted(set(ev) - {'plugin_feedback', 'budget_overrun_factor', 'cycle_mode_layers'})
+    if unknown:
+        print(f"⚠ evolve: unrecognized key(s) {unknown} — forge ignores them and the phase takes "
+              "the default. Check the spelling against templates/design.yaml.j2 `evolve:`.")
+    print(f"✓ evolve: plugin_feedback={pf} · budget_overrun_factor={bof} · unattended cycle "
+          f"applies {layers if layers else '[] (mine only, apply nothing)'}")
+
 
 def skills_frontmatter_block(skills):
     """YAML `skills:` frontmatter list. Preloaded (full content) when the agent runs as a
@@ -578,6 +669,7 @@ def initial_status_json_workflow(design, target_repo):
 def validate_workflow(design):
     assert design.get('shape') in ('sequential-gated', 'parallel-drain'), f"bad/missing shape: {design.get('shape')}"
     validate_goal(design)
+    validate_evolve(design)
     assert design.get('gates'), "no gates block"
     assert 'worker' in design, "no worker profile"
     assert design.get('ledger', {}).get('state_shape'), "no ledger.state_shape"
@@ -677,9 +769,16 @@ def forge_workflow(design):
     generated.append({"path": str((hub_dir / 'TASKS.yaml').relative_to(target_repo)), "kind": "tasks_yaml"})
     print(f"✓ TASKS.yaml: {len(design.get('tasks', []))} tasks, {len(design['gates'])} gates")
 
-    shutil.copyfile(DESIGN_PATH, hub_dir / "design.yaml")
+    # Same guard resync() already carries: a --force re-forge is normally run against the
+    # hub's OWN design.yaml (that is the path every skill and the lead profile print), and
+    # copyfile onto itself raises SameFileError — a raw traceback after the agents and
+    # TASKS.yaml were already written, leaving a half-forged hub.
+    hub_design = hub_dir / "design.yaml"
+    if DESIGN_PATH.resolve() != hub_design.resolve():
+        shutil.copyfile(DESIGN_PATH, hub_design)
     generated.append({"path": str((hub_dir / 'design.yaml').relative_to(target_repo)), "kind": "design_contract"})
     emit_contract_copy(kb_dir, target_repo, generated)
+    emit_lessons_register(design, kb_dir, target_repo, generated)
 
     status = initial_status_json_workflow(design, target_repo)
     (hub_dir / "tracker" / "status.json").write_text(json.dumps(status, indent=2))
@@ -770,8 +869,32 @@ def forge_workflow(design):
 # reports both. Before this split --check could only ever see template drift, so it printed
 # "already current" at a team whose work list was materially behind its own design (#36).
 
+# A manifest entry can lose its SOURCE: the roster entry, the role block or the monitor spec
+# it was generated from is deleted from design.yaml. That is a third outcome — neither
+# "regenerate" nor "preserve" — and folding it into None (return the file untouched) made
+# evolve's Step 7 ablation a no-op that reported success: cut the seat from design.yaml, run
+# --resync, watch the gates go green, while the agent file stayed installed in .claude/agents/
+# and the manifest still listed it. A forged agent left behind loads into every future
+# session, which is exactly the burden teardown exists to remove.
+class _Orphaned:
+    def __repr__(self):
+        return "ORPHANED"
+
+
+ORPHANED = _Orphaned()
+
+# Removal is gated twice: the kind has to appear here AND the manifest has to list the file as
+# generated. These three are pure projections of design.yaml, so a vanished source really does
+# mean the file is unwanted. Everything else is not: runtime state and the ledger, the KB, the
+# skill drafts and the lessons register hold content no design.yaml can reproduce, and a
+# hand-added file is never in the manifest at all — deleting one of those would be far worse
+# than leaving an orphan installed.
+ORPHAN_PRUNABLE_KINDS = ('agent_md', 'workflow_profile', 'monitor_agent')
+
+
 def _regen_content(design, team, basename, fmeta, target_repo):
-    """Regenerated text for a template-derived manifest entry, or None to preserve the file."""
+    """Regenerated text for a template-derived manifest entry, None to preserve the file, or
+    ORPHANED when the design source that produced it is gone (see ORPHAN_PRUNABLE_KINDS)."""
     kind = fmeta.get('kind')
     if kind == 'team_launcher_skill':
         return render_launcher_pointer(design)
@@ -801,20 +924,29 @@ def _regen_content(design, team, basename, fmeta, target_repo):
             return None
         gap = next((g for g in (design.get('skill_gaps') or []) if g['name'] == name), None)
         return render_skill_gap_scaffold(gap, team) if gap else None
+    if kind == 'lessons_register':
+        # The one emitted file with no derivation: its rows are the evolve phase's accrued
+        # record, not a projection of design.yaml. Regenerating it would hand back an empty
+        # table and call it a template update.
+        return None
     if kind == 'agent_md':
         e = next((r for r in design.get('roster', []) if r['name'] == fmeta.get('from_roster_entry')), None)
-        return render_agent_md(e, team, basename)[0] if e else None
+        return render_agent_md(e, team, basename)[0] if e else ORPHANED
     if kind == 'workflow_profile':
         role = 'advisor' if fmeta.get('path', '').endswith('-advisor.md') else 'worker'
-        return render_workflow_profile(design[role], role, team, basename)[0] if role in design else None
+        return render_workflow_profile(design[role], role, team, basename)[0] if role in design else ORPHANED
     if kind == 'monitor_agent':
-        mon = (design.get('ledger') or {}).get('monitor') or {}
+        ledger = design.get('ledger') or {}
+        if ledger.get('dashboard_owner') != 'monitor_agent':
+            return ORPHANED     # the design gave the dashboard back to the lead — no standing seat
+        mon = ledger.get('monitor') or {}
         e = {'name': mon.get('name', 'monitor'), 'role': 'monitor',
              'model': mon.get('model', 'inherit'),
              'skills': mon.get('skills', []),
              'purpose': mon.get('purpose', f"Keep the {team} dashboard always-current by pulling authoritative state.")}
         return render_agent_md(e, team, basename)[0]
-    return None   # tracker/ledger state, design copy, skill-drafts, README, gitignore → preserve
+    return None   # tracker/ledger state, design copy, skill-drafts, lessons register,
+                  # README, gitignore → preserve (never ORPHANED: unrecoverable from design.yaml)
 
 
 def _plan_delta(old, new):
@@ -943,10 +1075,24 @@ def resync(design, target_repo, team, basename, do_write):
     design_hash = hashlib.sha256(DESIGN_PATH.read_bytes()).hexdigest()
     design_drifted = manifest.get('design_hash') != design_hash
 
-    changed, absent = [], []
+    changed, absent, orphaned = [], [], []
+    kept = []                                           # the manifest entries that survive
     for fmeta in manifest.get('generated_files', []):
         content = _regen_content(design, team, basename, fmeta, target_repo)
-        if content is None:
+        if content is ORPHANED and fmeta.get('kind') in ORPHAN_PRUNABLE_KINDS:
+            # Design-derived and no longer called for. Deleting the file is the point — an
+            # orphaned agent .md keeps loading into every session — but the manifest is what
+            # licenses it: a file the forge never generated is not listed here, so it is never
+            # reachable from this branch.
+            path = target_repo / fmeta['path']
+            orphaned.append((fmeta['path'], path.exists()))
+            if do_write:
+                path.unlink(missing_ok=True)
+                continue                                # and the entry is dropped from `kept`
+            kept.append(fmeta)
+            continue
+        kept.append(fmeta)
+        if content is None or content is ORPHANED:
             continue                                    # runtime/human-owned → preserve
         p = target_repo / fmeta['path']
         if not p.exists():
@@ -966,17 +1112,48 @@ def resync(design, target_repo, team, basename, do_write):
         hub_design = hub_dir / "design.yaml"
         if DESIGN_PATH.resolve() != hub_design.resolve():
             shutil.copyfile(DESIGN_PATH, hub_design)
+        manifest['generated_files'] = kept
+        # Backfill for every team forged before the register existed — which is exactly the
+        # population --resync and the FORGE_VERSION bump are for. Without this they upgrade to
+        # 0.12.0 with no lessons.md and no manifest entry, and evolve's Step 8 lint then runs
+        # against a file that is not there. The emitter's own existence guard makes this a
+        # no-op for a team that already has one, and it appends to `kept` — the list written
+        # back below — so the entry teardown and _regen_content dispatch on actually lands.
+        if not any(f.get('kind') == 'lessons_register' for f in kept):
+            kb_dir = target_repo / f"docs/team-forge/{team}"
+            kb_dir.mkdir(parents=True, exist_ok=True)
+            emit_lessons_register(design, kb_dir, target_repo, kept)
         manifest['forge_version'] = FORGE_VERSION
         manifest['design_hash'] = design_hash
         manifest['resynced_at_iso'] = _NOW
         manifest_path.write_text(json.dumps(manifest, indent=2))
-        print(f"✓ resync: regenerated {len(changed)} template-derived file(s); live state preserved.")
+        print(f"✓ resync: regenerated {len(changed)} template-derived file(s)"
+              + (f", removed {len(orphaned)} orphan(s)" if orphaned else "")
+              + "; live state preserved.")
     else:
-        print(f"{'⚠ ' if changed else '✓ '}{len(changed)} template-derived file(s) would change on --resync:")
+        # The ⚠ tracks orphans too: "✓ 0 files would change" over a line that removes an
+        # agent reads as nothing-to-do, which is the exact misreading this fix is about.
+        print(f"{'⚠ ' if changed or orphaned else '✓ '}{len(changed)} template-derived "
+              f"file(s) would change on --resync:")
     for c in changed:
         print(f"   ↻ {c}")
     for a in absent:
         print(f"   – {a} (absent — skipped; re-forge or promote manually if needed)")
+    for path, existed in orphaned:
+        if not do_write:
+            print(f"   ✗ would be removed: {path} — no longer in design.yaml")
+        elif existed:
+            print(f"   ✗ removed: {path} — no longer in design.yaml")
+        else:
+            print(f"   ✗ manifest entry dropped: {path} — no longer in design.yaml (file already gone)")
+        # The seat's agent memory is NOT pruned with it: those notes were accrued run by run
+        # and design.yaml cannot reproduce them, so the same reasoning that spares the lessons
+        # register spares this. Say where it is — silently leaving a directory behind is how
+        # the orphan problem started.
+        mem = target_repo / ".claude" / "agent-memory" / Path(path).stem
+        if mem.is_dir():
+            print(f"     ↳ {mem.relative_to(target_repo)}/ kept — accrued agent memory, "
+                  "yours to delete if the seat is gone for good")
 
     if design_drifted or plan_delta:
         verb = "re-baked" if do_write else "would be re-baked"
@@ -992,8 +1169,35 @@ def resync(design, target_repo, team, basename, do_write):
         print(f"skill gaps: {len(gaps) - len(draft)} promoted, {len(draft)} still DRAFT")
         for name in draft:
             print(f"   ⚠ {name} — unpromoted; any gate backed by it fails closed")
-    if not changed and not design_drifted and not plan_delta and old_ver == FORGE_VERSION:
+    report_unapplied_lessons(target_repo, team)
+    if not changed and not orphaned and not design_drifted and not plan_delta and old_ver == FORGE_VERSION:
         print("   (already current)")
+
+
+def report_unapplied_lessons(target_repo, team):
+    """Report evolve candidates that were mined and never admitted. Read-only, both on
+    --check and --resync: the register is human-and-evolve territory, and a drift command
+    that quietly applied lessons would be doing the one thing the evidence bar exists to
+    gate. The signal is mtime, not content — a candidates file written after the register
+    was last touched means a mining pass produced rows nobody ruled on."""
+    kb = target_repo / "docs" / "team-forge" / team
+    evolve_dir = kb / "evolve"
+    if not evolve_dir.is_dir():
+        return
+    cands = sorted(evolve_dir.glob("candidates-*.json"))
+    if not cands:
+        return
+    lessons = kb / "lessons.md"
+    mtime = lessons.stat().st_mtime if lessons.exists() else -1.0
+    stale = [c for c in cands if c.stat().st_mtime > mtime]
+    if not stale:
+        return
+    where = ("newer than lessons.md" if lessons.exists()
+             else "with no lessons.md to rule them into")
+    print(f"⚠ {len(stale)} evolve candidate file(s) {where} — mined but never ruled on. "
+          "Run the team-forge:evolve skill to apply or reject them:")
+    for c in stale:
+        print(f"   ⚠ {c.relative_to(target_repo)}")
 
 
 # ───────── Main forge procedure ─────────
@@ -1112,6 +1316,7 @@ assert not _stale_shared, (
     "(and their `.claude/agent-memory/<name>/`) first, or re-forging will leave them orphaned."
 )
 validate_goal(design)
+validate_evolve(design)
 validate_dashboard_panels(design['tracking'].get('dashboard_panels'), "tracking")
 n = len(design['milestones'])
 assert 1 <= n <= 5, f"Milestone count {n} out of range"  # Relaxed to 1-5
@@ -1136,10 +1341,14 @@ generated.append({"path": str((hub_dir / '.gitignore').relative_to(target_repo))
 
 # Stash the design contract in the hub (parity with the workflow path) so --check / --resync
 # and the launcher's staleness note resolve `.claude/team-forge/<team>/design.yaml`.
-shutil.copyfile(DESIGN_PATH, hub_dir / "design.yaml")
+# Same guard resync() already carries — see forge_workflow() for what SameFileError cost.
+_hub_design = hub_dir / "design.yaml"
+if DESIGN_PATH.resolve() != _hub_design.resolve():
+    shutil.copyfile(DESIGN_PATH, _hub_design)
 generated.append({"path": str((hub_dir / "design.yaml").relative_to(target_repo)), "kind": "design_contract"})
 print("✓ design.yaml stashed in hub")
 emit_contract_copy(kb_dir, target_repo, generated)
+emit_lessons_register(design, kb_dir, target_repo, generated)
 
 # Step 3 — agent .md files
 for entry in design['roster']:
