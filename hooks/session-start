@@ -14,7 +14,8 @@ message='team-forge extension is installed.
 
 Available skills:
   - team-forge:contract   (start here — interrogate the problem, write docs/team-forge/<team>/contract.yaml
-                           with a runnable check per done_when, then route: direct-execution or machinery)
+                           with a runnable check per done_when and no steps, hand the user a /goal line,
+                           then route: direct-execution or machinery)
   - team-forge:design     (machinery route only — archetype triage, roster/tasks/gates, skill gaps → design.yaml)
   - team-forge:run        (the shared runtime for every forged team/workflow — all lead policy lives here,
                            so it updates with the plugin instead of going stale in your repo)

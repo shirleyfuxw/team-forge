@@ -136,6 +136,10 @@ It no-ops when already current, so running it after any contract revision is fre
 A stale directive is the write-ahead failure aimed at yourself: the runtime keeps
 executing the orders it was forged with, and nothing says so.
 
+The same applies to a live `/goal` (Step 6): a revised contract means a stale goal
+condition. Re-render it and ask the user to set it again — the new one replaces
+the old.
+
 ### Step 6 — Route and confirm
 
 **`route: direct-execution` is the default.** Work the contract in this session
@@ -155,7 +159,8 @@ Show the user the contract + the route and its earned criteria; they approve, or
 redirect. **The user approves the route; you carry it out — they should not have to
 know the plugin's map to get to the next step:**
 
-- `direct-execution` → work the contract now, then **Step 7** to close it.
+- `direct-execution` → **hand the user the `/goal` line first** (below), then work
+  the contract now, then **Step 7** to close it.
 - `machinery` → **invoke `team-forge:design`** and continue there. Don't stop and
   tell the user to run the design phase. The design phase is the first place a
   task list is written — derived from the done_when, not carried in from here.
@@ -163,6 +168,38 @@ know the plugin's map to get to the next step:**
 If direct execution later outgrows itself (skill gaps appear, work spills across
 sessions), set `route: machinery` and invoke `team-forge:design` then — the fast
 path is an on-ramp, not a lock-in.
+
+#### Hand the user the `/goal` line
+
+Once the contract is approved, render it as the harness's own stop condition and
+show it to the user to paste:
+
+```bash
+python3 <team-forge>/tools/goal_condition.py docs/team-forge/<team>/contract.yaml   # --turns N (0 = unbounded)
+```
+
+It prints one `/goal ...` line: the enumerator command, every done_when signal +
+check verbatim, `user_decides` as a pause clause, `open_items` declared out of
+scope, and a turn bound (default 30). Say, in one or two sentences, why they might
+want it: `/goal` installs a **separate evaluator** that re-checks the condition
+after every turn and keeps the session working until it holds — so "done" is
+decided by a fresh model reading the evidence, not by the one doing the work. It
+survives `--resume`, and with auto mode the run is unattended.
+
+Two facts shape this hand-off. **Only the user can set it** — `/goal` is a harness
+command, not a tool you can call; never claim a goal is active unless they said so.
+And **the evaluator sees only the transcript** — it runs nothing — which is why the
+condition demands each check's command and output be shown. Step 7 is what puts
+that evidence on the record; with a goal set, the evaluator is what reads it.
+
+If they decline, nothing changes: work the contract and close with Step 7. If the
+line is refused as over the 4,000-character cap, tighten the contract's signals
+and checks — the tool never truncates, because a dropped entry is a goal that
+claims done early.
+
+The same line works for the machinery route in the forged runtime's session
+(`/<team>-workflow`, or `claude -p "/goal ..."` for a headless run) — offer it
+there too; `team-forge:run` already drives the loop, the goal is a second opinion.
 
 ### Step 7 — Close (direct-execution only)
 

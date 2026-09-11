@@ -39,10 +39,13 @@ neither does an execution-steps key.
 Then one of two routes, recorded in the contract:
 
 - **`direct-execution` (default)** — the work is done right here with existing
-  skills and subagents. Nothing is forged. It closes by running every `done_when`
-  check and reporting ✓/✗ (`tools/verify_contract.py` enumerates them, so none is
-  skipped) — that step is what makes the contract *verified* rather than merely
-  checkable.
+  skills and subagents. Nothing is forged. The skill first hands you a
+  paste-ready `/goal` line (`tools/goal_condition.py` renders the contract as
+  Claude Code's own stop condition, so a separate evaluator keeps the session
+  working until every check holds — you set it, the model can't). It closes by
+  running every `done_when` check and reporting ✓/✗ (`tools/verify_contract.py`
+  enumerates them, so none is skipped) — that step is what makes the contract
+  *verified* rather than merely checkable.
 - **`machinery` (must be earned)** — a needed check has no backing capability, the
   work spans sessions or runs unattended, or there's genuine fan-out. Then:
   `team-forge:design` (archetype triage, roster/tasks, gates, skill gaps) →
