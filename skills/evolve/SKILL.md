@@ -165,7 +165,7 @@ Then route what the dedupe left:
   each with a decision: `prune now` only when it has gone ≥ 2 runs without a trace **and** no
   `done_when` check names it; otherwise `watch`.
 - A candidate you cannot name a check for is not applicable yet. It goes to Candidates with
-  "no check" as its reason — the same rule `team-forge:contract` holds for `done_when`
+  "no check" as its reason — the same rule `team-forge:goal` holds for `done_when`
   versus `open_items`, applied to lessons.
 
 ### Step 5 — Apply, by layer

@@ -1024,7 +1024,7 @@ def _goal_delta(old, new):
 def sync_goal(design, target_repo, team):
     """Re-derive `goal_directive` into a LIVE ledger, writing ONLY that key.
 
-    team-forge:run treats the ledger copy as the lead's standing orders and the contract skill
+    team-forge:run treats the ledger copy as the lead's standing orders and the goal skill
     requires it to match the contract before the first task of a revised scope runs — enforced
     only in prose until now. forge.py derived the directive once, into a freshly seeded
     status.json, and nothing could re-derive it into a running team: --resync correctly

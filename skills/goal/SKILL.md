@@ -1,5 +1,5 @@
 ---
-name: team-forge:contract
+name: team-forge:goal
 description: |
   Use at the START of any non-trivial piece of work whose real problem or finish
   line is not yet pinned down — "our flaky tests keep blocking releases", "clean
@@ -13,7 +13,7 @@ description: |
   or building when "done" is still fuzzy.
 ---
 
-# team-forge:contract — the goal, written as a contract
+# team-forge:goal — the goal, written as a contract
 
 The product is a **goal as a contract** (see the repo's `GOAL.md`): where the user
 is actually trying to get to, and how the model checks — mechanically, without the

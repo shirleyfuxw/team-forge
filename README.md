@@ -23,7 +23,7 @@ you use the persistent-roster `team` archetype. Releases:
 Start every engagement the same way:
 
 ```
-Use team-forge:contract — I want to <your ask>.
+Use team-forge:goal — I want to <your ask>.
 ```
 
 You don't have to name it — a non-trivial ask whose finish line is still fuzzy

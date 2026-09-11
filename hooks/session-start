@@ -13,7 +13,7 @@ set -euo pipefail
 message='team-forge extension is installed.
 
 Available skills:
-  - team-forge:contract   (start here — interrogate the problem, write docs/team-forge/<team>/contract.yaml
+  - team-forge:goal       (start here — interrogate the problem, write docs/team-forge/<team>/contract.yaml
                            with a runnable check per done_when and no steps, hand the user a /goal line,
                            then route: direct-execution or machinery)
   - team-forge:design     (machinery route only — archetype triage, roster/tasks/gates, skill gaps → design.yaml)
@@ -29,7 +29,7 @@ Emission is a script, not a skill:
   python3 <team-forge>/tools/forge.py <hub>/design.yaml --check    # template + design staleness
   python3 <team-forge>/tools/forge.py <hub>/design.yaml --resync   # land it, preserving live state
 
-Start any non-trivial ask with team-forge:contract. To launch an already-forged team, invoke
+Start any non-trivial ask with team-forge:goal. To launch an already-forged team, invoke
 /<team>-workflow or /<team>-team; a workflow lead with persistent memory across runs is
 claude --agent <team>-lead.
 

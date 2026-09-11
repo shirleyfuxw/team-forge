@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render a contract as a Claude Code `/goal` condition — the harness holds the session to it.
 
-The contract skill ends by handing the user one line to paste. `/goal <condition>` installs a
+The goal skill ends by handing the user one line to paste. `/goal <condition>` installs a
 session-scoped evaluator (a separate small model) that re-checks the condition after every
 turn and keeps Claude working until it holds, survives `--resume`, and runs unattended in
 auto mode. Only the user can set it — it is a harness command, not a tool the model can call

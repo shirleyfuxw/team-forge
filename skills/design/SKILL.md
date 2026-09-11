@@ -1,7 +1,7 @@
 ---
 name: team-forge:design
 description: |
-  Use ONLY when a contract (team-forge:contract) chose `route: machinery` — the
+  Use ONLY when a contract (team-forge:goal) chose `route: machinery` — the
   machinery-design phase. Absorbs the machinery interrogation (archetype, roster,
   tracking, budget), then multiple forge-design-agents propose roster + skill
   discoveries + tracking spec in parallel; their reciprocal review catches gaps
@@ -13,7 +13,7 @@ description: |
 **Entry condition: the contract earned it.** This phase runs only when
 `docs/team-forge/<team>/contract.yaml` says `route: machinery` (a needed check with
 no backing capability, cross-session/unattended work, or genuine fan-out/standing
-roster — see the contract skill's Step 6). Direct execution — the default — never
+roster — see the goal skill's Step 6). Direct execution — the default — never
 comes here; a contract whose route outgrows the fast path comes back and runs this
 phase then.
 
@@ -343,7 +343,7 @@ If the user rejects:
 
 - Not Phase 4. We don't emit any `.md` files here — only the design.yaml.
 - Not autonomous. The user gates Step 6.
-- Not the contract phase in disguise. The problem + done_when are settled there; we design machinery for them.
+- Not the goal phase in disguise. The problem + done_when are settled there; we design machinery for them.
 
 
 ## Output review

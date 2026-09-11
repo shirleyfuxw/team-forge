@@ -169,7 +169,7 @@ python3 <team-forge>/tools/forge.py <hub>/design.yaml --resync    # land it
 `--resync` re-bakes `plan` and regenerates `TASKS.yaml` while preserving every
 live key. Hand-editing `plan` instead is silently undone by the next re-bake.
 
-**Scope changed → revise the contract first** (`team-forge:contract`), then land
+**Scope changed → revise the contract first** (`team-forge:goal`), then land
 the new standing orders in the live ledger — before the first task of the new
 scope runs:
 
