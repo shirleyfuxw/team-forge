@@ -5,23 +5,32 @@ description: |
   line is not yet pinned down — "our flaky tests keep blocking releases", "clean
   up the duplicate helpers", "make onboarding not take a week" — and again
   whenever scope shifts mid-project. Interrogates the problem behind the ask,
-  then writes the verification steps for it: docs/team-forge/<team>/contract.yaml,
-  where every done_when entry carries a check the model can run without the user.
-  Ends by routing the work — direct execution here and now (the default), or the
+  then writes the goal as a contract: docs/team-forge/<team>/contract.yaml — the
+  destination and how the model verifies arrival, where every done_when entry
+  carries a check the model can run without the user, and deliberately no steps
+  for getting there. Ends by routing the work — direct execution here and now (the default), or the
   opt-in machinery path, which has to be earned. Reach for this before planning
   or building when "done" is still fuzzy.
 ---
 
-# team-forge:contract — the problem + its verification steps
+# team-forge:contract — the goal, written as a contract
 
-The product is a **verified problem contract** (see the repo's `GOAL.md`): what the
-user is actually trying to solve, and how the model checks — mechanically, without
-the user present — that it's solved. Rosters, launchers, and loops are optional
+The product is a **goal as a contract** (see the repo's `GOAL.md`): where the user
+is actually trying to get to, and how the model checks — mechanically, without the
+user present — that it has arrived. Rosters, launchers, and loops are optional
 machinery downstream of this artifact, not the point.
 
-The one load-bearing rule: **a done_when condition the model can't check isn't a
-verification step yet — it's an open item.** `open_items` is the honest holding pen;
-promoting an item into `done_when` means you found its check.
+Two load-bearing rules:
+
+1. **A done_when condition the model can't check isn't a verification step yet —
+   it's an open item.** `open_items` is the honest holding pen; promoting an item
+   into `done_when` means you found its check.
+2. **The contract carries no path.** No task list, no step sketch, no plan. It says
+   what must be true at the end and how that is verified; how to get there is
+   decided *during* the work, by whoever is doing it, with the whole problem in
+   view. Steps written before the work starts are the author's first guess frozen
+   into the executor's orders — they cap the model's reasoning exactly where it is
+   most needed. The lint rejects a `tasks`/`steps`/`plan`/`milestones` key outright.
 
 ## What you produce
 
@@ -41,15 +50,13 @@ open_items:           # real conditions with no check yet — blockers for done_
 lead_decides: []      # standing approvals — act without asking
 user_decides: []      # hard asks — always pause
 route: direct-execution | machinery
-tasks:                # OPTIONAL execution sketch (proto-TASKS.yaml) — only when
-  - id: <slug>        # the work is multi-step; each with output/depends_on, and
-    output: "..."     # dispatch/blast_radius when known. Machinery route refines
-    depends_on: []    # it in design; direct execution works it as-is.
+# No tasks / steps / plan / milestones key — ever. The path is not part of the goal.
 ```
 
 Validate before showing the user: `python3 <team-forge-extension>/tools/contract_lint.py
 docs/team-forge/<team>/contract.yaml` — must exit 0. The lint is the quality bar
-(prose done_when, restated checks, and human-activity checks all fail).
+(prose done_when, restated checks, human-activity checks, and any execution-steps
+key all fail).
 
 ## Procedure
 
@@ -91,8 +98,12 @@ For each completion signal the user names:
   into a `skill_gaps` entry with a runnable acceptance.
 - Can't find a check → the condition goes to `open_items`, with what's missing.
   Do not pad `done_when` to look complete; a short honest list beats a long prose one.
-- **Scope figures:** any count a done_when or task depends on is *verified* (cite
-  the command) or *estimated* (label it). Never headline an unclosed count.
+- **Scope figures:** any count a done_when depends on is *verified* (cite the
+  command) or *estimated* (label it). Never headline an unclosed count.
+- **A mandated approach is a condition, not a step.** If the user requires a
+  particular method ("must go through the shared util", "no new dependency"), it
+  becomes a done_when entry with a check that proves it held — never a task that
+  says to do it.
 
 ### Step 3 — Split the decisions
 
@@ -104,19 +115,13 @@ Record `lead_decides` / `user_decides` (empty lists are fine; absence is not).
 Unlisted decisions default to: act if inferable from the contract + ledger, ask
 otherwise. Include a budget line in `lead_decides`/`user_decides` if the user has one.
 
-### Step 4 — Sketch execution (only as needed)
-
-Multi-step work → sketch `tasks:` with the user (verifiable `output` +
-`depends_on`; add `dispatch`/`blast_radius` when known; DAG must be acyclic). It's
-a hypothesis, expected to be re-cut. Single-step work → omit `tasks` entirely.
-
-### Step 5 — Write, lint, review
+### Step 4 — Write, lint, review
 
 Write `contract.yaml`, run the lint (must exit 0), then run the review checklist
 (`references/review.md` — inline, or dispatch a review subagent with just that file
 + the contract). Surface ✓/✗ to the user.
 
-### Step 6 — Sync a live runtime (if one exists)
+### Step 5 — Sync a live runtime (if one exists)
 
 If a forged runtime is present, its `status.json.goal_directive` must match the
 contract **before the first task of the new scope runs**. Do not hand-edit the
@@ -131,10 +136,10 @@ It no-ops when already current, so running it after any contract revision is fre
 A stale directive is the write-ahead failure aimed at yourself: the runtime keeps
 executing the orders it was forged with, and nothing says so.
 
-### Step 7 — Route and confirm
+### Step 6 — Route and confirm
 
-**`route: direct-execution` is the default.** Work the contract (and its task
-sketch) in this session with existing skills/subagents; nothing is forged.
+**`route: direct-execution` is the default.** Work the contract in this session
+with existing skills/subagents, deciding the path as you go; nothing is forged.
 
 **`route: machinery` must be earned** — pick it only when the contract itself
 demands standing machinery, i.e. at least one of:
@@ -150,15 +155,16 @@ Show the user the contract + the route and its earned criteria; they approve, or
 redirect. **The user approves the route; you carry it out — they should not have to
 know the plugin's map to get to the next step:**
 
-- `direct-execution` → work the contract now, then **Step 8** to close it.
+- `direct-execution` → work the contract now, then **Step 7** to close it.
 - `machinery` → **invoke `team-forge:design`** and continue there. Don't stop and
-  tell the user to run the design phase.
+  tell the user to run the design phase. The design phase is the first place a
+  task list is written — derived from the done_when, not carried in from here.
 
 If direct execution later outgrows itself (skill gaps appear, work spills across
 sessions), set `route: machinery` and invoke `team-forge:design` then — the fast
 path is an on-ramp, not a lock-in.
 
-### Step 8 — Close (direct-execution only)
+### Step 7 — Close (direct-execution only)
 
 `route: machinery` closes inside `team-forge:run`. **`direct-execution` closes
 here** — and this is the step that makes the contract *verified* rather than
@@ -187,6 +193,8 @@ whole skill exists to replace.
 
 - Not a roster/tracking/archetype interrogation — that's the design phase's job,
   reached only via `route: machinery`.
+- Not a plan. If you find yourself writing "first do X, then Y" anywhere in the
+  file, you are writing the path, and the path is not the goal.
 - Not autonomous. The statement, checks, and decision split are the user's; you
   interrogate and draft, they own.
 
@@ -199,7 +207,9 @@ whole skill exists to replace.
 - **Every condition lands in open_items** → the problem isn't understood yet; say
   so plainly rather than forging ahead.
 - **User declines a question** → record `declined` explicitly and proceed.
-- **Cyclic `tasks` dependencies** → push back; refuse to write the sketch with a cycle.
+- **The user (or you) starts listing steps** → stop; ask what must be *true* when
+  that step is done and write that as a done_when with a check. If the step itself
+  is the requirement (a mandated method), it is still a condition — see Step 2.
 
 ## Output review
 

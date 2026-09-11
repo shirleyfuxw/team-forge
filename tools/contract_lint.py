@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Contract validator — the quality bar for the pivot's core deliverable (GOAL.md).
 
-A contract is the user's problem + verification steps the model can run without the
-user present. The load-bearing rule: every done_when entry carries a `check:` telling
-the model HOW to verify (a command, a file predicate, a gate id). A condition the
-model can't check isn't a verification step yet — it belongs in `open_items`.
+A contract is a goal: the user's problem + verification steps the model can run without
+the user present. Two load-bearing rules: every done_when entry carries a `check:` telling
+the model HOW to verify (a command, a file predicate, a gate id) — a condition the model
+can't check isn't a verification step yet and belongs in `open_items`; and the contract
+carries NO path — no tasks/steps/plan/milestones key. Steps written before the work starts
+cap the model's reasoning during it; the route that needs a task list (machinery) derives
+one in the design phase from done_when, and direct execution decides its path as it goes.
 
 Importable (`validate_contract(dict) -> [errors]`) so forge.py and the harness share
 one bar; runnable (`python3 contract_lint.py <contract.yaml>`) for hand checks.
@@ -24,6 +27,10 @@ _UNCHECKABLE = ("tbd", "todo", "manual", "eyeball", "ask the user", "user confir
                 "looks good", "seems", "by hand")
 
 _ROUTES = ("direct-execution", "machinery")
+
+# Keys that carry a path instead of a goal. A contract says what must be true at the end
+# and how that is checked; how to get there is decided during the work, not frozen here.
+_PATH_KEYS = ("tasks", "steps", "plan", "milestones")
 
 
 def validate_contract(c):
@@ -72,6 +79,12 @@ def validate_contract(c):
     route = c.get("route")
     if route is not None and route not in _ROUTES:
         errs.append(f"route {route!r} invalid — one of {_ROUTES}")
+
+    for key in _PATH_KEYS:
+        if key in c:
+            errs.append(f"{key} present — a contract carries execution steps nowhere; it states the "
+                        "goal (done_when + checks), and the path is decided during the work. "
+                        "A mandated method belongs in done_when as a condition with a check")
 
     return errs
 

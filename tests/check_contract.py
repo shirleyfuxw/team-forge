@@ -5,7 +5,7 @@ check_dashboard.py verifies EMISSION (forged files render correctly); this verif
 the pivot's core deliverable: a contract whose every done_when entry the model can
 check without the user. Asserts the good fixture passes clean, and that the bad
 fixture fails for each seeded defect (prose entry, restated check, human-activity
-check, missing decision split, bogus route).
+check, missing decision split, bogus route, execution-steps block).
 
 Usage:  python3 tests/check_contract.py
 Exit 0 = all green; exit 1 = the lint's bar has drifted.
@@ -73,12 +73,22 @@ def main():
         "lead_decides missing",   # decision split absent
         "user_decides missing",
         "route 'quick-pass' invalid",
+        "tasks present",          # the path, frozen into the goal
     ]
     for frag in expected_fragments:
         assert any(frag in e for e in bad_errs), \
             f"contract-bad.yaml: expected an error containing {frag!r}; got:\n  " + "\n  ".join(bad_errs)
     print(f"✓ contract-bad.yaml: rejected with {len(bad_errs)} errors, "
           f"all {len(expected_fragments)} seeded defects named")
+
+    # The contract is a goal, not a plan: EVERY path-shaped key is rejected on an otherwise
+    # valid contract, so a good contract cannot smuggle steps in under a different name.
+    for key in ("tasks", "steps", "plan", "milestones"):
+        with_path = dict(good, **{key: [{"id": "t1", "output": "x"}]})
+        errs = validate_contract(with_path)
+        assert any(f"{key} present" in e for e in errs), \
+            f"a valid contract with a {key!r} block must be rejected; got: {errs}"
+    print("✓ execution-steps keys (tasks/steps/plan/milestones) rejected on an otherwise valid contract")
 
     assert validate_contract("not a mapping") == ["contract is not a mapping"]
     print("\nALL CONTRACT CHECKS PASSED")

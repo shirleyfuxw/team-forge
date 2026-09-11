@@ -30,8 +30,11 @@ You don't have to name it — a non-trivial ask whose finish line is still fuzzy
 should reach it on its own. It interrogates the problem behind the ask and writes
 `docs/team-forge/<team>/contract.yaml`: a problem statement, `done_when` entries
 that each carry a `check:` the model can run (anything uncheckable is honestly
-parked in `open_items`), and a `lead_decides` / `user_decides` split. A lint
-(`tools/contract_lint.py`) enforces the bar — prose conditions don't pass.
+parked in `open_items`), and a `lead_decides` / `user_decides` split. The contract
+is the goal, not the plan: it carries no task list or step sketch, because steps
+written before the work starts cap the model's reasoning during it. A lint
+(`tools/contract_lint.py`) enforces the bar — prose conditions don't pass, and
+neither does an execution-steps key.
 
 Then one of two routes, recorded in the contract:
 

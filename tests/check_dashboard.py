@@ -429,7 +429,7 @@ def check_sync_goal_reaches_live_ledger():
     assert after["plan"] == before["plan"], "--sync-goal touched the plan block"
 
     # The ledger is not the only copy of the contract. docs/team-forge/<team>/contract.yaml is
-    # what the direct-execution close enumerates (contract Step 8 -> verify_contract.py), and it
+    # what the direct-execution close enumerates (contract Step 7 -> verify_contract.py), and it
     # drifts independently — so a revision that reaches the ledger but not the KB makes the close
     # verify the OLD condition list and report all-green while a new done_when was never shown.
     kb = target / "docs" / "team-forge" / "tidy" / "contract.yaml"
