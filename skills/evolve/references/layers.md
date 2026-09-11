@@ -71,7 +71,7 @@ lands here; nothing else in this file is a substitute for it.
 ### `contract.yaml` open items
 
 When the lesson is "this condition matters and we still cannot check it", it is an open item,
-not a rule. Revise the contract through **`team-forge:contract`** — it owns the interrogation
+not a rule. Revise the contract through **`team-forge:goal`** — it owns the interrogation
 and the lint bar (`tools/contract_lint.py`) — then land the new standing orders in the live
 ledger:
 

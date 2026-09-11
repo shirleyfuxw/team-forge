@@ -1,6 +1,6 @@
 # An INVALID contract — every classic failure the lint must catch:
 #   prose done_when entry, check that restates its signal, human-activity check,
-#   missing decision split, bogus route.
+#   missing decision split, bogus route, an execution-steps block.
 contract: 1
 problem:
   statement: |
@@ -12,3 +12,7 @@ done_when:
   - signal: "Exporters produce sensible slugs"
     check: "manual review of a few outputs"                 # human activity
 route: quick-pass
+tasks:                                                      # the path, frozen in — not part of a goal
+  - id: extract-util
+    output: "src/util/text.py exists"
+    depends_on: []

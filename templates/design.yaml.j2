@@ -62,7 +62,7 @@ project:
 # ----------------------------------------------------------------------------
 # contract — the problem contract (GOAL.md: THE core deliverable).
 # ----------------------------------------------------------------------------
-# Path to the contract produced by team-forge:contract (canonically
+# Path to the contract produced by team-forge:goal (canonically
 # docs/team-forge/<team>/contract.yaml); relative paths resolve against this
 # design.yaml. When set, forge LINTS it (tools/contract_lint.py) and DERIVES the
 # goal: block below from it — the contract is authoritative; never hand-maintain
@@ -221,7 +221,7 @@ asset_discovery:
     project_local: [<skill-name>]            # <target_repo>/.claude/skills/
     user_global:   [<skill-name>]            # ~/.claude/skills/
     plugins:
-      team-forge: [contract, design, run, evolve, teardown]
+      team-forge: [goal, design, run, evolve, teardown]
       # <other-installed-plugin>: [...]
     reference_libraries:                     # domain-matched skills from reference libs
       ecc: [<skill-name>]                    # e.g. frontend-patterns, e2e-testing

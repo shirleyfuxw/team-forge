@@ -28,7 +28,7 @@ set `current_milestone` ← first id, pointers, log `milestone_started`.
 
 ## Step 3 — coordinate
 
-- Scope shifts → `team-forge:contract` (revise the contract; it re-syncs
+- Scope shifts → `team-forge:goal` (revise the contract; it re-syncs
   `goal_directive`). Machinery changes (roster/gates) → `team-forge:design`.
 - Standing work/verify teammates have NO per-agent memory (`memory:` is ignored
   on the teammate path) — their durable context is the KB + shared task list;

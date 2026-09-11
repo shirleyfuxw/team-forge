@@ -386,7 +386,7 @@ def _scratch_repo(path):
 def check_sync_goal_reaches_live_ledger():
     """A revised contract must reach a RUNNING team's standing orders.
 
-    team-forge:run treats status.json.goal_directive as authoritative and the contract skill
+    team-forge:run treats status.json.goal_directive as authoritative and the goal skill
     requires it to match the contract before the first task of a revised scope runs — but
     forge.py derived it once, at initial forge, and nothing could re-derive it into a live
     ledger (--resync preserves live state; a full forge destroys it). So the runtime kept
@@ -429,7 +429,7 @@ def check_sync_goal_reaches_live_ledger():
     assert after["plan"] == before["plan"], "--sync-goal touched the plan block"
 
     # The ledger is not the only copy of the contract. docs/team-forge/<team>/contract.yaml is
-    # what the direct-execution close enumerates (contract Step 8 -> verify_contract.py), and it
+    # what the direct-execution close enumerates (contract Step 7 -> verify_contract.py), and it
     # drifts independently — so a revision that reaches the ledger but not the KB makes the close
     # verify the OLD condition list and report all-green while a new done_when was never shown.
     kb = target / "docs" / "team-forge" / "tidy" / "contract.yaml"
@@ -446,7 +446,7 @@ def check_sync_goal_reaches_live_ledger():
 
 def check_kb_contract_canonical_layout_untouched():
     """The CANONICAL layout — `contract:` points at docs/team-forge/<team>/contract.yaml, which
-    is where team-forge:contract writes it and what design.yaml.j2 calls typical.
+    is where team-forge:goal writes it and what design.yaml.j2 calls typical.
 
     There, the KB file IS the source, so treating it as derived must be a strict no-op — the
     contract is durable KB content that teardown keeps, and the drift handling only applies when

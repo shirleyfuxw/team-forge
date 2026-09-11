@@ -1,7 +1,7 @@
 ---
 name: team-forge:design
 description: |
-  Use ONLY when a contract (team-forge:contract) chose `route: machinery` — the
+  Use ONLY when a contract (team-forge:goal) chose `route: machinery` — the
   machinery-design phase. Absorbs the machinery interrogation (archetype, roster,
   tracking, budget), then multiple forge-design-agents propose roster + skill
   discoveries + tracking spec in parallel; their reciprocal review catches gaps
@@ -13,7 +13,7 @@ description: |
 **Entry condition: the contract earned it.** This phase runs only when
 `docs/team-forge/<team>/contract.yaml` says `route: machinery` (a needed check with
 no backing capability, cross-session/unattended work, or genuine fan-out/standing
-roster — see the contract skill's Step 7). Direct execution — the default — never
+roster — see the goal skill's Step 6). Direct execution — the default — never
 comes here; a contract whose route outgrows the fast path comes back and runs this
 phase then.
 
@@ -23,8 +23,9 @@ parallel**, each focused on a different lens; their reciprocal review catches ga
 before the human approval gate.
 
 **Follow-on for an already-forged team/workflow** reusing its roster + gate
-vocabulary skips this phase too — but it is not a hand-edit. Add the contract's
-task sketch to `design.yaml`, then run, from the team-forge extension:
+vocabulary skips this phase too — but it is not a hand-edit. Author the follow-on
+tasks in `design.yaml` (derived from the revised contract's done_when — the contract
+itself carries no steps), then run, from the team-forge extension:
 
 ```bash
 python3 tools/forge.py <hub>/design.yaml --check      # what is stale
@@ -49,8 +50,8 @@ The contract deliberately doesn't ask these; they are machinery concerns. Ask no
    > stream of tasks/items done, gated, and handed off, each unit starting fresh?"
    Fresh-per-unit / gate-driven → **`workflow`** (pick `shape`: sequential-gated |
    parallel-drain, + `recurring` if scheduled/unattended; elicit the integration
-   branch). Persistent peer-context → **`team`** (refine the contract's task sketch
-   into 2–5 milestones, each with a verifiable output + human go/no-go, hard
+   branch). Persistent peer-context → **`team`** (derive 2–5 milestones from the
+   contract's done_when, each with a verifiable output + human go/no-go, hard
    dependencies, interface-to-next, expected team size, iteration shape; cyclic
    dependencies → push back).
 2. **Roster needs beyond work/verify/advise?** Domain experts, external-tool
@@ -62,8 +63,9 @@ The contract deliberately doesn't ask these; they are machinery concerns. Ask no
 ## Inputs
 
 - The contract (`docs/team-forge/<team>/contract.yaml`) — problem, checkable
-  done_when, decision split, task sketch. Legacy brainstorm/plan docs, if the KB
-  has them, are background only.
+  done_when, decision split. It carries no steps by design: **this phase is the
+  first place a task list is written**, and it is derived from the done_when.
+  Legacy brainstorm/plan docs, if the KB has them, are background only.
 - The user (for approval gates)
 
 ## What you produce
@@ -101,7 +103,7 @@ the **skill quality bar** below.
 
 ### W-Step 2 — dispatch 3 design-agents (workflow lenses)
 
-- **Lens 1 — task/gate correctness:** from the contract's task sketch, propose the `tasks` block
+- **Lens 1 — task/gate correctness:** from the contract's done_when, propose the `tasks` block
   (id, output, depends_on, blast_radius, `gate_set ⊆ gates`, dispatch `inline|worker`); verify
   the DAG is **acyclic** and each `gate_set` matches its `blast_radius`. *(Parallel-drain:
   propose the `queue` block — eligibility, triage predicate, wave_size, routes — instead.)*
@@ -282,7 +284,7 @@ If the 3 lens outputs conflict on the role coverage (e.g., Lens 1 says 5 teammat
 
 Render the template at `<team-forge-extension>/templates/design.yaml.j2` with:
 - `project` block from the contract + user-confirmed
-- `milestones` block from Step 0's refinement of the contract's task sketch
+- `milestones` block from Step 0's derivation (from the contract's done_when)
 - `roster` from synthesis above
 - `rehydrate` block:
   - `durable_state` derived from the universal team-forge layout (see SCOPING.md)
@@ -341,7 +343,7 @@ If the user rejects:
 
 - Not Phase 4. We don't emit any `.md` files here — only the design.yaml.
 - Not autonomous. The user gates Step 6.
-- Not the contract phase in disguise. The problem + done_when are settled there; we design machinery for them.
+- Not the goal phase in disguise. The problem + done_when are settled there; we design machinery for them.
 
 
 ## Output review
