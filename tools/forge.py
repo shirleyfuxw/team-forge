@@ -466,6 +466,17 @@ def render_dashboard(design, status=None):
 
 # ───────── Workflow archetype (the second fork) ─────────
 
+def _seat_pin(design, key, fallback):
+    """The lead's own pin, falling back to the worker's.
+
+    A design with no lead: block leaves both seats sharing one value, which is why
+    a team's lead tier was never a choice anyone made."""
+    lead = design.get('lead') or {}
+    if key in lead:
+        return lead[key]
+    return (design.get('worker') or {}).get(key, fallback)
+
+
 def render_workflow_lead(design):
     """The `<team>-lead` agent — same runtime as the launcher, launched as an agent so the
     lead gets Claude Code's native per-agent memory (`memory: project`).
@@ -489,7 +500,8 @@ def render_workflow_lead(design):
         'team': team,
         'project_display_name': project['display_name'],
         'shape': shape or 'sequential-gated',
-        'model': (design.get('worker') or {}).get('model', 'inherit'),
+        'model': _seat_pin(design, 'model', 'inherit'),
+        'effort': _seat_pin(design, 'effort', 'high'),
         'recurring_note': " · recurring" if design.get('recurring') else "",
         'entry_suffix': 'workflow',
         'loop_ref': 'drain.md' if shape == 'parallel-drain' else 'sequential.md',
@@ -526,6 +538,7 @@ def render_workflow_profile(entry, profile_role, team, project_basename):
         'agent_name': agent_name,
         'purpose': purpose,
         'model': entry.get('model', 'inherit'),
+        'effort': entry.get('effort', 'high'),
         'profile_role': profile_role,
         'team': team,
         'project_basename': project_basename,
