@@ -68,6 +68,20 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
    `docs/team-forge/<team>/evolve/candidates-*.json` carries a later `mined_at`. Anything but
    `fresh` → say so and run evolve (close mode) NOW, before anything below.
 
+   **Run this as a script, not by hand** — the jq one-liner above is the specification, not
+   the instruction; typing it fresh each time is exactly the kind of step a teardown can
+   skip or get subtly wrong (a plain string compare on `ts`, for one, misreads a real
+   ledger whose events mix `"...Z"` with `"...+00:00"`/fractional-second timestamps):
+
+   ```
+   python3 <team-forge>/tools/teardown_ledger_gate.py check .claude/team-forge/<team>
+   ```
+
+   Exit 0 = fresh, continue to Step 1.2. Exit 1 (`MISSING`) or exit 2 (`STALE`, naming which
+   of the four conditions failed) = **STOP**, run evolve (close mode) now, before anything
+   below. Exit 3 = the ledger could not be read — ask before proceeding; do not treat an
+   unreadable ledger as permission to continue.
+
    Every question above is about content, deliberately. An mtime gate on
    `candidates-*.json` versus `tracker/status.json` can never pass: the miner writes the
    candidates file first and evolve's Step 8 then appends its `lesson` events to the ledger, so
@@ -87,6 +101,10 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
    register says what it taught and how each row is checked.
 3. Copy the final `tracker/status.json` to `docs/team-forge/<team>/final-ledger.json` (the
    immutable record). The live `status.json` is ephemeral and goes in Step 4.
+
+   ```
+   python3 <team-forge>/tools/teardown_ledger_gate.py archive .claude/team-forge/<team>
+   ```
 
 ### Step 2 — Prune git worktrees
 

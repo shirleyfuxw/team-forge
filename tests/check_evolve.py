@@ -53,6 +53,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 MINER = REPO / "tools" / "evolve_mine.py"
+GATE_SCRIPT = REPO / "tools" / "teardown_ledger_gate.py"
 FX = REPO / "tests" / "fixtures" / "evolve"
 SIGNALS = FX / "ledger-signals.json"
 CLEAN = FX / "ledger-clean.json"
@@ -481,23 +482,47 @@ def assert_kind_split(doc):
 # evolve pass has ever stamped this hub" forever, and the prescribed fix re-runs the pass
 # that writes the same key it is not reading.
 
-def assert_handoff_contract(evolve_text, teardown_text):
+def written_evolve_keys(evolve_text):
     step8 = evolve_text.split("### Step 8")[-1]
-    written = set(re.findall(r'"(\w+)":', step8.split('"evolve"')[-1].split("```")[0]))
-    read = set(re.findall(r"\$e\.(\w+)", teardown_text))
-    assert read, "teardown Step 1 reads no `$e.<key>` at all — the freshness gate is gone"
+    return set(re.findall(r'"(\w+)":', step8.split('"evolve"')[-1].split("```")[0])), step8
+
+
+def assert_keys_subset(read, written, reader_name):
+    assert read, f"{reader_name} reads no evolve key at all — the freshness gate is gone"
     missing = sorted(read - written)
     assert not missing, \
-        f"teardown Step 1 reads $e.{missing} and evolve's Step 8 writes {sorted(written)} — " \
+        f"{reader_name} reads {missing} and evolve's Step 8 writes {sorted(written)} — " \
         f"a key only one side knows makes the gate report MISSING on a pass that ran, and " \
         f"the prescribed fix is the pass that writes it"
+    for key in ("mode", "last_run", "candidates", "mined_at"):
+        assert key in read, \
+            f"{reader_name} stopped reading `{key}` — teardown gates on mode == 'close', on " \
+            f"no event later than last_run, and on candidates/mined_at agreeing with the " \
+            f"mined file, so a dropped key silently opens the gate"
+
+
+def assert_handoff_contract(evolve_text, teardown_text):
+    written, step8 = written_evolve_keys(evolve_text)
+    read = set(re.findall(r"\$e\.(\w+)", teardown_text))
     for key in ("mode", "last_run", "candidates", "mined_at"):
         assert key in written, \
             f"evolve Step 8 stopped writing `{key}` — teardown gates on mode == 'close', on " \
             f"no event later than last_run, and on candidates/mined_at agreeing with the " \
             f"mined file, so a dropped key silently opens the gate"
+    assert_keys_subset(read, written, "teardown Step 1's jq text")
     assert '"mode": "close|cycle"' in step8, \
         "Step 8 no longer states the two modes teardown discriminates on"
+
+
+def assert_script_handoff_contract(evolve_text, script_text):
+    """Same handoff as assert_handoff_contract, but against the SCRIPT that actually gates
+    Step 2 now (tools/teardown_ledger_gate.py) rather than the jq text teardown/SKILL.md
+    keeps for a human reader. Without this, a key renamed in evolve's Step 8 could desync
+    the script silently while the illustrative jq block kept this file's other assertion
+    green — a check watching text nobody runs is not watching the gate."""
+    written, _ = written_evolve_keys(evolve_text)
+    read = set(re.findall(r'evolve\.get\("(\w+)"\)', script_text))
+    assert_keys_subset(read, written, "teardown_ledger_gate.py")
 
 
 SINCE_CALL = '--since "$(jq -r \'.current_cycle_id\' <hub>/tracker/status.json)"'
@@ -947,11 +972,15 @@ def check_pairing_vocabulary():
 
 
 def check_evolve_teardown_handoff():
-    """The marker evolve stamps and teardown gates on. One writer, one reader, no schema."""
-    assert_handoff_contract((SKILLS / "evolve" / "SKILL.md").read_text(),
-                            (SKILLS / "teardown" / "SKILL.md").read_text())
-    print("✓ evolve Step 8 → teardown Step 1: every `$e.<key>` the gate reads is a key the "
-          "stamp writes (mode · last_run · candidates · mined_at)")
+    """The marker evolve stamps and teardown gates on. One writer, two readers now — the
+    illustrative jq text in teardown/SKILL.md, and tools/teardown_ledger_gate.py, which is
+    what Step 1 actually runs. Both must agree with the writer."""
+    evolve_text = (SKILLS / "evolve" / "SKILL.md").read_text()
+    assert_handoff_contract(evolve_text, (SKILLS / "teardown" / "SKILL.md").read_text())
+    assert_script_handoff_contract(evolve_text, GATE_SCRIPT.read_text())
+    print("✓ evolve Step 8 → teardown Step 1: every evolve key the jq text and "
+          "teardown_ledger_gate.py both read is a key the stamp writes (mode · last_run · "
+          "candidates · mined_at)")
 
 
 # --------------------------------------------------------------------------- the meta-check
@@ -1180,14 +1209,24 @@ def check_new_assertions_can_fail():
                   teardown_md), \
         "the handoff assertion passed with the stamp's `mode` renamed — teardown discriminates " \
         "close from cycle on it and would accept a cycle pass as a final one"
+    script_text = GATE_SCRIPT.read_text()
+    assert breaks(assert_script_handoff_contract, evolve_md,
+                  script_text.replace('evolve.get("mode")', 'evolve.get("run_mode")')), \
+        "the script handoff assertion passed with teardown_ledger_gate.py reading a key " \
+        "evolve never writes — that gate then reports MISSING on every finished pass"
+    assert breaks(assert_script_handoff_contract,
+                  evolve_md.replace('"mode": "close|cycle"', '"kind": "x"'), script_text), \
+        "the script handoff assertion passed with the stamp's `mode` renamed — " \
+        "teardown_ledger_gate.py would accept a cycle pass as a final one"
     assert breaks(assert_since_documented, [("mutant", "run the miner and read the markdown")]), \
         "the --since assertion passed against prose that never invokes the flag"
 
-    print("✓ meta-check (this phase's fixes): 13 mutations drove every new assertion into "
+    print("✓ meta-check (this phase's fixes): 15 mutations drove every new assertion into "
           "failure (corroborating event deleted · compound-noun kind logged twice · null "
           "resolution repaired · shared identity key dropped · answering event's words "
           "changed · well-formed ledger · memory file sectioned · unfiltered root · gate "
-          "really failed · kinds merged to 'sev' · two prose keys renamed · --since dropped)")
+          "really failed · kinds merged to 'sev' · two prose keys renamed · two script keys "
+          "renamed · --since dropped)")
 
 def check_fixtures_untouched(before):
     after = fixture_hashes()
