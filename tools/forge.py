@@ -19,7 +19,7 @@ EXT_DIR = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = EXT_DIR / "templates"
 # Stamped into manifest.json + status.json (forge_version). BUMP whenever a template or shared
 # skill changes so already-forged teams can detect drift (forge.py --check) and re-sync.
-FORGE_VERSION = "0.13.0"
+FORGE_VERSION = "0.14.0"
 # The ledger event vocabulary lives in its own module because forge.py is NOT importable:
 # it parses argv and runs the whole forge at import time. tools/evolve_mine.py needs the
 # vocabulary without triggering a forge, so both import it from there.
