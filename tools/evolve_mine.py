@@ -35,8 +35,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ledger_vocab import (ADMISSIBLE_EVIDENCE, KNOWN_EVENT_KINDS,  # noqa: E402
-                          LESSON_STATUSES, parse_ts)
+from ledger_vocab import (ADMISSIBLE_EVIDENCE, EVOLVE_PASS_SCHEMA,  # noqa: E402
+                          KNOWN_EVENT_KINDS, LESSON_STATUSES, parse_ts)
 
 SCHEMA = "team-forge/evolve-candidates/1"
 FORGE_VERSION = "0.12.0"
@@ -1002,10 +1002,17 @@ def register_sections(tables):
     return where
 
 
+_NAMED_HARM = "hurt once in a way with a name"
+
+
 def evidence_signal(text):
     """The admissible signal an Evidence cell opens with, or None: 'recurrence: 4', 'blocked->
-    resolved: …', 'gate failure with root cause: …' and 'budget attribution, …' each name one."""
-    words = re.findall(r"[a-z]+", str(text).lower().replace("→", "_").replace("->", "_"))
+    resolved: …', 'gate failure with root cause: …', 'budget attribution, …', or SKILL.md's
+    own wording for one named harm."""
+    low = str(text).lower().strip(" `*")
+    if low.startswith(_NAMED_HARM):
+        return "named_harm"
+    words = re.findall(r"[a-z]+", low.replace("→", "_").replace("->", "_"))
     for n in (1, 2):
         if len(words) >= n and "_".join(words[:n]) in ADMISSIBLE_EVIDENCE:
             return "_".join(words[:n])
@@ -1017,47 +1024,104 @@ def register_team(path):
     return m.group(1) if m else None
 
 
-def current_lessons(events):
+def _payload(e):
+    return e.get("payload") if isinstance(e.get("payload"), dict) else {}
+
+
+def _anonymous(raw):
+    return raw is None or str(raw).strip().lower() in _NO_ID
+
+
+def ledger_lessons(ledger):
+    """Every `lesson` event with its parsed time, oldest first (ties keep ledger order)."""
+    out = []
+    for i, e in enumerate(ledger.get("events") or []):
+        if isinstance(e, dict) and e.get("kind") == "lesson":
+            out.append((parse_ts(e.get("ts")), i, e))
+    out.sort(key=lambda x: (x[0] is None, x[0].timestamp() if x[0] else 0, x[1]))
+    return [(t, e) for t, _i, e in out]
+
+
+def pass_window(ledger):
+    """This pass's `lesson` events: those between the evolve stamp's mined_at (the miner ran
+    first) and its last_run (written after them), both ends included. Mid-run lessons sit
+    before mined_at, and an earlier pass's events before that."""
+    evolve = ledger.get("evolve") if isinstance(ledger, dict) else None
+    if not isinstance(evolve, dict):
+        return None, None, ["ledger has no `evolve` stamp — Step 8.2 writes it before this lint runs"]
+    start, end = parse_ts(evolve.get("mined_at")), parse_ts(evolve.get("last_run"))
+    if start is None or end is None:
+        return evolve, None, ["evolve.mined_at or evolve.last_run is missing or not an ISO "
+                              "timestamp, so this pass's events cannot be told apart"]
+    defects, window = [], []
+    for t, e in ledger_lessons(ledger):
+        if t is None:
+            defects.append(f"lesson event ts {e.get('ts')!r} does not parse, so it cannot be "
+                           f"placed inside or outside this pass")
+        elif start <= t <= end:
+            window.append((t, e))
+    return evolve, window, defects
+
+
+def stamp_schema(evolve):
+    x = (evolve or {}).get("schema")
+    return x if type(x) is int else 1
+
+
+def current_lessons(window):
     """The `lesson` events still standing: a later event naming the same register_id replaces
-    an earlier one, and an anonymous event is replaced by any later event with its claim."""
+    an earlier one, and an event with no id is replaced by a strictly later event with its
+    claim."""
     by_id, anon = {}, []
-    for i, e in enumerate(events):
-        pl = e.get("payload") if isinstance(e.get("payload"), dict) else {}
-        raw = pl.get("register_id")
-        if raw is None or str(raw).strip().lower() in _NO_ID:
-            anon.append((i, norm_sentence(pl.get("claim") or ""), e, pl))
+    claims = [(t, norm_sentence(_payload(e).get("claim") or "")) for t, e in window]
+    for t, e in window:
+        pl, raw = _payload(e), _payload(e).get("register_id")
+        if _anonymous(raw):
+            anon.append((t, norm_sentence(pl.get("claim") or ""), e, pl))
         else:
-            by_id[norm_id(raw) or str(raw).strip()] = (e, pl, raw)
-    claims = [(i, norm_sentence((e.get("payload") or {}).get("claim") or ""))
-              for i, e in enumerate(events) if isinstance(e.get("payload"), dict)]
-    standing = [(e, pl, None) for i, c, e, pl in anon
-                if not c or not any(j > i and cj == c for j, cj in claims)]
+            by_id[norm_id(raw) or str(raw).strip()] = (t, e, pl, raw)
+    standing = [(t, e, pl, None) for t, c, e, pl in anon
+                if not c or not any(tj > t and cj == c for tj, cj in claims)]
     return list(by_id.values()) + standing
 
 
-def lesson_defects(current, where):
+def lesson_defects(current, where, schema, history=()):
+    """Schema 1 (a stamp from before the judge rules) keeps the rules evolve always stated: an
+    anecdote is never applied, the status is one of the four, and the row agrees. Schema 2 adds
+    the allow-list, refs, a row for every applied event, and new refs for a rejected row."""
     defects, applied = [], set()
-    for e, pl, raw in current:
+    for t, e, pl, raw in current:
         status = str(pl.get("status") or "").lower()
         ev = pl.get("evidence") if isinstance(pl.get("evidence"), dict) else {}
         etype = str(ev.get("type") or "").lower()
+        refs = ev.get("refs") if isinstance(ev.get("refs"), list) else []
         prune = pl.get("action") == "prune"
         label = f"lesson event {e.get('ts') or '?'} ({raw or 'no register_id'})"
         if status not in LESSON_STATUSES:
             defects.append(f"{label}: status {status!r} is not one of {'|'.join(LESSON_STATUSES)}")
-        if status == "applied" and etype not in ADMISSIBLE_EVIDENCE:
+        if status == "applied" and (etype not in ADMISSIBLE_EVIDENCE if schema >= 2
+                                    else etype == "anecdote"):
             defects.append(f"{label}: status applied on evidence type {(etype or '(none)')!r}, which "
                            f"is not an admissible signal — an anecdote is recorded, never applied")
-        if status == "applied" and not (isinstance(ev.get("refs"), list) and ev["refs"]):
+        if schema >= 2 and status == "applied" and not refs:
             defects.append(f"{label}: status applied with no evidence refs — name the events, "
                            f"gates or paths that admit it")
         if raw is None:
-            if status == "applied":
+            if schema >= 2 and status == "applied":
                 defects.append(f"{label}: status applied but names no register row — log the "
                                f"claim again with its row's id, or as rejected")
             continue
         rid = norm_id(raw)
         section = where.get(rid)
+        if schema >= 2 and status == "applied":
+            rejected = [_payload(h) for th, h in history
+                        if th is not None and th < t and norm_id(_payload(h).get("register_id")) == rid
+                        and str(_payload(h).get("status") or "").lower() == "rejected"]
+            if rejected:
+                old = rejected[-1].get("evidence") if isinstance(rejected[-1].get("evidence"), dict) else {}
+                if set(map(str, refs)) <= set(map(str, old.get("refs") or [])):
+                    defects.append(f"{label}: {rid} was rejected earlier and is applied again with "
+                                   f"no new evidence refs")
         if status == "applied" and section in ("active", "superseded"):
             applied.add(rid)
         if section is None:
@@ -1132,16 +1196,16 @@ def judge_defects(path, mined_at, team):
     if not isinstance(doc, dict):
         return [f"judge file {path} is not an object"], set()
     defects = []
-    if doc.get("mined_at") != mined_at:
+    if parse_ts(doc.get("mined_at")) is None or parse_ts(doc.get("mined_at")) != parse_ts(mined_at):
         defects.append(f"judge file judged mined_at {doc.get('mined_at')!r}, not this pass's "
                        f"{mined_at!r}")
     for key in ("commit", "judge", "brief"):
         if not isinstance(doc.get(key), str) or not doc[key].strip():
             defects.append(f"judge file: {key!r} missing")
-    who = str(doc.get("judge") or "").strip().lower()
-    if team and who.startswith(f"{team.lower()}-"):
-        defects.append(f"judge {doc['judge']!r} is one of the team's own seats — the producer "
-                       f"briefed it, so it cannot judge the pass")
+    who = str(doc.get("judge") or "").lower()
+    if team and team.lower() in who:
+        defects.append(f"judge {doc['judge']!r} names the team {team!r}, so it is one of the "
+                       f"team's own seats — the producer briefed it")
     brief = doc.get("brief")
     if isinstance(brief, str) and brief.strip():
         bp = Path(brief)
@@ -1170,70 +1234,100 @@ def judge_defects(path, mined_at, team):
     return defects, passed
 
 
-def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before_judge, team):
-    """The checks that need this pass's own records: its `lesson` events (those logged
-    between the evolve stamp's mined_at and last_run), the Step-3 snapshot of the register,
-    its grading file and, in close mode, its judge file."""
-    def load(path, what):
+def last_judged_close(judges_dir, mined_at):
+    """The mined_at of the latest earlier pass a judge passed, from agent_evals/<team>/*/judge.json."""
+    now, best = parse_ts(mined_at), None
+    for jp in Path(judges_dir).glob("*/judge.json"):
         try:
-            return json.loads(Path(path).read_text()), None
-        except Exception as e:
-            return None, f"{what} {path} unreadable ({e.__class__.__name__}: {e})"
-
-    ledger, err = load(ledger_path, "ledger")
-    if err:
-        return [err], []
-    evolve = ledger.get("evolve") if isinstance(ledger, dict) else None
-    if not isinstance(evolve, dict):
-        return ["ledger has no `evolve` stamp — Step 8.2 writes it before this lint runs"], []
-    start, end = parse_ts(evolve.get("mined_at")), parse_ts(evolve.get("last_run"))
-    if start is None or end is None:
-        return ["evolve.mined_at or evolve.last_run is missing or not an ISO timestamp, so this "
-                "pass's events cannot be told apart"], []
-    defects, lessons = [], []
-    for e in ledger.get("events") or []:
-        if not isinstance(e, dict) or e.get("kind") != "lesson":
+            doc = json.loads(jp.read_text())
+        except Exception:
             continue
-        t = parse_ts(e.get("ts"))
-        if t is None:
-            defects.append(f"lesson event ts {e.get('ts')!r} does not parse, so it cannot be "
-                           f"placed inside or outside this pass")
-        elif start <= t <= end:
-            lessons.append(e)
-    found, applied = lesson_defects(current_lessons(lessons), register_sections(tables))
-    defects += found
+        t = parse_ts(doc.get("mined_at")) if isinstance(doc, dict) else None
+        if t and now and t < now and doc.get("verdict") == "PASS" and (best is None or t > best):
+            best = t
+    return best
 
+
+def cycle_rows(ledger, where, judges_dir, mined_at):
+    """Active rows that cycle passes applied since the last judged close: their `lesson`
+    events carry `mode: cycle` and `pass: <that pass's mined_at>`. A judged close clears them."""
+    since = last_judged_close(judges_dir, mined_at)
+    rows = set()
+    for _t, e in ledger_lessons(ledger):
+        pl = _payload(e)
+        rid = norm_id(pl.get("register_id"))
+        made = parse_ts(pl.get("pass"))
+        if pl.get("mode") == "cycle" and str(pl.get("status") or "").lower() == "applied" \
+                and rid and where.get(rid) == "active" and (since is None or made is None or made > since):
+            rows.add(rid)
+    return rows
+
+
+def judge_rows(ledger, where, judges_dir):
+    """The rows a close pass's judge must pass: every Active row this pass applied or amended,
+    plus what cycle passes applied since the last judged close. Shared with teardown."""
+    evolve, window, _ = pass_window(ledger)
+    _, applied = lesson_defects(current_lessons(window or []), where, stamp_schema(evolve))
+    mine = {rid for rid in applied if where.get(rid) == "active"}
+    return mine | cycle_rows(ledger, where, judges_dir, (evolve or {}).get("mined_at"))
+
+
+def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before_judge, team):
+    """The checks on this pass's own records. Returns the defects, the rows this pass must
+    prove (added or amended, schema 2), and the stamp's schema."""
+    try:
+        ledger = json.loads(Path(ledger_path).read_text())
+    except Exception as e:
+        return [f"ledger {ledger_path} unreadable ({e.__class__.__name__}: {e})"], [], 1
+    evolve, window, defects = pass_window(ledger)
+    if window is None:
+        return defects, [], stamp_schema(evolve)
+    schema = stamp_schema(evolve)
+    where = register_sections(tables)
+    found, applied = lesson_defects(current_lessons(window), where, schema, ledger_lessons(ledger))
+    defects += found
+    if schema < 2:
+        return defects, [], schema
+
+    for t, e in window:
+        pl = _payload(e)
+        if parse_ts(pl.get("pass")) != parse_ts(evolve.get("mined_at")) or pl.get("mode") != evolve.get("mode"):
+            defects.append(f"lesson event {e.get('ts')}: payload.pass and payload.mode must name this "
+                           f"pass ({evolve.get('mined_at')}, {evolve.get('mode')}) so a later close "
+                           f"can tell which pass applied what")
+    if not grading_path or not snapshot:
+        return defects + ["this stamp is schema 2, so the pass checks need --grading and "
+                          "--snapshot"], [], schema
     snap_path = Path(snapshot)
     if not snap_path.is_file():
         return defects + [f"snapshot register {snapshot} not found — Step 3 copies lessons.md "
-                          f"there before the first edit"], []
+                          f"there before the first edit"], [], schema
     before_ids = {row_id(r) for r in parse_register(snap_path)[0]["active"]}
-    added = [r for r in tables["active"] if row_id(r) and row_id(r) not in before_ids]
-    entries, err = load(grading_path, "grading file")
-    found, graded = grading_defects(entries) if not err else ([err], set())
+    prove = [r for r in tables["active"] if row_id(r) and (row_id(r) not in before_ids
+                                                           or row_id(r) in applied)]
+    try:
+        found, graded = grading_defects(json.loads(Path(grading_path).read_text()))
+    except Exception as e:
+        found, graded = [f"grading file {grading_path} unreadable ({e.__class__.__name__}: {e})"], set()
     defects += found
-    for row in added:
+    for row in prove:
         rid = row_id(row)
         if rid not in applied:
             defects.append(f"Active row {rid} was added by this pass, but no lesson event of this "
                            f"pass records it applied")
         if rid not in graded:
-            defects.append(f"Active row {rid} was added by this pass, but no passed grading entry "
-                           f"names it")
-
-    unjudged = {norm_id(x) for x in (evolve.get("unjudged") or []) if norm_id(x)}
-    if evolve.get("mode") == "cycle":
-        for rid in sorted(applied - unjudged):
-            defects.append(f"this cycle pass applied {rid}, but evolve.unjudged omits it — the next "
-                           f"close's judge would never see it")
-    elif evolve.get("mode") == "close" and not before_judge:
+            defects.append(f"Active row {rid} was added or amended by this pass, but no passed "
+                           f"grading entry names it")
+    if evolve.get("mode") == "close" and not before_judge:
         jpath = Path(judge_path) if judge_path else Path(grading_path).parent / "judge.json"
         found, judged = judge_defects(jpath, evolve.get("mined_at"), team)
         defects += found
-        for rid in sorted(({row_id(r) for r in added} | unjudged) - judged):
-            defects.append(f"the judge has no PASS row for {rid}, which this pass added or an "
-                           f"earlier cycle pass applied unjudged")
-    return defects, added
+        need = {row_id(r) for r in prove} | cycle_rows(ledger, where, jpath.parent.parent,
+                                                       evolve.get("mined_at"))
+        for rid in sorted(need - judged):
+            defects.append(f"the judge has no PASS row for {rid}, which this pass added or "
+                           f"amended, or a cycle pass applied since the last judged close")
+    return defects, prove, schema
 
 
 def lint_register(path, ledger=None, grading=None, snapshot=None, judge=None,
@@ -1245,8 +1339,8 @@ def lint_register(path, ledger=None, grading=None, snapshot=None, judge=None,
     registers; a Superseded row with no 'Died at' loses why the belief died; and a missing
     banner makes a checked belief indistinguishable from a stale one.
 
-    With --ledger, --grading and --snapshot (together) it also checks this pass's records
-    (pass_defects). It never checks that ids were not renumbered, which needs git."""
+    With --ledger it also checks this pass's records (pass_defects), by the rules of the
+    schema its evolve stamp carries. It never checks that ids were not renumbered."""
     p = Path(path)
     if not p.exists():
         say(f"✗ register not found: {path}")
@@ -1309,25 +1403,28 @@ def lint_register(path, ledger=None, grading=None, snapshot=None, judge=None,
     if not banner:
         defects.append("no version banner — a register with no 'Verified against team-forge <x.y.z>' "
                        "line cannot tell a checked belief from a stale one")
-    added = None
+    prove, schema = [], None
     if ledger:
-        found, added = pass_defects(ledger, tables, snapshot, grading, judge, before_judge,
-                                    register_team(p))
+        found, prove, schema = pass_defects(ledger, tables, snapshot, grading, judge,
+                                            before_judge, register_team(p))
         defects += found
-    for row in (tables["active"] if added is None else added):
-        if cell(row, "evidence") and not evidence_signal(cell(row, "evidence")):
-            defects.append(f"Active row {row_id(row) or row['_raw'][:40]}: Evidence does not open "
-                           f"with an admissible signal ({', '.join(sorted(ADMISSIBLE_EVIDENCE))}) — "
-                           f"an anecdote is a Candidates row")
+    for row in prove:
+        if not evidence_signal(cell(row, "evidence")):
+            defects.append(f"Active row {row_id(row)}: Evidence does not open with an admissible "
+                           f"signal ({', '.join(sorted(ADMISSIBLE_EVIDENCE))}, or "
+                           f"'{_NAMED_HARM}') — an anecdote is a Candidates row")
     for d in dict.fromkeys(defects):
         say(f"✗ {d}")
     if defects:
         return 1
     say(f"✓ {p.name}: register valid — {len(tables['active'])} active, "
         f"{len(tables['superseded'])} superseded, {len(tables['candidates'])} candidates, banner present")
-    if ledger:
-        say(f"✓ this pass's records agree: {len(added)} Active rows added, each with an applied "
-            f"lesson event, a passed grading entry (red before, green after)"
+    if ledger and schema is not None and schema < 2:
+        say("✓ this pass's lesson events agree with the register (stamp schema 1: the pass "
+            "predates the grading and judge rules, so they are not applied)")
+    elif ledger:
+        say(f"✓ this pass's records agree: {len(prove)} Active rows added or amended, each with "
+            f"an applied lesson event, a passed grading entry (red before, green after)"
             + ("" if before_judge else " and the judge's PASS where the mode needs one"))
     return 0
 
@@ -1444,9 +1541,9 @@ def main(argv):
             print("✗ the lint scopes itself to the pass the ledger's evolve stamp names; "
                   "--since is a mining option", file=sys.stderr)
             return 2
-        if (args.ledger or any(pass_flags)) and not (args.ledger and args.grading and args.snapshot):
-            print("✗ the pass checks need --ledger, --grading and --snapshot together",
-                  file=sys.stderr)
+        if any(pass_flags) and not args.ledger:
+            print("✗ --grading, --snapshot, --judge and --before-judge check a pass, so they need "
+                  "--ledger", file=sys.stderr)
             return 2
         return lint_register(args.lint_register, ledger=args.ledger, grading=args.grading,
                              snapshot=args.snapshot, judge=args.judge,
@@ -1587,6 +1684,7 @@ def main(argv):
     adm = sum(1 for c in cands if c["admissible"])
     doc = {
         "schema": SCHEMA,
+        "pass_schema": EVOLVE_PASS_SCHEMA,
         "team": team,
         "mined_at": mined_at,
         "forge_version": manifest.get("forge_version") or FORGE_VERSION,

@@ -6,7 +6,8 @@ skills/teardown/SKILL.md Step 1 asks two things before Step 2 removes any worktr
 `team-forge:evolve` has run in close mode against the final state (five conditions: an
 `evolve` marker exists, its `mode` is `close`, no ledger event postdates its `last_run`,
 its `candidates` file's own `mined_at` matches with no later candidates file sitting
-next to it, and a committed `agent_evals/<team>/*/judge.json` for that `mined_at` says PASS),
+next to it, and -- for a schema-2 stamp -- a committed `agent_evals/<team>/*/judge.json` for
+that `mined_at` says PASS for every row the pass must have judged),
 and that the live ledger gets copied to `docs/team-forge/<team>/final-ledger.json` before it
 is gone.
 
@@ -34,7 +35,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from evolve_mine import judge_defects, load_json, resolve_hub  # noqa: E402
+from evolve_mine import (judge_defects, judge_rows, load_json, parse_register,  # noqa: E402
+                         register_sections, resolve_hub, stamp_schema)
 from ledger_vocab import parse_ts  # noqa: E402,F401  (re-exported for the tests)
 
 
@@ -87,34 +89,51 @@ def check_freshness(ledger, repo_root, team=None):
         if later_candidates:
             return 2, f"STALE -- a later candidates file exists: {', '.join(later_candidates)}"
 
-    code, message = check_judge(repo_root, team, mined_at)
+    code, message = check_judge(repo_root, team, ledger, candidates_doc)
     if code:
         return code, message
     return 0, f"fresh · {candidates_path} · mined_at {mined_at} · {message}"
 
 
-def check_judge(repo_root, team, mined_at):
-    """A close pass is finished only once a judge that did not produce it said PASS, in a
-    judge.json committed with the pass (evolve SKILL.md Step 9)."""
+def _git(repo_root, *args):
+    return subprocess.run(["git", "-C", str(repo_root), *args], capture_output=True, text=True)
+
+
+def check_judge(repo_root, team, ledger, candidates_doc):
+    """A schema-2 close pass is finished only once a judge that did not produce it passed every
+    row it had to, in a judge.json committed with the pass (evolve SKILL.md Step 9). A stamp
+    from before that rule (schema 1) needs none."""
+    evolve = ledger["evolve"]
+    schema, mined_under = stamp_schema(evolve), candidates_doc.get("pass_schema")
+    if type(mined_under) is int and mined_under != schema:
+        return 2, (f"STALE -- the stamp says schema {schema}, but its candidates file was mined "
+                   f"under schema {mined_under}; copy it into the stamp")
+    if schema < 2:
+        return 0, "schema 1: the pass predates the judge rule"
     if repo_root is None or not team:
         return 2, "STALE -- no repo root and team to find agent_evals/<team>/*/judge.json in"
-    found = []
-    for path in sorted((repo_root / "agent_evals" / team).glob("*/judge.json")):
-        doc = load_json(path, "judge file")
-        if doc.get("mined_at") == mined_at:
-            found.append(path)
+    mined_at = evolve.get("mined_at")
+    judges = repo_root / "agent_evals" / team
+    found = [path for path in sorted(judges.glob("*/judge.json"))
+             if parse_ts(load_json(path, "judge file").get("mined_at")) == parse_ts(mined_at)]
     if not found:
         return 2, (f"STALE -- no agent_evals/{team}/*/judge.json for mined_at {mined_at}; "
                    f"run the evolve Step 9 judge")
     path = found[-1]
-    defects, _ = judge_defects(path, mined_at, team)
+    rel = path.relative_to(repo_root)
+    defects, judged = judge_defects(path, mined_at, team)
     if defects:
-        return 2, f"STALE -- {path.relative_to(repo_root)}: {defects[0]}"
-    tracked = subprocess.run(["git", "-C", str(repo_root), "ls-files", "--error-unmatch",
-                              str(path.relative_to(repo_root))], capture_output=True)
-    if tracked.returncode:
-        return 2, f"STALE -- {path.relative_to(repo_root)} is not committed; commit it with the pass"
-    return 0, f"judged PASS in {path.relative_to(repo_root)}"
+        return 2, f"STALE -- {rel}: {defects[0]}"
+    register = repo_root / "docs" / "team-forge" / team / "lessons.md"
+    if not register.is_file():
+        return 2, f"STALE -- no register at {register.relative_to(repo_root)} to read the judged rows from"
+    missing = judge_rows(ledger, register_sections(parse_register(register)[0]), judges) - judged
+    if missing:
+        return 2, f"STALE -- {rel} has no PASS row for {', '.join(sorted(missing))}"
+    if not _git(repo_root, "log", "-n1", "--format=%H", "--", str(rel)).stdout.strip() \
+            or _git(repo_root, "status", "--porcelain", "--", str(rel)).stdout.strip():
+        return 2, f"STALE -- {rel} is not committed as it stands; commit it with the pass"
+    return 0, f"judged PASS in {rel}"
 
 
 def cmd_check(args):

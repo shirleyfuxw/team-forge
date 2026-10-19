@@ -5,7 +5,7 @@
     "cycle": null,
     "candidates": "docs/team-forge/drain/evolve/candidates-2026-09-01.json",
     "mined_at": "2026-09-01T09:45:00Z",
-    "unjudged": [],
+    "schema": 2,
     "rows": {
       "applied": 3,
       "queued": 0,
@@ -74,7 +74,9 @@
         "target": ".claude/agent-memory/drain-lead/MEMORY.md",
         "action": "amend",
         "status": "applied",
-        "register_id": null
+        "register_id": null,
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     },
     {
@@ -93,7 +95,9 @@
         "target": "design.yaml#worker.procedure",
         "action": "amend",
         "status": "applied",
-        "register_id": "LL-1"
+        "register_id": "LL-1",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     },
     {
@@ -112,7 +116,9 @@
         "target": ".claude/agent-memory/drain-lead/MEMORY.md",
         "action": "amend",
         "status": "applied",
-        "register_id": "LL-2"
+        "register_id": "LL-2",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     },
     {
@@ -131,7 +137,9 @@
         "target": "design.yaml#queue.wave_size",
         "action": "amend",
         "status": "applied",
-        "register_id": "C-1"
+        "register_id": "C-1",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     },
     {
@@ -150,7 +158,9 @@
         "target": "design.yaml#queue.wave_size",
         "action": "amend",
         "status": "candidate",
-        "register_id": "C-001"
+        "register_id": "C-001",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     },
     {
@@ -169,7 +179,9 @@
         "target": "none",
         "action": "amend",
         "status": "rejected",
-        "register_id": null
+        "register_id": null,
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     },
     {
@@ -188,7 +200,9 @@
         "target": "design.yaml#gates.review",
         "action": "amend",
         "status": "applied",
-        "register_id": "LL-0"
+        "register_id": "LL-0",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     },
     {
@@ -207,7 +221,9 @@
         "target": "design.yaml#queue",
         "action": "amend",
         "status": "queued",
-        "register_id": "LL-4"
+        "register_id": "LL-4",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     },
     {
@@ -226,7 +242,9 @@
         "target": "design.yaml#queue",
         "action": "amend",
         "status": "rejected",
-        "register_id": "LL-4"
+        "register_id": "LL-4",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
       }
     }
   ]

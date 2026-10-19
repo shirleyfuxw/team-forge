@@ -52,8 +52,9 @@ tells "this run had nothing to teach" apart from "nobody ran evolve."
 ### Columns that carry weight
 
 - **Evidence** — the admissible signal *and* its refs, in the form `recurrence: 4 ×
-  gate_flaked` or `blocked→resolved: <agent>/<issue-key>`. Not "observed during the run", and
-  never `anecdote`: an anecdote is a Candidates row.
+  gate_flaked` or `blocked→resolved: <agent>/<issue-key>`, or SKILL.md's `hurt once in a way
+  with a name: <the name>`. Not "observed during the run", and never `anecdote`: an anecdote is
+  a Candidates row.
 - **Applied to** — `L1|L2|L3:<path>#<key>`. A row with no path is not applied; it belongs in
   Candidates.
 - **Check** — the command that proves the lesson took effect, quoted well enough to re-run,
@@ -141,22 +142,26 @@ It checks the format, not the judgment: the banner is present and parses; the fo
 exist with their expected columns; no prose line wrapped onto a `## <section>` line (the
 parser switches sections on any line starting `##`, so a wrapped sentence silently reassigns
 the rows after it — the forge shipped exactly that); every id is unique; every Active row
-carries a non-empty Evidence, Applied-to and Check, and its Evidence opens with an admissible
-signal; no Active row duplicates another's normalized claim; and every Superseded row records
-what killed it.
+carries a non-empty Evidence, Applied-to and Check; no Active row duplicates another's
+normalized claim; and every Superseded row records what killed it.
 
-`--ledger`, `--grading` and `--snapshot` go together and check this pass's own records. Its
-events are the `lesson` events between the evolve stamp's `mined_at` and `last_run`, so the
-run's mid-run lessons and earlier passes stay out; the last event per `register_id` (or per
-claim, for one with no id) counts. An `applied` event needs an admissible evidence type,
-non-empty `refs` and its row; an unknown status, an id no row carries (unless `rejected`), and a
-status that disagrees with the row's table are errors. Every Active row the snapshot lacks
-must open with an admissible signal (the allow-list then covers only those rows) and carry an
-applied event and a `passed: true` grading entry whose `before` run failed and whose `after`
-run of the same command passed. In close mode, a PASS `judge.json` (default: beside the grading
-file) must cover those rows and `evolve.unjudged`; `--before-judge` skips only that, for the run
-before the judge. In cycle mode, every row the pass applied must be in `evolve.unjudged`.
-Exit 0 is the register's own gate — run it in SKILL.md Steps 8 and 9.
+`--ledger` adds this pass's own records, by the rules of the stamp's `schema`. Its events are
+the `lesson` events between the stamp's `mined_at` and `last_run`, both included, so the run's
+mid-run lessons and earlier passes stay out; the last event per `register_id`, or per claim for
+one with no id (a correction must come later in time), counts. Every stamp: an `applied` event
+never rests on an anecdote, the status is one of the four, an id no row carries is an error
+unless `rejected`, and the status must agree with the row's table.
+
+Schema 2 adds the rest, and needs `--grading` and `--snapshot`. An `applied` event needs an
+admissible evidence type, non-empty `refs`, its row, `pass` and `mode`, and new refs if the row
+was `rejected` before. Every Active row this pass added (the snapshot lacks it) or amended (an
+applied event names it) must open with an admissible signal, and carry an applied event and a
+`passed: true` grading entry whose `before` run failed and whose `after` run of the same
+command passed. In close mode, a PASS `judge.json` (default: beside the grading file; its
+`mined_at` read as an instant) must cover those rows and every row a cycle pass applied since
+the last judged close; `--before-judge` skips only that, for the run before the judge. Rows
+this pass did not touch, and the register linted alone, are not held to the evidence
+allow-list. Exit 0 is the register's own gate — run it in SKILL.md Steps 8 and 9.
 
 One check it deliberately does **not** make: that no id was *renumbered* since the previous
 commit, which needs git. That is yours at Step 8. Do not read a green lint as covering it —

@@ -5,6 +5,11 @@
   "brief": "judge-brief.md",
   "rows": [
     {
+      "register_id": "LL-1",
+      "verdict": "PASS",
+      "evidence": "re-ran the grep on the snapshot (exit 1) and after (exit 0)"
+    },
+    {
       "register_id": "LL-2",
       "verdict": "PASS",
       "evidence": "re-ran the grep on the snapshot (exit 1) and after (exit 0)"

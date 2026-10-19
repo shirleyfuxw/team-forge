@@ -1,0 +1,7 @@
+[
+  {
+    "text": "LL-2: worker scratch files live outside the repo root",
+    "passed": true,
+    "evidence": "grep -c '/tmp' MEMORY.md -> 1"
+  }
+]

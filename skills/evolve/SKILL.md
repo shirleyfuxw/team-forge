@@ -256,14 +256,16 @@ ever settled.
                   "refs": ["<event id / gate / path>"]},
      "layer": "L1|L2|L3", "target": "<path#key>",
      "action": "amend|add_gate|prune|open_item|plugin_feedback",
-     "status": "candidate|applied|rejected|queued", "register_id": "LL-n|C-n|null"}}
+     "status": "candidate|applied|rejected|queued", "register_id": "LL-n|C-n|null",
+     "pass": "<this pass's mined_at>", "mode": "close|cycle"}}
    ```
 
-   The status must match the table its row sits in, as `references/register-format.md`
+   `pass` and `mode` let a later close find what each cycle pass applied. The status must match the table its row sits in, as `references/register-format.md`
    (Admission) sets out. An `applied` event names its row and carries an admissible type with
    non-empty `refs`, never `anecdote`. To correct an event, log a new one for the same
    `register_id` — or, for one with no id, the same claim — and the later one counts; an id
-   drafted and never used is logged `rejected`.
+   drafted and never used is logged `rejected`, and a row applied again after a `rejected`
+   needs new refs.
 
 2. Stamp the pass into the ledger as a top-level `evolve` key — written **after** the `lesson`
    events above, so `last_run` is later than everything this pass wrote:
@@ -273,13 +275,12 @@ ever settled.
                "cycle": "<current_cycle_id, or null in close mode>",
                "candidates": "docs/team-forge/<team>/evolve/candidates-<YYYY-MM-DD>.json",
                "mined_at": "<that file's own mined_at, copied verbatim>",
-               "unjudged": ["<LL-n applied by cycle passes since the last judged close>"],
+               "schema": "<that file's own pass_schema, copied verbatim>",
                "rows": {"applied": 0, "queued": 0, "rejected": 0, "candidates": 0}}}
    ```
 
-   `unjudged` carries forward what no judge has seen: a cycle pass writes the previous stamp's
-   list plus every row it applied, and a close pass writes the previous list for its judge to
-   cover (Step 9).
+   A stamp without `schema` predates the grading, coverage and judge rules, so the lint and
+   teardown hold it to the earlier checks only.
 
    This is the marker `team-forge:teardown` Step 1 reads, and it is the whole freshness
    contract: teardown passes when `mode` is `close`, when `mined_at` matches the `mined_at`
@@ -314,13 +315,14 @@ produce this pass — a fresh agent, not one of the team's seats; the producer's
 not count, because the producer briefed it. Write its brief to `judge-brief.md` beside the
 grading file: this skill and its references as the rubric, plus the pass's commit, the Step-3
 HEAD and the snapshot folder — not the producer's verdicts or summary. The judge re-runs every
-row's check on both states, every negative control, and the Step-8 lint itself, covering every
-row this pass added and every row in `evolve.unjudged`, and writes its verdict beside the
-grading file as `judge.json`:
+row's check on both states, every negative control, and the Step-8 lint itself. It covers
+every Active row this pass added or amended, and every row a cycle pass applied since the last
+close a judge passed (found from their `mode: cycle` lesson events), and writes its verdict
+beside the grading file as `judge.json`:
 
 ```json
 {"mined_at": "<the pass's evolve.mined_at>", "commit": "<sha judged>",
- "judge": "<who judged: agent type and session, never a team seat>",
+ "judge": "<who judged: agent type and session; never a team seat, never the team's name>",
  "brief": "judge-brief.md",
  "rows": [{"register_id": "LL-n", "verdict": "PASS|FAIL",
            "evidence": "<what it re-ran, what it saw>"}],
@@ -331,10 +333,11 @@ The verdict goes in that file, not the ledger: an event after `evolve.last_run` 
 freshness check. On FAIL, fix what the judge named, re-run Step 8 (which re-stamps the `evolve`
 key), and have it judged again. On PASS, commit `judge.json` and its brief with the pass, then
 run the Step-8 lint without `--before-judge`. `team-forge:teardown` refuses a close pass with no
-committed PASS `judge.json` for its `mined_at`.
+committed PASS `judge.json` for its `mined_at` that covers those rows. A judged close clears the
+cycle rows it covered.
 
-**`cycle` mode** has no judge of its own: the rows it applies wait in `evolve.unjudged` for the
-next close's judge, and the pass returns to the drain loop, which owns the next cycle.
+**`cycle` mode** has no judge of its own: the rows it applies wait for the next close's judge,
+and the pass returns to the drain loop, which owns the next cycle.
 
 ## Failure modes
 

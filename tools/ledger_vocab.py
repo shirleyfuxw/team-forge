@@ -34,6 +34,10 @@ EVIDENCE_TYPES = ("recurrence", "blocked_resolved", "gate_failure", "budget_attr
 ADMISSIBLE_EVIDENCE = frozenset(EVIDENCE_TYPES) - {"anecdote"}
 LESSON_STATUSES = ("candidate", "applied", "rejected", "queued")
 
+# The evolve pass rules a candidates file was mined under; the evolve stamp copies it. Schema 2
+# brought grading runs, coverage and the judge; a stamp without it predates them.
+EVOLVE_PASS_SCHEMA = 2
+
 
 def parse_ts(raw):
     """An ISO-8601 timestamp as an aware datetime, or None. Ledgers mix "...Z" with

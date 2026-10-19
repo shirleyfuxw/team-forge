@@ -11,10 +11,11 @@ What it proves:
     sorts before "Z" regardless of which timestamp is actually later
   - a timestamp that fails to parse is never treated as "before last_run" — that is the
     direction that would falsely call a run fresh and let its worktree be removed
-  - the fresh case (all five conditions met) exits 0, and the fifth -- a committed
-    judge.json for the pass's mined_at with verdict PASS from a judge that is not a team
-    seat -- fails STALE when the file is missing, says FAIL, names another mined_at, names a
-    team seat, or is not committed
+  - the fresh case exits 0: with no judge.json for a stamp with no schema (made before the
+    judge rule), and with a committed PASS judge.json for a schema-2 stamp; that fifth
+    condition fails STALE when the file is missing, says FAIL, names another pass, names the
+    team, has no brief, misses a row the pass or a cycle pass applied, is not committed as it
+    stands, or when the stamp drops the schema its candidates file was mined under
   - `archive` copies the live ledger to docs/team-forge/<team>/final-ledger.json, and
     refuses with exit 1 when there is no live ledger to copy
   - a missing or unparseable ledger exits 3 (`check`) via UNREADABLE, distinct from every
@@ -57,9 +58,58 @@ def _make_hub(name, ledger_doc, candidates_docs=None):
     return hub
 
 
-def _add_judge(hub, team, stamp, commit=True, **overrides):
-    """agent_evals/<team>/evolve-x/judge.json plus its brief, committed in a fresh git repo
-    at the fixture root unless commit is False."""
+REGISTER = """# {team} — lessons register
+
+> Verified against team-forge **0.14.0** · last evolve 2026-01-02 · events mined: 2
+
+## Active
+
+| # | Lesson | Evidence | Applied to (layer:path) | Check | Since |
+|---|---|---|---|---|---|
+| LL-1 | One | recurrence x2 | L1:x | `true` | 2026-01-02 |
+| LL-2 | Two | recurrence x2 | L1:y | `true` | 2026-01-01 |
+
+## Superseded / falsified
+
+| # | Lesson | Died at | Replaced by |
+|---|---|---|---|
+
+## Candidates (evidence pending)
+
+| C-id | Claim | Seen | First/last |
+|---|---|---|---|
+
+## Unexercised (ablation queue)
+
+| What | Since | Runs without a trace | Decision |
+|---|---|---|---|
+"""
+MINED, LAST = "2026-01-01T23:00:00Z", "2026-01-02T00:00:00Z"
+
+
+def _lesson(ts, rid, made, mode):
+    return {"ts": ts, "agent": "lead", "kind": "lesson", "payload": {
+        "claim": f"applied {rid}", "evidence": {"type": "recurrence", "refs": ["r"]},
+        "action": "amend", "status": "applied", "register_id": rid, "pass": made, "mode": mode}}
+
+
+def _v2_hub(team, events=None, stamp_schema=2):
+    """A schema-2 close pass that applied LL-1, with its register and candidates file."""
+    rel = f"docs/team-forge/{team}/evolve/candidates-2026-01-01.json"
+    evolve = {"mode": "close", "last_run": LAST, "candidates": rel, "mined_at": MINED}
+    if stamp_schema:
+        evolve["schema"] = stamp_schema
+    hub = _make_hub(team, {"events": events if events is not None else
+                           [_lesson("2026-01-01T23:30:00Z", "LL-1", MINED, "close")],
+                           "evolve": evolve},
+                    candidates_docs={"candidates-2026-01-01.json": {"mined_at": MINED, "pass_schema": 2}})
+    (hub.parents[2] / "docs" / "team-forge" / team / "lessons.md").write_text(REGISTER.format(team=team))
+    return hub
+
+
+def _add_judge(hub, team, stamp=MINED, commit="all", **overrides):
+    """agent_evals/<team>/evolve-x/judge.json plus its brief, in a git repo at the fixture root:
+    committed ("all"), only staged ("staged"), or neither ("none")."""
     target = hub.parents[2]
     jdir = target / "agent_evals" / team / "evolve-x"
     jdir.mkdir(parents=True, exist_ok=True)
@@ -71,10 +121,17 @@ def _add_judge(hub, team, stamp, commit=True, **overrides):
     (jdir / "judge.json").write_text(json.dumps(doc))
     git = ["git", "-C", str(target)]
     subprocess.run(git + ["init", "-q"], check=True)
-    if commit:
+    if commit == "ignored":
+        (target / ".gitignore").write_text("agent_evals/\n")
+        subprocess.run(git + ["add", ".gitignore"], check=True)
+        subprocess.run(git + ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "i"],
+                       check=True)
+    if commit in ("all", "staged"):
         subprocess.run(git + ["add", "agent_evals"], check=True)
+    if commit == "all":
         subprocess.run(git + ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "j"],
                        check=True)
+    return jdir / "judge.json"
 
 
 def _run_check(hub):
@@ -199,9 +256,11 @@ def check_stale_later_candidates_file():
     print("✓ STALE (later candidates file): a later mining pass means this marker is stale")
 
 
-def _fresh_hub(team):
+def check_fresh():
+    """A stamp with no schema predates the judge rule: four conditions, and no judge.json."""
+    team = "fresh"
     rel_candidates = f"docs/team-forge/{team}/evolve/candidates-2026-01-02.json"
-    return _make_hub(
+    hub = _make_hub(
         team,
         {
             "events": [{"ts": "2026-01-01T00:00:00Z"}],
@@ -210,36 +269,61 @@ def _fresh_hub(team):
         },
         candidates_docs={"candidates-2026-01-02.json": {"mined_at": "2026-01-02T00:00:00Z"}},
     )
-
-
-def check_fresh():
-    hub = _fresh_hub("fresh")
-    _add_judge(hub, "fresh", "2026-01-02T00:00:00Z")
     r = _run_check(hub)
-    assert r.returncode == 0, f"all five conditions met should exit 0\n{r.stdout}{r.stderr}"
-    assert "fresh" in r.stdout and "judged PASS" in r.stdout, r.stdout
-    print("✓ fresh: all five conditions met exits 0")
+    assert r.returncode == 0 and "schema 1" in r.stdout, \
+        f"a pre-judge (schema 1) pass should be fresh with no judge.json\n{r.stdout}{r.stderr}"
+    hub = _v2_hub("fresh-v2")
+    _add_judge(hub, "fresh-v2")
+    r = _run_check(hub)
+    assert r.returncode == 0 and "judged PASS" in r.stdout, \
+        f"a schema-2 pass with a committed PASS judge should be fresh\n{r.stdout}{r.stderr}"
+    hub = _v2_hub("fresh-offset")
+    _add_judge(hub, "fresh-offset", stamp="2026-01-02T07:00:00+08:00")
+    r = _run_check(hub)
+    assert r.returncode == 0, f"the judge's mined_at in another offset did not match\n{r.stdout}"
+    print("✓ fresh: a schema-1 pass needs no judge; a schema-2 pass with a committed PASS judge "
+          "is fresh, its mined_at matched as an instant")
 
 
 def check_judge_required():
+    def run(team, judge=None, commit="all", events=None, stamp_schema=2, after=None):
+        hub = _v2_hub(team, events=events, stamp_schema=stamp_schema)
+        if judge is not None:
+            path = _add_judge(hub, team, commit=commit, **judge)
+            if after:
+                after(path)
+        return _run_check(hub)
+
+    cycle = [_lesson("2026-01-01T20:00:00Z", "LL-2", "2026-01-01T19:00:00Z", "cycle"),
+             _lesson("2026-01-01T23:30:00Z", "LL-1", MINED, "close")]
     cases = [
-        ("judge-missing", None, "no agent_evals/judge-missing/*/judge.json"),
-        ("judge-fail", {"verdict": "FAIL"}, "not PASS"),
-        ("judge-other-pass", {"mined_at": "2025-12-31T00:00:00Z"}, "no agent_evals/judge-other-pass"),
-        ("judge-seat", {"judge": "judge-seat-advisor"}, "one of the team's own seats"),
-        ("judge-no-brief", {"brief": "missing.md"}, "brief 'missing.md' not found"),
-        ("judge-uncommitted", {"_commit": False}, "is not committed"),
+        ("judge-missing", {}, "no agent_evals/judge-missing/*/judge.json"),
+        ("judge-fail", {"judge": {"verdict": "FAIL"}}, "not PASS"),
+        ("judge-other-pass", {"judge": {"mined_at": "2025-12-31T00:00:00Z"}},
+         "no agent_evals/judge-other-pass"),
+        ("judge-seat", {"judge": {"judge": "judge-seat-advisor"}}, "names the team"),
+        ("spaced", {"judge": {"judge": "the spaced advisor"}}, "names the team"),
+        ("judge-no-brief", {"judge": {"brief": "missing.md"}}, "brief 'missing.md' not found"),
+        ("judge-no-rows", {"judge": {"rows": []}}, "has no PASS row for LL-1"),
+        ("judge-cycle-row", {"judge": {}, "events": cycle}, "has no PASS row for LL-2"),
+        ("judge-uncommitted", {"judge": {}, "commit": "none"}, "is not committed"),
+        ("judge-staged", {"judge": {}, "commit": "staged"}, "is not committed"),
+        ("judge-ignored", {"judge": {}, "commit": "ignored"}, "is not committed"),
+        ("judge-edited", {"judge": {}, "after": lambda p: p.write_text(p.read_text() + " ")},
+         "is not committed"),
+        ("schema-dodged", {"judge": None, "stamp_schema": None}, "mined under schema 2"),
     ]
-    for team, overrides, fragment in cases:
-        hub = _fresh_hub(team)
-        if overrides is not None:
-            commit = overrides.pop("_commit", True)
-            _add_judge(hub, team, "2026-01-02T00:00:00Z", commit=commit, **overrides)
-        r = _run_check(hub)
+    for team, kw, fragment in cases:
+        kw = dict(kw)
+        if "judge" not in kw:
+            kw["judge"] = None
+        r = run(team, **kw)
         assert r.returncode == 2 and fragment in r.stdout, \
             f"{team}: expected STALE naming {fragment!r}, got {r.returncode}\n{r.stdout}{r.stderr}"
-    print(f"✓ STALE (judge): {len(cases)} judge defects each stop teardown (missing · FAIL · "
-          f"another pass · a team seat · no brief · not committed)")
+    print(f"✓ STALE (judge): {len(cases)} judge defects each stop teardown (missing · FAIL · another "
+          f"pass · a team seat, hyphenated or spaced · no brief · no rows · a cycle row unjudged · "
+          f"never committed · only staged · gitignored · edited after commit · a stamp that drops "
+          f"its schema)")
 
 
 def check_unreadable():
