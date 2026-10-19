@@ -13,7 +13,7 @@ carries one seeded defect per lint rule.
 | # | Lesson | Evidence | Applied to (layer:path) | Check | Since |
 |---|---|---|---|---|---|
 | LL-1 | Build the verify brief from the diff, never from the lead's summary | recurrence x3 (`verifier_prompt_contamination`, cycle-2026-09-01-001) | L2:design.yaml#worker.procedure | `grep -c 'from the diff' .claude/agents/drain-worker.md` returns >= 1 | 2026-09-01 |
-| LL-2 | Worker scratch files live outside the repo root | blocked->resolved (#1885, branch-safety hook) | L1:.claude/agent-memory/drain-lead/MEMORY.md | dispatch brief names /tmp as the scratch root | 2026-09-01 |
+| LL-2 | Worker scratch files live outside the repo root | blocked->resolved (#1885, branch-safety hook) | L1:.claude/agent-memory/drain-lead/MEMORY.md | `grep -q '/tmp' .claude/agent-memory/drain-lead/MEMORY.md` | 2026-09-01 |
 
 ## Superseded / falsified
 

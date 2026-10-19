@@ -1,0 +1,39 @@
+[
+  {
+    "text": "LL-1: build the verify brief from the diff, never from the lead's summary",
+    "passed": true,
+    "before": {
+      "command": "grep -q 'from the diff' .claude/agents/drain-worker.md",
+      "exit": 1,
+      "output": ""
+    },
+    "after": {
+      "command": "grep -q 'from the diff' .claude/agents/drain-worker.md",
+      "exit": 0,
+      "output": ""
+    }
+  },
+  {
+    "text": "LL-2: worker scratch files live outside the repo root",
+    "passed": true,
+    "before": {
+      "command": "grep -q '/tmp' .claude/agent-memory/drain-lead/MEMORY.md",
+      "exit": 1,
+      "output": ""
+    },
+    "after": {
+      "command": "grep -q '/tmp' .claude/agent-memory/drain-lead/MEMORY.md",
+      "exit": 0,
+      "output": ""
+    }
+  },
+  {
+    "text": "C-1: waves of three drain faster than waves of four",
+    "passed": false,
+    "after": {
+      "command": "grep -q 'wave_size: 3' design.yaml",
+      "exit": 1,
+      "output": ""
+    }
+  }
+]

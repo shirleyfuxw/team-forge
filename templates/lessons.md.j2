@@ -34,11 +34,11 @@ looks for them:
 
 Everything else is an **anecdote**. One invented event kind is an anecdote. A memory note is
 admissible only when the same normalized sentence appears in two or more cycle sections of
-that `MEMORY.md`, or when it corroborates a ledger candidate. Anecdotes go to the
-Candidates table below and wait for a second sighting — they are not deleted, and they are
-not applied. (Never start a prose line with `## Candidates`: the register linter switches
-sections on any line beginning `##`, so a wrapped sentence becomes a phantom heading and the
-rows after it land in the wrong table.)
+that `MEMORY.md`, or when it corroborates a candidate from this run's own ledger, and it
+holds judgment, never live state. Anecdotes go to the Candidates table below and wait for a
+second sighting — they are not deleted, and they are not applied. (Never start a prose line
+with `## Candidates`: the register linter switches sections on any line beginning `##`, so a
+wrapped sentence becomes a phantom heading and the rows after it land in the wrong table.)
 
 ## The rules that keep this file honest
 
@@ -48,8 +48,9 @@ rows after it land in the wrong table.)
   claim and move the old one to ## Superseded / falsified with what replaced it.
 - **Falsified rows are kept, with what killed them.** Deleting a wrong belief only means the
   next reader re-derives it from the same plausible reasoning that produced it the first time.
-- **Every Active row names a check, and that check was run when the row landed.** A row whose
-  Check column reads "reviewed" or "by inspection" is a candidate wearing a lesson's clothes.
+- **Every Active row names a check that failed before the edit and passed after it.** A check
+  that was already green before the edit, or that reads "reviewed" or "by inspection", is a
+  candidate wearing a lesson's clothes.
 - **Prune as well as accrete.** Anything in ## Unexercised that has gone several runs without
   a trace gets ablated on a branch — delete it, run the harness plus a dogfood transcript, and
   re-add only what an observed failure demands.

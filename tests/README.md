@@ -131,8 +131,11 @@ the negative control) admits nothing while still recording its anecdotes · two 
 fixed `--now` are byte-identical · candidate ids continue an existing register instead of
 restarting · `lessons-good.md` lints clean while `lessons-bad.md` (four row-level defects)
 and `lessons-structural-bad.md` (four structural defects) are each rejected with every
-seeded defect named individually · unreadable and truncated ledgers warn and still produce
-a valid document.
+seeded defect named individually · `--lint-register` with `--ledger` and `--grading` rejects
+an applied row resting on an anecdote, a `lesson` event whose status disagrees with its row,
+and a grading entry marked passed with no failing run before the edit — each shown red on a
+broken copy of `lint-ledger.json` / `grading-good.json` and green once restored · unreadable
+and truncated ledgers warn and still produce a valid document.
 
 It ends with a meta-check, because this repo has twice shipped a check that stayed green
 while its fix was reverted: every critical assertion above is re-run against a deliberately

@@ -22,7 +22,7 @@ Usage:
   evolve_mine.py <hub-or-repo-path> [--team NAME] [--ledger PATH] [--out DIR]
                  [--since CYCLE_OR_ISO] [--now ISO] [--memory-dir DIR] [--register PATH]
                  [--json]
-  evolve_mine.py --lint-register <lessons.md>
+  evolve_mine.py --lint-register <lessons.md> [--ledger PATH] [--grading PATH] [--since X]
 """
 import argparse
 import itertools
@@ -975,7 +975,128 @@ _REQUIRED_SECTIONS = {
 }
 
 
-def lint_register(path):
+_ID_RE = re.compile(r"^(LL|C)-0*(\d+)$", re.I)
+_NO_ID = {"", "null", "none"}
+_ANECDOTE_EVIDENCE = re.compile(r"^\W*(anecdote|candidate)\b\s*(?::|\(|$)", re.I)
+_ADMISSIBLE_EVIDENCE = {"recurrence", "blocked_resolved", "gate_failure", "budget",
+                        "budget_attribution", "policy_adopted", "lesson_event", "memory_note"}
+_LESSON_STATUSES = ("candidate", "applied", "rejected", "queued")
+
+
+def norm_id(raw):
+    """'LL-07', '`C-001`' and 'c-1' name the same row the register writes as LL-7 / C-1."""
+    m = _ID_RE.match(re.sub(r"[*`]", "", str(raw)).strip())
+    return f"{m.group(1).upper()}-{int(m.group(2))}" if m else None
+
+
+def register_sections(tables):
+    where = {}
+    for section in ("active", "superseded", "candidates"):
+        for row in tables[section]:
+            rid = norm_id(row["_raw"].strip("|").split("|")[0])
+            if rid:
+                where.setdefault(rid, section)
+    return where
+
+
+def lint_ledger(ledger_path, where, since):
+    """The register's rows against the `lesson` events that cite them. Only the LAST event per
+    register_id is judged: a later event for the same id is how a pass corrects an earlier one."""
+    try:
+        ledger = json.loads(Path(ledger_path).read_text())
+    except Exception as e:
+        return [f"ledger {ledger_path} unreadable ({e.__class__.__name__}: {e})"], 0
+    events = ledger.get("events") if isinstance(ledger, dict) else None
+    if not isinstance(events, list):
+        return [f"ledger {ledger_path} has no events[] list to check against the register"], 0
+    events = [e for e in events if isinstance(e, dict)]
+    if since:
+        events = apply_since(events, since)
+    current = {}
+    for i, e in enumerate(events):
+        if e.get("kind") != "lesson":
+            continue
+        pl = e.get("payload") if isinstance(e.get("payload"), dict) else {}
+        raw = pl.get("register_id")
+        anon = raw is None or str(raw).strip().lower() in _NO_ID
+        current[("anon", i) if anon else (norm_id(raw) or str(raw))] = (e, pl, None if anon else raw)
+    defects = []
+    for e, pl, raw in current.values():
+        status = str(pl.get("status") or "").lower()
+        ev = pl.get("evidence") if isinstance(pl.get("evidence"), dict) else {}
+        etype = str(ev.get("type") or "").lower()
+        label = f"lesson event {e.get('ts') or '?'} ({raw or 'no register_id'})"
+        prune = pl.get("action") == "prune"
+        if status not in _LESSON_STATUSES:
+            defects.append(f"{label}: status {status!r} is not one of {'|'.join(_LESSON_STATUSES)}")
+        if status == "applied" and etype not in _ADMISSIBLE_EVIDENCE:
+            defects.append(f"{label}: status applied on evidence type {(etype or '(none)')!r}, which "
+                           f"is not an admissible signal — an anecdote is recorded in Candidates, "
+                           f"never applied")
+        if raw is None:
+            if status == "applied":
+                defects.append(f"{label}: status applied but names no register row — an applied "
+                               f"lesson is a row in Active")
+            continue
+        rid = norm_id(raw)
+        section = where.get(rid)
+        if section is None:
+            defects.append(f"{label}: names {raw}, which no register row carries")
+        elif status == "applied" and section == "candidates":
+            defects.append(f"{label}: the ledger says applied, but the register keeps {rid} in "
+                           f"Candidates — one of the two records is wrong")
+        elif status == "applied" and prune and section == "active":
+            defects.append(f"{label}: an applied prune moves its row out of Active, but the "
+                           f"register still has {rid} in Active")
+        elif status in ("candidate", "queued", "rejected") and section != "candidates" \
+                and not (prune and section == "active"):
+            defects.append(f"{label}: the ledger says {status}, but the register has {rid} in "
+                           f"{section.capitalize()} — one of the two records is wrong")
+    return defects, len(current)
+
+
+def _run_exit(run):
+    """A recorded run is a dict naming the command it ran and its integer exit code."""
+    if not isinstance(run, dict) or not isinstance(run.get("command"), str) \
+            or not run["command"].strip():
+        return None
+    x = run.get("exit")
+    return x if type(x) is int else None
+
+
+def lint_grading(path):
+    """A `passed: true` entry needs the check seen red on the Step-3 snapshot and green after
+    the edit; a check that never failed cannot tell the edit from no edit."""
+    try:
+        entries = json.loads(Path(path).read_text())
+    except Exception as e:
+        return [f"grading {path} unreadable ({e.__class__.__name__}: {e})"], 0
+    if not isinstance(entries, list):
+        return [f"grading {path} is not a list of entries"], 0
+    defects, passed = [], 0
+    for i, g in enumerate(entries):
+        if not isinstance(g, dict):
+            continue
+        label = f"grading entry {i} ({md_cell(g.get('text') or '?')[:60]})"
+        if not isinstance(g.get("passed"), bool):
+            defects.append(f"{label}: passed is {g.get('passed')!r}, not true or false")
+        if g.get("passed") is not True:
+            continue
+        passed += 1
+        before, after = g.get("before"), g.get("after")
+        if _run_exit(before) in (None, 0):
+            defects.append(f"{label}: passed with no failing run recorded on the snapshot "
+                           f"(before.exit must be non-zero) — a check never seen red proves nothing")
+        if _run_exit(after) != 0:
+            defects.append(f"{label}: passed with no passing run recorded after the edit "
+                           f"(after.exit must be 0)")
+        elif _run_exit(before) and before["command"].strip() != after["command"].strip():
+            defects.append(f"{label}: before and after ran different commands — the red run must "
+                           f"be the same check as the green one")
+    return defects, passed
+
+
+def lint_register(path, ledger=None, grading=None, since=None):
     """Seven rules, each bought by a way a register stops being a register: a missing
     section or a dropped column makes every row rule vacuous (an empty table and an absent
     one lint identically); duplicate ids make LL-4 ambiguous forever (ids are append-only
@@ -987,10 +1108,10 @@ def lint_register(path):
     the failure the model register was built around — a wrong belief indistinguishable from
     a checked one.
 
-    What it deliberately does NOT check, because it is handed one file path and nothing
-    else: that ids were not renumbered since the previous commit (needs git), and that every
-    register_id cited by a `lesson` event resolves to a row (needs the ledger). Both are the
-    evolve skill's job at Step 8, where both inputs are in hand."""
+    An eighth: an Active row whose Evidence is an anecdote was applied without evidence.
+    With --ledger it also checks the `lesson` events against the rows they name, and with
+    --grading the grading.json entries (lint_ledger, lint_grading). It never checks that ids
+    were not renumbered since the previous commit, which needs git."""
     p = Path(path)
     if not p.exists():
         say(f"✗ register not found: {path}")
@@ -1039,6 +1160,9 @@ def lint_register(path):
         if not cell(row, "check"):
             defects.append(f"Active row {rid}: Check cell empty — name the check that proves it, "
                            f"or the lesson is unverifiable")
+        if _ANECDOTE_EVIDENCE.match(cell(row, "evidence")):
+            defects.append(f"Active row {rid}: Evidence is an anecdote — an anecdote is a "
+                           f"Candidates row, never an applied one")
     for a, b in itertools.combinations(tables["active"], 2):
         ca, cb = cell(a, "lesson"), cell(b, "lesson")
         if ca and cb and overlap(ca, cb) >= 0.85:
@@ -1053,12 +1177,23 @@ def lint_register(path):
     if not banner:
         defects.append("no version banner — a register with no 'Verified against team-forge <x.y.z>' "
                        "line cannot tell a checked belief from a stale one")
+    notes = []
+    if ledger:
+        found, n = lint_ledger(ledger, register_sections(tables), since)
+        defects += found
+        notes.append(f"{n} lesson events agree with the register")
+    if grading:
+        found, n = lint_grading(grading)
+        defects += found
+        notes.append(f"{n} passed entries each carry a red run before and a green run after")
     for d in defects:
         say(f"✗ {d}")
     if defects:
         return 1
     say(f"✓ {p.name}: register valid — {len(tables['active'])} active, "
         f"{len(tables['superseded'])} superseded, {len(tables['candidates'])} candidates, banner present")
+    for n in notes:
+        say(f"✓ {n}")
     return 0
 
 
@@ -1138,7 +1273,8 @@ def build_parser():
     p.add_argument("path", nargs="?", help="the team hub (.claude/team-forge/<team>/) or the repo root")
     p.add_argument("--team", help="team name; required only when the repo holds more than one")
     p.add_argument("--ledger", help="ledger JSON (default: <hub>/tracker/status.json, falling back "
-                                    "to docs/team-forge/<team>/final-ledger.json)")
+                                    "to docs/team-forge/<team>/final-ledger.json); with "
+                                    "--lint-register, the ledger whose lesson events are checked")
     p.add_argument("--out", help="output dir (default: docs/team-forge/<team>/evolve/)")
     p.add_argument("--since", help="cycle id or ISO timestamp; mine only from there on")
     p.add_argument("--now", help="ISO timestamp to stamp as mined_at — makes output reproducible")
@@ -1149,6 +1285,8 @@ def build_parser():
                                       "docs/team-forge/<team>/lessons.md)")
     p.add_argument("--lint-register", metavar="PATH",
                    help="validate a lessons.md and exit 1 on a malformed register; mines nothing")
+    p.add_argument("--grading", metavar="PATH",
+                   help="with --lint-register, also check this pass's grading.json")
     p.add_argument("--json", action="store_true",
                    help="write the document to stdout as well; progress lines go to stderr")
     return p
@@ -1160,7 +1298,11 @@ def main(argv):
     if args.json:
         _OUT = sys.stderr
     if args.lint_register:
-        return lint_register(args.lint_register)
+        return lint_register(args.lint_register, ledger=args.ledger, grading=args.grading,
+                             since=args.since)
+    if args.grading:
+        print("✗ --grading is checked only with --lint-register", file=sys.stderr)
+        return 2
     if not args.path:
         build_parser().print_usage(file=sys.stderr)
         print("✗ nothing to mine: pass a hub/repo path, or --lint-register", file=sys.stderr)

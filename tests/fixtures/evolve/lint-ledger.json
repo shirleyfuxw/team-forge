@@ -1,0 +1,126 @@
+{
+  "events": [
+    {
+      "ts": "2026-09-01T09:00:00Z",
+      "agent": "worker",
+      "kind": "task_completed",
+      "payload": {
+        "task": "T-1"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:00:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Build the verify brief from the diff, never from the lead's summary",
+        "evidence": {
+          "type": "recurrence",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#worker.procedure",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "LL-1"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:01:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Worker scratch files live outside the repo root",
+        "evidence": {
+          "type": "blocked_resolved",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L1",
+        "target": ".claude/agent-memory/drain-lead/MEMORY.md",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "LL-2"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:02:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Waves of three drain faster than waves of four on this repo",
+        "evidence": {
+          "type": "anecdote",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue.wave_size",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "C-1"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:03:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Waves of three drain faster than waves of four on this repo",
+        "evidence": {
+          "type": "anecdote",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue.wave_size",
+        "action": "amend",
+        "status": "candidate",
+        "register_id": "C-001"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:04:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "The dashboard should be blue",
+        "evidence": {
+          "type": "anecdote",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L1",
+        "target": "none",
+        "action": "amend",
+        "status": "rejected",
+        "register_id": null
+      }
+    },
+    {
+      "ts": "2026-09-01T10:05:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "The review gate can dispatch the code-review agent",
+        "evidence": {
+          "type": "gate_failure",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#gates.review",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "LL-0"
+      }
+    }
+  ]
+}

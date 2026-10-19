@@ -47,8 +47,11 @@ rules.
 
 A note in an agent's `MEMORY.md` — the workflow lead's, or a team's dispatched advisors' — is
 admissible only when the same normalized sentence appears in ≥ 2 `## <cycle-or-date>` sections
-of that file, or when it corroborates a ledger candidate. Memory is
-judgment, and judgment repeated is the only judgment this phase can check.
+of that file, or when it corroborates a candidate mined from **this run's own ledger**. A
+sighting in another instance's or another team's run does not count: it is that run's evidence,
+not this one's. A memory line this pass writes or merges holds judgment only, never live state
+("while it is open", a count, a status), because the line outlives the state it copies. Memory
+is judgment, and judgment repeated is the only judgment this phase can check.
 
 ## When to use
 
@@ -134,8 +137,8 @@ is `.claude/agent-memory/<team>-<advisor-name>/MEMORY.md`. The miner globs
 ### Step 3 — Snapshot before you edit anything
 
 Record `git rev-parse HEAD`, then copy `docs/team-forge/<team>/lessons.md`,
-`.claude/team-forge/<team>/design.yaml`, and every file a candidate targets into
-`docs/team-forge/<team>/evolve/snapshot-<YYYY-MM-DD>/`.
+`.claude/team-forge/<team>/design.yaml`, and every file a candidate targets or its check reads
+(such as `tracker/status.json`) into `docs/team-forge/<team>/evolve/snapshot-<YYYY-MM-DD>/`.
 
 This is the rollback Step 6 restores from. Take it before the first edit, not after the first
 success — a check that can fail with no way back is not a check, it is a hope.
@@ -164,9 +167,10 @@ Then route what the dedupe left:
 - Entries in the register with no trace in this run → the **Unexercised (ablation queue)**,
   each with a decision: `prune now` only when it has gone ≥ 2 runs without a trace **and** no
   `done_when` check names it; otherwise `watch`.
-- A candidate you cannot name a check for is not applicable yet. It goes to Candidates with
-  "no check" as its reason — the same rule `team-forge:goal` holds for `done_when`
-  versus `open_items`, applied to lessons.
+- A candidate you cannot name a check for — one that fails on the Step-3 state and passes
+  after the edit (Step 6) — is not applicable yet. It goes to Candidates with "no check that
+  can fail" as its reason — the same rule `team-forge:goal` holds for `done_when` versus
+  `open_items`, applied to lessons.
 
 ### Step 5 — Apply, by layer
 
@@ -176,26 +180,41 @@ targets (the agent memory this archetype actually has, the register, `contract.y
 go/no-go criteria), L2's (`design.yaml` + `--resync`, project `.claude/rules/`, promoted
 skills), and L3's plugin-feedback file.
 
-Every applied row names its check **before** the edit is kept. L2 lands on a branch
+Every applied row names its check **before** the edit is kept. A change counts as applied
+only once the copy the runtime runs carries it — a workflow's `status.json.plan`, a team's
+milestone `go_no_go` criteria — so its check reads that copy: a gate changed in `design.yaml`
+while `plan.gates` still holds the old command is not applied. When the only route into that
+copy is unsafe, such as a `--resync` that would overwrite hand-written text in a forged file,
+log the row `queued` with that reason, not `applied`.
+
+L2 lands on a branch
 `evolve/<team>-<YYYY-MM-DD>` for the user to approve; L1 is auto-applied once the evidence bar
 is met. Anything touching `.claude/agents|skills|rules` from inside a live session goes through
 the `fresh_session` handoff already specified in `team-forge:run` — the edit would otherwise
 race the files this session has loaded.
 
-### Step 6 — Verify, with a negative control
+### Step 6 — Verify: red on the snapshot, green after
 
-Run each named check. Then record every applied change to
-`agent_evals/<team>/evolve-<YYYY-MM-DD>/grading.json`, one entry per change:
+Write each check as a command whose exit code is its verdict, and run it twice: once on the
+Step-3 state (the recorded HEAD, or the snapshot copies put back), where it must **fail**, and
+once after the edit, where it must pass. A check that already passes on the snapshot cannot
+fail, so it says nothing about the edit; neither does one whose own text says it cannot go red.
+Restore that target and move the row to Candidates with "no check that can fail" as its reason.
+
+Record every applied change to `agent_evals/<team>/evolve-<YYYY-MM-DD>/grading.json`, one
+entry per change, with both runs:
 
 ```json
-[{"text": "<the lesson, as applied>", "passed": true, "evidence": "<command run + its result>"}]
+[{"text": "<the lesson, as applied>", "passed": true,
+  "before": {"command": "<the check>", "exit": 1, "output": "<what it printed on the snapshot>"},
+  "after":  {"command": "<the check>", "exit": 0, "output": "<what it printed after the edit>"}}]
 ```
 
 `forge.py` has created an empty `agent_evals/<team>/` for every team since the beginning and
 nothing has ever written to it. This is what writes to it.
 
-**Every new automated check gets a negative control** — break what it watches, confirm it goes
-red, restore. This repo learned that twice the hard way: a check "passed" while its fix was
+**Every new automated check also gets a negative control** — break what it watches, confirm it
+goes red, restore. This repo learned that twice the hard way: a check "passed" while its fix was
 reverted, because the forge re-emitted into a dirty `/tmp` path and a stale file kept
 satisfying it. `tests/check_dashboard.py` clears its target directory before forging for
 exactly that reason.
@@ -222,19 +241,24 @@ failures demand") and it is why evolve is not a phase that only grows things. A 
 only accretes is how a prompt surface rots — every row a bet re-paid on every run, and no row
 ever settled.
 
-### Step 8 — Record and hand off
+### Step 8 — Record
 
 1. Log one `lesson` event per applied / rejected / queued row into `status.json.events[]`:
 
    ```json
    {"kind": "lesson", "agent": "lead", "ts": "<iso8601>", "payload": {
      "claim": "<one sentence>",
-     "evidence": {"type": "recurrence|blocked_resolved|gate_failure|budget|policy_adopted|anecdote",
+     "evidence": {"type": "recurrence|blocked_resolved|gate_failure|budget|policy_adopted|lesson_event|memory_note|anecdote",
                   "refs": ["<event id / gate / path>"]},
      "layer": "L1|L2|L3", "target": "<path#key>",
      "action": "amend|add_gate|prune|open_item|plugin_feedback",
      "status": "candidate|applied|rejected|queued", "register_id": "LL-n|C-n|null"}}
    ```
+
+   The status must match the table its row sits in, as `references/register-format.md`
+   (Admission) sets out. An `applied` event names a row and carries an admissible type, never
+   `anecdote`. To correct an event, log a new one for the same `register_id`; the later one
+   counts.
 
 2. Stamp the pass into the ledger as a top-level `evolve` key — written **after** the `lesson`
    events above, so `last_run` is later than everything this pass wrote:
@@ -258,16 +282,35 @@ ever settled.
    which reproduces it — teardown would re-run evolve forever. Write the key even when the pass
    applied nothing; a pass that found no lessons still ran.
 3. Update the register banner in `docs/team-forge/<team>/lessons.md` — forge version, date,
-   cycle, events mined (`references/register-format.md`) — then lint it:
+   cycle, events mined (`references/register-format.md`) — then lint it against the ledger
+   and this pass's grading file (in cycle mode, add the Step-2 `--since`):
 
    ```bash
-   python3 <team-forge>/tools/evolve_mine.py --lint-register docs/team-forge/<team>/lessons.md
+   python3 <team-forge>/tools/evolve_mine.py --lint-register docs/team-forge/<team>/lessons.md \
+     --ledger <hub>/tracker/status.json \
+     --grading agent_evals/<team>/evolve-<YYYY-MM-DD>/grading.json
    ```
 4. Refresh the dashboard per `team-forge:run`'s Observability section.
-5. One commit, whose message names what was learned rather than the phase.
+5. One commit, whose message names what was learned rather than the phase. A row or note may
+   call a record committed only if `git ls-files` lists it; a project may ignore the miner's
+   `candidates-*` files, so check first.
 
-Then: **`close` mode** hands off to `team-forge:teardown`. **`cycle` mode** returns to the
-drain loop, which owns the next cycle.
+### Step 9 — Judge independently, then hand off
+
+**`close` mode** does not hand off on the producer's word. Dispatch a judge that did not
+produce this pass — a fresh agent, not one of the team's seats; the producer's own advisor does
+not count, because the producer briefed it. Brief the judge with this skill and its references
+as the rubric, plus the pass's commit, the Step-3 HEAD and the snapshot folder — not with the
+producer's verdicts or summary. The judge re-runs every row's check on both states, every
+negative control, and the Step-8 lint itself, and returns PASS or FAIL per row with the output
+it saw.
+
+Write the verdict to `agent_evals/<team>/evolve-<YYYY-MM-DD>/judge.json`, not to the ledger: an
+event after `evolve.last_run` fails teardown's freshness check. On FAIL, fix what the judge
+named, re-run Step 8 (which re-stamps the `evolve` key), and have it judged again. Hand off to
+`team-forge:teardown` only on PASS.
+
+**`cycle` mode** skips the judge and returns to the drain loop, which owns the next cycle.
 
 ## Failure modes
 

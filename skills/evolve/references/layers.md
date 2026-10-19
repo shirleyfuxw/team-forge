@@ -34,9 +34,10 @@ going. The edit races the files the running session has loaded otherwise.
 ### Agent memory
 
 Judgment only: which gates are flaky and how you confirmed it, dispatch calls that turned out
-wrong, approaches this codebase rejected, where the real bottleneck sat. Never task status,
-progress, spend, or anything else derivable from `status.json` — duplicating live state is how
-a memory starts lying.
+wrong, approaches this codebase rejected, where the real bottleneck sat. Never live state —
+task status, progress, spend, whether a pull request or issue is still open, or anything else
+a later read of the ledger or the tracker would answer differently — duplicating live state is
+how a memory starts lying.
 
 *Which* files those are is archetype-specific, and the difference is structural rather than
 cosmetic — `forge.py` emits native memory for some agents and not others:
@@ -59,8 +60,10 @@ sections: their repetition is what makes a memory note admissible in the first p
 normalized sentence in ≥ 2 cycle sections, which a single rolling paragraph cannot show). One
 or two sentences per lesson, each naming what it was learned from.
 
-Its check is the memory's own reader: the next run starts with it loaded. Record the check as
-the register row that carries the same claim, so the note is not the only copy.
+Its check must fail on the Step-3 snapshot like any other (SKILL.md Step 6), so "the next run
+loads it" is not a check; the floor is a search for the note's sentence that finds nothing on
+the snapshot. Record the check on the register row that carries the same claim, so the note is
+not the only copy.
 
 ### The register
 
@@ -94,13 +97,15 @@ workflow forge creates. Tracked, content-descriptive names (`parity-check.py`,
 stated root cause lands: the gate that missed it gets tightened, or a new one is authored
 beside it.
 
-A new gate is not applied until it is wired in. Add it to `design.yaml`'s `gates:` block and
-run `--resync` so `status.json.plan.gates` carries it — that edit is L2, so a new gate is an
-L1 script plus an L2 wiring row, and the wiring waits for the branch approval. Say so in the
-register rather than leaving a script nothing invokes.
+A new or changed gate is not applied until `status.json.plan.gates` carries it, because the
+runtime runs that copy, not `design.yaml`. Wiring it is an L2 `design.yaml` edit plus
+`--resync`, so a new gate is an L1 script plus an L2 wiring row that stays `queued` until the
+branch is approved and the resync has run. Say so in the register rather than leaving a script
+nothing invokes.
 
 Check: the gate's own negative control (SKILL.md Step 6) — break what it watches, confirm red,
-restore. A gate that has never been seen red has not been checked.
+restore. A gate that has never been seen red has not been checked. A gate that reads per-round
+rows also needs a mutant that reads the wrong round, such as the last row instead of round n.
 
 **Team** — the team forge creates no `gates/` directory and bakes no `plan.gates`; the
 archetype's checkable equivalent is the `go_no_go` criterion on each entry in `design.yaml`'s
@@ -131,8 +136,9 @@ preserving every live key. This is the only route for: roster and seat changes (
 attribution that cut a monitor seat was this edit), `gates:`, task/queue shape, `worker`
 profile changes, `recurring` settings, and `evolve.cycle_mode_layers` itself.
 
-Check: `--check` reports clean afterwards, and the harness the project already runs stays
-green. Never hand-edit `status.json.plan` to shortcut it — the next re-bake silently undoes it.
+Check: the baked `status.json.plan` shows the change, `--check` reports clean afterwards, and
+the harness the project already runs stays green. Never hand-edit `status.json.plan` to
+shortcut it — the next re-bake silently undoes it.
 
 ### The project's `.claude/rules/` roll-up
 
