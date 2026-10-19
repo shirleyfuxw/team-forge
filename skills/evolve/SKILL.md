@@ -53,6 +53,10 @@ not this one's. A memory line this pass writes or merges holds judgment only, ne
 ("while it is open", a count, a status), because the line outlives the state it copies. Memory
 is judgment, and judgment repeated is the only judgment this phase can check.
 
+A `lesson` event's `evidence.type` names one of the six signals above, `memory_note` for a note
+admitted under this bar, or `anecdote` — `EVIDENCE_TYPES` in `tools/ledger_vocab.py`, which
+`team-forge:run` prints the same way.
+
 ## When to use
 
 - The run reached Close in `team-forge:run` — every `done_when` check green, before the
@@ -187,11 +191,12 @@ while `plan.gates` still holds the old command is not applied. When the only rou
 copy is unsafe, such as a `--resync` that would overwrite hand-written text in a forged file,
 log the row `queued` with that reason, not `applied`.
 
-L2 lands on a branch
-`evolve/<team>-<YYYY-MM-DD>` for the user to approve; L1 is auto-applied once the evidence bar
-is met. Anything touching `.claude/agents|skills|rules` from inside a live session goes through
-the `fresh_session` handoff already specified in `team-forge:run` — the edit would otherwise
-race the files this session has loaded.
+L2 lands on a branch `evolve/<team>-<YYYY-MM-DD>` for the user to approve, so until the user
+approves it an L2 row is `queued`, a Candidates row (`references/register-format.md`); the
+pass that finds it merged and carried by the runtime copy records it `applied`. L1 is
+auto-applied once the evidence bar is met. Anything touching `.claude/agents|skills|rules` from
+inside a live session goes through the `fresh_session` handoff already specified in
+`team-forge:run` — the edit would otherwise race the files this session has loaded.
 
 ### Step 6 — Verify: red on the snapshot, green after
 
@@ -202,10 +207,10 @@ fail, so it says nothing about the edit; neither does one whose own text says it
 Restore that target and move the row to Candidates with "no check that can fail" as its reason.
 
 Record every applied change to `agent_evals/<team>/evolve-<YYYY-MM-DD>/grading.json`, one
-entry per change, with both runs:
+entry per change, naming its row and both runs:
 
 ```json
-[{"text": "<the lesson, as applied>", "passed": true,
+[{"text": "<the lesson, as applied>", "register_id": "LL-n", "passed": true,
   "before": {"command": "<the check>", "exit": 1, "output": "<what it printed on the snapshot>"},
   "after":  {"command": "<the check>", "exit": 0, "output": "<what it printed after the edit>"}}]
 ```
@@ -214,10 +219,7 @@ entry per change, with both runs:
 nothing has ever written to it. This is what writes to it.
 
 **Every new automated check also gets a negative control** — break what it watches, confirm it
-goes red, restore. This repo learned that twice the hard way: a check "passed" while its fix was
-reverted, because the forge re-emitted into a dirty `/tmp` path and a stale file kept
-satisfying it. `tests/check_dashboard.py` clears its target directory before forging for
-exactly that reason.
+goes red, restore.
 
 A failed check restores that target from the Step 3 snapshot, demotes the row to Candidates
 with the failure recorded as its evidence, and does not stop the rest of the pass.
@@ -243,12 +245,14 @@ ever settled.
 
 ### Step 8 — Record
 
-1. Log one `lesson` event per applied / rejected / queued row into `status.json.events[]`:
+1. Log one `lesson` event per applied / rejected / queued row into `status.json.events[]`, after
+   the Step-2 `mined_at` — the lint reads only events between `mined_at` and `last_run` as this
+   pass's, so the run's own mid-run lessons stay out of it:
 
    ```json
    {"kind": "lesson", "agent": "lead", "ts": "<iso8601>", "payload": {
      "claim": "<one sentence>",
-     "evidence": {"type": "recurrence|blocked_resolved|gate_failure|budget|policy_adopted|lesson_event|memory_note|anecdote",
+     "evidence": {"type": "recurrence|blocked_resolved|gate_failure|budget_attribution|policy_adopted|lesson_event|memory_note|anecdote",
                   "refs": ["<event id / gate / path>"]},
      "layer": "L1|L2|L3", "target": "<path#key>",
      "action": "amend|add_gate|prune|open_item|plugin_feedback",
@@ -256,9 +260,10 @@ ever settled.
    ```
 
    The status must match the table its row sits in, as `references/register-format.md`
-   (Admission) sets out. An `applied` event names a row and carries an admissible type, never
-   `anecdote`. To correct an event, log a new one for the same `register_id`; the later one
-   counts.
+   (Admission) sets out. An `applied` event names its row and carries an admissible type with
+   non-empty `refs`, never `anecdote`. To correct an event, log a new one for the same
+   `register_id` — or, for one with no id, the same claim — and the later one counts; an id
+   drafted and never used is logged `rejected`.
 
 2. Stamp the pass into the ledger as a top-level `evolve` key — written **after** the `lesson`
    events above, so `last_run` is later than everything this pass wrote:
@@ -268,8 +273,13 @@ ever settled.
                "cycle": "<current_cycle_id, or null in close mode>",
                "candidates": "docs/team-forge/<team>/evolve/candidates-<YYYY-MM-DD>.json",
                "mined_at": "<that file's own mined_at, copied verbatim>",
+               "unjudged": ["<LL-n applied by cycle passes since the last judged close>"],
                "rows": {"applied": 0, "queued": 0, "rejected": 0, "candidates": 0}}}
    ```
+
+   `unjudged` carries forward what no judge has seen: a cycle pass writes the previous stamp's
+   list plus every row it applied, and a close pass writes the previous list for its judge to
+   cover (Step 9).
 
    This is the marker `team-forge:teardown` Step 1 reads, and it is the whole freshness
    contract: teardown passes when `mode` is `close`, when `mined_at` matches the `mined_at`
@@ -282,13 +292,15 @@ ever settled.
    which reproduces it — teardown would re-run evolve forever. Write the key even when the pass
    applied nothing; a pass that found no lessons still ran.
 3. Update the register banner in `docs/team-forge/<team>/lessons.md` — forge version, date,
-   cycle, events mined (`references/register-format.md`) — then lint it against the ledger
-   and this pass's grading file (in cycle mode, add the Step-2 `--since`):
+   cycle, events mined (`references/register-format.md`) — then lint it against this pass's
+   ledger events, grading file and Step-3 snapshot. Before the judge exists, add
+   `--before-judge`; Step 9 runs it again without:
 
    ```bash
    python3 <team-forge>/tools/evolve_mine.py --lint-register docs/team-forge/<team>/lessons.md \
      --ledger <hub>/tracker/status.json \
-     --grading agent_evals/<team>/evolve-<YYYY-MM-DD>/grading.json
+     --grading agent_evals/<team>/evolve-<YYYY-MM-DD>/grading.json \
+     --snapshot docs/team-forge/<team>/evolve/snapshot-<YYYY-MM-DD>/lessons.md --before-judge
    ```
 4. Refresh the dashboard per `team-forge:run`'s Observability section.
 5. One commit, whose message names what was learned rather than the phase. A row or note may
@@ -299,18 +311,30 @@ ever settled.
 
 **`close` mode** does not hand off on the producer's word. Dispatch a judge that did not
 produce this pass — a fresh agent, not one of the team's seats; the producer's own advisor does
-not count, because the producer briefed it. Brief the judge with this skill and its references
-as the rubric, plus the pass's commit, the Step-3 HEAD and the snapshot folder — not with the
-producer's verdicts or summary. The judge re-runs every row's check on both states, every
-negative control, and the Step-8 lint itself, and returns PASS or FAIL per row with the output
-it saw.
+not count, because the producer briefed it. Write its brief to `judge-brief.md` beside the
+grading file: this skill and its references as the rubric, plus the pass's commit, the Step-3
+HEAD and the snapshot folder — not the producer's verdicts or summary. The judge re-runs every
+row's check on both states, every negative control, and the Step-8 lint itself, covering every
+row this pass added and every row in `evolve.unjudged`, and writes its verdict beside the
+grading file as `judge.json`:
 
-Write the verdict to `agent_evals/<team>/evolve-<YYYY-MM-DD>/judge.json`, not to the ledger: an
-event after `evolve.last_run` fails teardown's freshness check. On FAIL, fix what the judge
-named, re-run Step 8 (which re-stamps the `evolve` key), and have it judged again. Hand off to
-`team-forge:teardown` only on PASS.
+```json
+{"mined_at": "<the pass's evolve.mined_at>", "commit": "<sha judged>",
+ "judge": "<who judged: agent type and session, never a team seat>",
+ "brief": "judge-brief.md",
+ "rows": [{"register_id": "LL-n", "verdict": "PASS|FAIL",
+           "evidence": "<what it re-ran, what it saw>"}],
+ "verdict": "PASS|FAIL"}
+```
 
-**`cycle` mode** skips the judge and returns to the drain loop, which owns the next cycle.
+The verdict goes in that file, not the ledger: an event after `evolve.last_run` fails teardown's
+freshness check. On FAIL, fix what the judge named, re-run Step 8 (which re-stamps the `evolve`
+key), and have it judged again. On PASS, commit `judge.json` and its brief with the pass, then
+run the Step-8 lint without `--before-judge`. `team-forge:teardown` refuses a close pass with no
+committed PASS `judge.json` for its `mined_at`.
+
+**`cycle` mode** has no judge of its own: the rows it applies wait in `evolve.unjudged` for the
+next close's judge, and the pass returns to the drain loop, which owns the next cycle.
 
 ## Failure modes
 

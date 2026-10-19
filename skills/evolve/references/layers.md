@@ -15,7 +15,8 @@ A cycle-mode pass applies only the layers in `design.yaml`'s `evolve.cycle_mode_
 (default `[L1]`, validated by `forge.py`). An L2 candidate found on an unattended cycle is
 written to the register as `queued` and waits for the next attended close — nobody is there to
 approve a branch, and a harness change that lands while nobody is watching is indistinguishable
-from drift.
+from drift. What a cycle pass does apply waits in `evolve.unjudged`, and the next close's
+judge re-judges it (SKILL.md Step 9).
 
 **Forged agent files under `.claude/agents/` are not a target at any layer.** They are
 regenerated from `design.yaml`; a hand-edit survives exactly until the next `--resync` and
@@ -104,8 +105,9 @@ branch is approved and the resync has run. Say so in the register rather than le
 nothing invokes.
 
 Check: the gate's own negative control (SKILL.md Step 6) — break what it watches, confirm red,
-restore. A gate that has never been seen red has not been checked. A gate that reads per-round
-rows also needs a mutant that reads the wrong round, such as the last row instead of round n.
+restore. A gate that has never been seen red has not been checked. A gate that reads indexed
+or per-period rows also needs a mutant that reads the wrong one, such as the last row instead of
+row n.
 
 **Team** — the team forge creates no `gates/` directory and bakes no `plan.gates`; the
 archetype's checkable equivalent is the `go_no_go` criterion on each entry in `design.yaml`'s

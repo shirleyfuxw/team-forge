@@ -3,11 +3,12 @@
 agent types by hand and can skip or misread.
 
 skills/teardown/SKILL.md Step 1 asks two things before Step 2 removes any worktree: that
-`team-forge:evolve` has run in close mode against the final state (four conditions: an
+`team-forge:evolve` has run in close mode against the final state (five conditions: an
 `evolve` marker exists, its `mode` is `close`, no ledger event postdates its `last_run`,
-and its `candidates` file's own `mined_at` matches with no later candidates file sitting
-next to it), and that the live ledger gets copied to `docs/team-forge/<team>/final-ledger.json`
-before it is gone. Both were prose; this makes each one a command with an exit code.
+its `candidates` file's own `mined_at` matches with no later candidates file sitting
+next to it, and a committed `agent_evals/<team>/*/judge.json` for that `mined_at` says PASS),
+and that the live ledger gets copied to `docs/team-forge/<team>/final-ledger.json` before it
+is gone.
 
 Usage:
   teardown_ledger_gate.py check <hub-or-repo-path> [--team NAME]
@@ -16,8 +17,9 @@ Usage:
 Exit codes (check):
   0  fresh -- evolve has run in close mode against this final state. Safe to continue.
   1  MISSING -- no evolve pass has ever stamped this hub. Run evolve (close mode) first.
-  2  STALE -- last pass was cycle mode, the ledger carries events after last_run, or the
-     candidates marker doesn't check out. Run evolve (close mode) first.
+  2  STALE -- last pass was cycle mode, the ledger carries events after last_run, the
+     candidates marker doesn't check out, or no committed PASS judge.json covers the pass.
+     Run evolve (close mode), or its Step 9 judge, first.
   3  bad usage, or the ledger/design could not be read.
 
 Exit codes (archive):
@@ -27,36 +29,17 @@ Exit codes (archive):
 
 import argparse
 import shutil
+import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from evolve_mine import load_json, resolve_hub  # noqa: E402
+from evolve_mine import judge_defects, load_json, resolve_hub  # noqa: E402
+from ledger_vocab import parse_ts  # noqa: E402,F401  (re-exported for the tests)
 
 
-def parse_ts(raw):
-    # A real ledger mixes "...Z" with "...+00:00"/fractional-second timestamps in one
-    # file; a plain string compare (what the Step 1 jq one-liner this replaces did) sorts
-    # "." before "Z" regardless of actual chronological order. Parse to real datetimes
-    # instead. A value that fails to parse returns None rather than a string that would
-    # compare as smaller than everything and falsely look like it precedes last_run.
-    if not raw:
-        return None
-    s = raw.strip()
-    if s.endswith("Z"):
-        s = s[:-1] + "+00:00"
-    try:
-        dt = datetime.fromisoformat(s)
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
-
-
-def check_freshness(ledger, repo_root):
-    """The four conditions SKILL.md Step 1.1 names, in order. Returns (exit_code, message).
+def check_freshness(ledger, repo_root, team=None):
+    """The five conditions SKILL.md Step 1.1 names, in order. Returns (exit_code, message).
     Every branch that cannot fully verify freshness reports STALE rather than fresh --
     an un-verifiable ledger is a reason to run evolve again, never a green light.
 
@@ -104,11 +87,38 @@ def check_freshness(ledger, repo_root):
         if later_candidates:
             return 2, f"STALE -- a later candidates file exists: {', '.join(later_candidates)}"
 
-    return 0, f"fresh · {candidates_path} · mined_at {mined_at}"
+    code, message = check_judge(repo_root, team, mined_at)
+    if code:
+        return code, message
+    return 0, f"fresh · {candidates_path} · mined_at {mined_at} · {message}"
+
+
+def check_judge(repo_root, team, mined_at):
+    """A close pass is finished only once a judge that did not produce it said PASS, in a
+    judge.json committed with the pass (evolve SKILL.md Step 9)."""
+    if repo_root is None or not team:
+        return 2, "STALE -- no repo root and team to find agent_evals/<team>/*/judge.json in"
+    found = []
+    for path in sorted((repo_root / "agent_evals" / team).glob("*/judge.json")):
+        doc = load_json(path, "judge file")
+        if doc.get("mined_at") == mined_at:
+            found.append(path)
+    if not found:
+        return 2, (f"STALE -- no agent_evals/{team}/*/judge.json for mined_at {mined_at}; "
+                   f"run the evolve Step 9 judge")
+    path = found[-1]
+    defects, _ = judge_defects(path, mined_at, team)
+    if defects:
+        return 2, f"STALE -- {path.relative_to(repo_root)}: {defects[0]}"
+    tracked = subprocess.run(["git", "-C", str(repo_root), "ls-files", "--error-unmatch",
+                              str(path.relative_to(repo_root))], capture_output=True)
+    if tracked.returncode:
+        return 2, f"STALE -- {path.relative_to(repo_root)} is not committed; commit it with the pass"
+    return 0, f"judged PASS in {path.relative_to(repo_root)}"
 
 
 def cmd_check(args):
-    hub, repo_root, _team = resolve_hub(args.path, args.team)
+    hub, repo_root, team = resolve_hub(args.path, args.team)
     ledger_path = hub / "tracker" / "status.json"
     if not ledger_path.is_file():
         print(f"UNREADABLE -- no ledger at {ledger_path}")
@@ -117,7 +127,7 @@ def cmd_check(args):
     if not ledger:
         print(f"UNREADABLE -- {ledger_path} did not parse")
         return 3
-    code, message = check_freshness(ledger, repo_root)
+    code, message = check_freshness(ledger, repo_root, team)
     print(message)
     return code
 

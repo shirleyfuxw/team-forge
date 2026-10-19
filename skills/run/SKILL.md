@@ -246,7 +246,7 @@ a new noun:
 {"kind": "lesson", "agent": "lead", "ts": "…", "payload": {
   "claim": "…",
   "evidence": {
-    "type": "recurrence|blocked_resolved|gate_failure|budget|policy_adopted|anecdote",
+    "type": "recurrence|blocked_resolved|gate_failure|budget_attribution|policy_adopted|lesson_event|memory_note|anecdote",
     "refs": ["…"]},
   "layer": "L1|L2|L3", "target": "<path#key>",
   "action": "amend|add_gate|prune|open_item|plugin_feedback",

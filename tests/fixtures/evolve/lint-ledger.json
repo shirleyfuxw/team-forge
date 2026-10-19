@@ -1,11 +1,80 @@
 {
+  "evolve": {
+    "last_run": "2026-09-01T10:30:00Z",
+    "mode": "close",
+    "cycle": null,
+    "candidates": "docs/team-forge/drain/evolve/candidates-2026-09-01.json",
+    "mined_at": "2026-09-01T09:45:00Z",
+    "unjudged": [],
+    "rows": {
+      "applied": 3,
+      "queued": 0,
+      "rejected": 2,
+      "candidates": 1
+    }
+  },
   "events": [
+    {
+      "ts": "2026-09-01T08:00:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "An earlier pass's event naming a row this register no longer has",
+        "evidence": {
+          "type": "anecdote",
+          "refs": []
+        },
+        "layer": "L1",
+        "target": "x",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "LL-9"
+      }
+    },
     {
       "ts": "2026-09-01T09:00:00Z",
       "agent": "worker",
       "kind": "task_completed",
       "payload": {
         "task": "T-1"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:30:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Dispatch waves of three while the box is shared",
+        "evidence": {
+          "type": "policy_adopted",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L1",
+        "target": "lead brief",
+        "action": "amend",
+        "status": "applied",
+        "register_id": null
+      }
+    },
+    {
+      "ts": "2026-09-01T09:50:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Worker scratch files live outside the repo root",
+        "evidence": {
+          "type": "blocked_resolved",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L1",
+        "target": ".claude/agent-memory/drain-lead/MEMORY.md",
+        "action": "amend",
+        "status": "applied",
+        "register_id": null
       }
     },
     {
@@ -120,6 +189,44 @@
         "action": "amend",
         "status": "applied",
         "register_id": "LL-0"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:06:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Cap the wave at four",
+        "evidence": {
+          "type": "recurrence",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue",
+        "action": "amend",
+        "status": "queued",
+        "register_id": "LL-4"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:07:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Cap the wave at four",
+        "evidence": {
+          "type": "recurrence",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue",
+        "action": "amend",
+        "status": "rejected",
+        "register_id": "LL-4"
       }
     }
   ]

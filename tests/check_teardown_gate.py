@@ -11,7 +11,10 @@ What it proves:
     sorts before "Z" regardless of which timestamp is actually later
   - a timestamp that fails to parse is never treated as "before last_run" — that is the
     direction that would falsely call a run fresh and let its worktree be removed
-  - the fresh case (all four conditions met) exits 0
+  - the fresh case (all five conditions met) exits 0, and the fifth -- a committed
+    judge.json for the pass's mined_at with verdict PASS from a judge that is not a team
+    seat -- fails STALE when the file is missing, says FAIL, names another mined_at, names a
+    team seat, or is not committed
   - `archive` copies the live ledger to docs/team-forge/<team>/final-ledger.json, and
     refuses with exit 1 when there is no live ledger to copy
   - a missing or unparseable ledger exits 3 (`check`) via UNREADABLE, distinct from every
@@ -52,6 +55,26 @@ def _make_hub(name, ledger_doc, candidates_docs=None):
         cdir.mkdir(parents=True, exist_ok=True)
         (cdir / fname).write_text(json.dumps(doc))
     return hub
+
+
+def _add_judge(hub, team, stamp, commit=True, **overrides):
+    """agent_evals/<team>/evolve-x/judge.json plus its brief, committed in a fresh git repo
+    at the fixture root unless commit is False."""
+    target = hub.parents[2]
+    jdir = target / "agent_evals" / team / "evolve-x"
+    jdir.mkdir(parents=True, exist_ok=True)
+    (jdir / "judge-brief.md").write_text("rubric: skills/evolve\n")
+    doc = {"mined_at": stamp, "commit": "abc1234", "judge": "general-purpose, fresh session",
+           "brief": "judge-brief.md", "rows": [{"register_id": "LL-1", "verdict": "PASS"}],
+           "verdict": "PASS"}
+    doc.update(overrides)
+    (jdir / "judge.json").write_text(json.dumps(doc))
+    git = ["git", "-C", str(target)]
+    subprocess.run(git + ["init", "-q"], check=True)
+    if commit:
+        subprocess.run(git + ["add", "agent_evals"], check=True)
+        subprocess.run(git + ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "j"],
+                       check=True)
 
 
 def _run_check(hub):
@@ -176,10 +199,9 @@ def check_stale_later_candidates_file():
     print("✓ STALE (later candidates file): a later mining pass means this marker is stale")
 
 
-def check_fresh():
-    team = "fresh"
+def _fresh_hub(team):
     rel_candidates = f"docs/team-forge/{team}/evolve/candidates-2026-01-02.json"
-    hub = _make_hub(
+    return _make_hub(
         team,
         {
             "events": [{"ts": "2026-01-01T00:00:00Z"}],
@@ -188,10 +210,36 @@ def check_fresh():
         },
         candidates_docs={"candidates-2026-01-02.json": {"mined_at": "2026-01-02T00:00:00Z"}},
     )
+
+
+def check_fresh():
+    hub = _fresh_hub("fresh")
+    _add_judge(hub, "fresh", "2026-01-02T00:00:00Z")
     r = _run_check(hub)
-    assert r.returncode == 0, f"all four conditions met should exit 0\n{r.stdout}{r.stderr}"
-    assert "fresh" in r.stdout, r.stdout
-    print("✓ fresh: all four conditions met exits 0")
+    assert r.returncode == 0, f"all five conditions met should exit 0\n{r.stdout}{r.stderr}"
+    assert "fresh" in r.stdout and "judged PASS" in r.stdout, r.stdout
+    print("✓ fresh: all five conditions met exits 0")
+
+
+def check_judge_required():
+    cases = [
+        ("judge-missing", None, "no agent_evals/judge-missing/*/judge.json"),
+        ("judge-fail", {"verdict": "FAIL"}, "not PASS"),
+        ("judge-other-pass", {"mined_at": "2025-12-31T00:00:00Z"}, "no agent_evals/judge-other-pass"),
+        ("judge-seat", {"judge": "judge-seat-advisor"}, "one of the team's own seats"),
+        ("judge-no-brief", {"brief": "missing.md"}, "brief 'missing.md' not found"),
+        ("judge-uncommitted", {"_commit": False}, "is not committed"),
+    ]
+    for team, overrides, fragment in cases:
+        hub = _fresh_hub(team)
+        if overrides is not None:
+            commit = overrides.pop("_commit", True)
+            _add_judge(hub, team, "2026-01-02T00:00:00Z", commit=commit, **overrides)
+        r = _run_check(hub)
+        assert r.returncode == 2 and fragment in r.stdout, \
+            f"{team}: expected STALE naming {fragment!r}, got {r.returncode}\n{r.stdout}{r.stderr}"
+    print(f"✓ STALE (judge): {len(cases)} judge defects each stop teardown (missing · FAIL · "
+          f"another pass · a team seat · no brief · not committed)")
 
 
 def check_unreadable():
@@ -300,6 +348,7 @@ def main():
     check_stale_mined_at_mismatch()
     check_stale_later_candidates_file()
     check_fresh()
+    check_judge_required()
     check_unreadable()
     check_archive()
     check_meta()

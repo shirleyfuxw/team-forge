@@ -80,7 +80,8 @@ adding an Active row; its C-id is retired in place, not deleted.
 
 A `lesson` event's `status` must match where its `register_id` sits: `applied` in Active (or
 in Superseded once it dies), and `queued`, `rejected` or `candidate` in Candidates, with the
-reason; only a `prune` that did not land may name a row still in Active. A `queued` row —
+reason; only a `prune` that did not land may name a row still in Active, and only a
+`rejected` event may name an id no row carries — an id drafted and never used. A `queued` row —
 waiting for approval, or for a safe route into the copy the runtime runs — is a Candidates row,
 so Active lists only what is in force.
 
@@ -131,22 +132,31 @@ decay this phase exists to reverse.
 
 ```bash
 python3 <team-forge>/tools/evolve_mine.py --lint-register docs/team-forge/<team>/lessons.md \
-  [--ledger <hub>/tracker/status.json] [--grading agent_evals/<team>/evolve-<date>/grading.json] \
-  [--since <cycle-or-iso>]
+  [--ledger <hub>/tracker/status.json --grading <pass dir>/grading.json \
+   --snapshot docs/team-forge/<team>/evolve/snapshot-<date>/lessons.md \
+   [--judge <pass dir>/judge.json | --before-judge]]
 ```
 
 It checks the format, not the judgment: the banner is present and parses; the four sections
 exist with their expected columns; no prose line wrapped onto a `## <section>` line (the
 parser switches sections on any line starting `##`, so a wrapped sentence silently reassigns
 the rows after it — the forge shipped exactly that); every id is unique; every Active row
-carries a non-empty Evidence, Applied-to and Check, and no Active row's Evidence is an
-anecdote; no Active row duplicates another's normalized claim; and every Superseded row records
-what killed it. With `--ledger` it also judges the last `lesson` event per `register_id`
-(`--since` limits which events count): an `applied` event whose evidence is not an admissible
-signal or that names no row, an id no row carries, an unknown status, and a status that
-disagrees with the row's table are errors. With `--grading`, a `passed: true` entry needs a
-failing `before` run and a passing `after` run of the same command.
-Exit 0 is the register's own gate — run it in SKILL.md Step 8, before the commit.
+carries a non-empty Evidence, Applied-to and Check, and its Evidence opens with an admissible
+signal; no Active row duplicates another's normalized claim; and every Superseded row records
+what killed it.
+
+`--ledger`, `--grading` and `--snapshot` go together and check this pass's own records. Its
+events are the `lesson` events between the evolve stamp's `mined_at` and `last_run`, so the
+run's mid-run lessons and earlier passes stay out; the last event per `register_id` (or per
+claim, for one with no id) counts. An `applied` event needs an admissible evidence type,
+non-empty `refs` and its row; an unknown status, an id no row carries (unless `rejected`), and a
+status that disagrees with the row's table are errors. Every Active row the snapshot lacks
+must open with an admissible signal (the allow-list then covers only those rows) and carry an
+applied event and a `passed: true` grading entry whose `before` run failed and whose `after`
+run of the same command passed. In close mode, a PASS `judge.json` (default: beside the grading
+file) must cover those rows and `evolve.unjudged`; `--before-judge` skips only that, for the run
+before the judge. In cycle mode, every row the pass applied must be in `evolve.unjudged`.
+Exit 0 is the register's own gate — run it in SKILL.md Steps 8 and 9.
 
 One check it deliberately does **not** make: that no id was *renumbered* since the previous
 commit, which needs git. That is yours at Step 8. Do not read a green lint as covering it —

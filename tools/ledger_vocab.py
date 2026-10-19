@@ -5,6 +5,8 @@ Its own module, deliberately: `forge.py` parses argv and runs an entire forge at
 import time, so importing the constant from there exits the process. This file has
 no side effects and is safe to import from anywhere.
 """
+from datetime import datetime, timezone
+
 # The kinds the plugin's own skills document and the evolve miner recognizes. A team adds
 # its own in design.yaml's `ledger.events`; the miner unions the two and treats everything ELSE as a lead-invented
 # kind, i.e. a slot the schema did not have.
@@ -24,3 +26,26 @@ KNOWN_EVENT_KINDS = frozenset({
     # the evolve phase's own structured record
     "lesson",
 })
+
+# A `lesson` event's `evidence.type`: the miner's six admissible signals, an admitted memory
+# note, and `anecdote`. skills/run and skills/evolve print this list verbatim.
+EVIDENCE_TYPES = ("recurrence", "blocked_resolved", "gate_failure", "budget_attribution",
+                  "policy_adopted", "lesson_event", "memory_note", "anecdote")
+ADMISSIBLE_EVIDENCE = frozenset(EVIDENCE_TYPES) - {"anecdote"}
+LESSON_STATUSES = ("candidate", "applied", "rejected", "queued")
+
+
+def parse_ts(raw):
+    """An ISO-8601 timestamp as an aware datetime, or None. Ledgers mix "...Z" with
+    "+00:00", "+08:00" and fractional seconds, so a string compare misorders them; a value
+    that fails to parse is None, never a string that sorts before everything."""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    s = raw.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)

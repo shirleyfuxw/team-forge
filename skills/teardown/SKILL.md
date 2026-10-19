@@ -65,7 +65,9 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
 
    Then confirm the marker points at a real mining run rather than at a filename someone typed:
    `jq -r .mined_at` on the file `$e.candidates` names equals `$e.mined_at`, and no other
-   `docs/team-forge/<team>/evolve/candidates-*.json` carries a later `mined_at`. Anything but
+   `docs/team-forge/<team>/evolve/candidates-*.json` carries a later `mined_at`. Last, a
+   committed `agent_evals/<team>/*/judge.json` for that `mined_at` says PASS, from a judge that
+   is not a team seat (evolve Step 9). Anything but
    `fresh` → say so and run evolve (close mode) NOW, before anything below.
 
    **Run this as a script, not by hand** — the jq one-liner above is the specification, not
@@ -78,7 +80,7 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
    ```
 
    Exit 0 = fresh, continue to Step 1.2. Exit 1 (`MISSING`) or exit 2 (`STALE`, naming which
-   of the four conditions failed) = **STOP**, run evolve (close mode) now, before anything
+   of the five conditions failed) = **STOP**, run evolve (close mode) now, before anything
    below. Exit 3 = the ledger could not be read — ask before proceeding; do not treat an
    unreadable ledger as permission to continue.
 

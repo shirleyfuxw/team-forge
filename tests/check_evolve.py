@@ -34,10 +34,12 @@ its own output here. What it proves:
     'sev1'/'sev2' stay two incidents rather than merging into a recurrence named 'sev'
   - evolve's Step 8 writes every key teardown's Step 1 reads, and both --since call sites
     spell the flag the way the miner implements it
-  - --lint-register with --ledger and --grading rejects an applied row or lesson event resting
-    on an anecdote, a lesson event whose status disagrees with the register row it names, and
-    a grading entry marked passed with no failing run on the snapshot; each rule is shown red
-    on a broken copy and green again once that copy is restored
+  - --lint-register with --ledger, --grading and --snapshot checks only this pass's events
+    (between the evolve stamp's mined_at and last_run): an applied event needs an admissible
+    evidence type, refs and a row; a status must agree with its row's table; a row this pass
+    added needs an applied event and a passed grading entry whose check was red before and
+    green after; in close mode a PASS judge.json must cover the added and unjudged rows. Each
+    rule is shown red on a broken copy and green once restored, and legal shapes stay green
 
 And a meta-check, because this repo has twice shipped a check that passed while its fix was
 reverted: every critical assertion above is re-run against deliberately mutated copies of
@@ -746,10 +748,19 @@ def lesson_at(doc, ts):
     return next(e for e in doc["events"] if e.get("ts") == ts)["payload"]
 
 
-# One row per lint rule: (tag, which input is broken, the break, the defect it must name).
-# Every break lands on a copy that is then restored in place and must lint green again, so a
-# red that came from anything other than the break would show up as a failed restore.
+def drop_event(ts):
+    return json_edit(lambda d: d["events"].remove(next(e for e in d["events"] if e.get("ts") == ts)))
+
+
+def row_evidence(text):
+    return lambda t: t.replace("blocked->resolved (#1885, branch-safety hook)", text)
+
+
+# One row per lint rule: (tag, the input broken, the break, the defect it must name). Each break
+# lands on a copy that is then restored in place and must lint green again, so a red that came
+# from anything other than the break shows up as a failed restore.
 LINT_CONTROLS = [
+    # evidence on an applied event: an allow-list, with refs
     ("applied-anecdote-event", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z")["evidence"].update(type="anecdote")),
      "status applied on evidence type 'anecdote'"),
@@ -759,18 +770,37 @@ LINT_CONTROLS = [
     ("applied-unknown-kind", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z")["evidence"].update(type="unknown_kind")),
      "status applied on evidence type 'unknown_kind'"),
+    ("applied-budget-word", "ledger",
+     json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z")["evidence"].update(type="budget")),
+     "status applied on evidence type 'budget'"),
+    ("applied-empty-refs", "ledger",
+     json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z")["evidence"].update(refs=[])),
+     "status applied with no evidence refs"),
+    # Evidence cell of a row this pass added: an allow-list
+    ("row-anecdote-colon", "register", row_evidence("anecdote: seen once (#1885)"),
+     "Active row LL-2: Evidence does not open with an admissible signal"),
+    ("row-anecdote-comma", "register", row_evidence("anecdote, seen once"),
+     "Active row LL-2: Evidence does not open with an admissible signal"),
+    ("row-anecdote-dash", "register", row_evidence("anecdote — seen once"),
+     "Active row LL-2: Evidence does not open with an admissible signal"),
+    ("row-candidate", "register", row_evidence("candidate — one run"),
+     "Active row LL-2: Evidence does not open with an admissible signal"),
+    ("row-prose", "register", row_evidence("one sighting by the lead"),
+     "Active row LL-2: Evidence does not open with an admissible signal"),
+    # status against the register row it names
     ("applied-no-row", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:00:00Z").update(register_id=None)),
      "status applied but names no register row"),
     ("unknown-status", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:00:00Z").update(status="approved")),
      "status 'approved' is not one of candidate|applied|rejected|queued"),
-    ("applied-anecdote-row", "register",
-     lambda t: t.replace("blocked->resolved (#1885, branch-safety hook)", "anecdote: seen once (#1885)"),
-     "Active row LL-2: Evidence is an anecdote"),
     ("applied-but-candidate", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:03:00Z").update(
-         status="applied", evidence={"type": "recurrence", "refs": []})),
+         status="applied", evidence={"type": "recurrence", "refs": ["x"]})),
+     "the register keeps C-1 in Candidates"),
+    ("mixed-case-applied-on-candidate", "ledger",
+     json_edit(lambda d: lesson_at(d, "2026-09-01T10:03:00Z").update(
+         status="Applied", evidence={"type": "recurrence", "refs": ["x"]})),
      "the register keeps C-1 in Candidates"),
     ("rejected-but-active", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:00:00Z").update(status="rejected")),
@@ -778,98 +808,193 @@ LINT_CONTROLS = [
     ("rejected-but-superseded", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:05:00Z").update(status="rejected")),
      "the register has LL-0 in Superseded"),
-    ("grading-command-list", "grading", json_edit(lambda d: d[0]["before"].update(command=["false"])),
-     "passed with no failing run recorded on the snapshot"),
     ("unresolved-id", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:00:00Z").update(register_id="LL-9")),
      "names LL-9, which no register row carries"),
-    ("correction-deleted", "ledger",
-     json_edit(lambda d: d["events"].remove(
-         next(e for e in d["events"] if e.get("ts") == "2026-09-01T10:03:00Z"))),
+    ("applied-prune-left-active", "ledger", json_edit(lambda d: d["events"].append(
+        {"ts": "2026-09-01T10:20:00Z", "agent": "lead", "kind": "lesson", "payload": {
+            "claim": "prune LL-1", "evidence": {"type": "recurrence", "refs": ["x"]},
+            "action": "prune", "status": "applied", "register_id": "LL-1"}})),
+     "an applied prune moves its row out of Active"),
+    # corrections: a later event for the same id or the same claim is what counts
+    ("correction-deleted", "ledger", drop_event("2026-09-01T10:03:00Z"),
      "the register keeps C-1 in Candidates"),
+    ("withdrawal-deleted", "ledger", drop_event("2026-09-01T10:07:00Z"),
+     "names LL-4, which no register row carries"),
+    ("claim-correction-changed", "ledger",
+     json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z").update(claim="Scratch goes under /tmp")),
+     "status applied but names no register row"),
+    # scope: only this pass's events, between mined_at and last_run
+    ("mid-run-event-in-window", "ledger",
+     json_edit(lambda d: next(e for e in d["events"] if e["ts"] == "2026-09-01T09:30:00Z").update(
+         ts="2026-09-01T10:10:00+00:00")),
+     "status applied but names no register row"),
+    ("old-pass-event-in-window", "ledger",
+     json_edit(lambda d: next(e for e in d["events"] if e["ts"] == "2026-09-01T08:00:00Z").update(
+         ts="2026-09-01T18:20:00+08:00")),
+     "names LL-9, which no register row carries"),
+    ("unparseable-ts", "ledger",
+     json_edit(lambda d: next(e for e in d["events"] if e["ts"] == "2026-09-01T08:00:00Z").update(ts="yesterday")),
+     "lesson event ts 'yesterday' does not parse"),
+    ("no-stamp", "ledger", json_edit(lambda d: d.pop("evolve")), "ledger has no `evolve` stamp"),
+    # a row this pass added must carry its proof
+    ("added-row-no-event", "ledger", drop_event("2026-09-01T10:01:00Z"),
+     "Active row LL-2 was added by this pass, but no lesson event of this pass records it applied"),
+    ("added-row-no-grading", "grading", json_edit(lambda d: d.pop(1)),
+     "Active row LL-2 was added by this pass, but no passed grading entry names it"),
+    ("grading-empty", "grading", json_edit(lambda d: d.clear()),
+     "no passed grading entry names it"),
+    ("grading-all-false", "grading", json_edit(lambda d: [g.update(passed=False) for g in d]),
+     "no passed grading entry names it"),
+    # grading entries: red before, green after, same command
     ("grading-no-before", "grading", json_edit(lambda d: d[0].pop("before")),
      "passed with no failing run recorded on the snapshot"),
     ("grading-green-before", "grading", json_edit(lambda d: d[0]["before"].update(exit=0)),
+     "passed with no failing run recorded on the snapshot"),
+    ("grading-bool-exit", "grading", json_edit(lambda d: d[0]["before"].update(exit=True)),
      "passed with no failing run recorded on the snapshot"),
     ("grading-red-after", "grading", json_edit(lambda d: d[1]["after"].update(exit=1)),
      "passed with no passing run recorded after the edit"),
     ("grading-other-command", "grading", json_edit(lambda d: d[0]["before"].update(command="false")),
      "before and after ran different commands"),
+    ("grading-command-list", "grading", json_edit(lambda d: d[0]["before"].update(command=["false"])),
+     "passed with no failing run recorded on the snapshot"),
     ("grading-passed-string", "grading", json_edit(lambda d: d[0].update(passed="true")),
      "passed is 'true', not true or false"),
+    # the judge, in close mode
+    ("judge-fail", "judge", json_edit(lambda d: d.update(verdict="FAIL")), "not PASS"),
+    ("judge-row-fail", "judge", json_edit(lambda d: d["rows"][0].update(verdict="FAIL")),
+     "the judge has no PASS row for LL-2"),
+    ("judge-misses-row", "judge", json_edit(lambda d: d.update(rows=[])),
+     "the judge has no PASS row for LL-2"),
+    ("judge-other-pass", "judge", json_edit(lambda d: d.update(mined_at="2026-08-01T00:00:00Z")),
+     "not this pass's '2026-09-01T09:45:00Z'"),
+    ("judge-team-seat", "judge", json_edit(lambda d: d.update(judge="drain-advisor")),
+     "one of the team's own seats"),
+    ("judge-no-commit", "judge", json_edit(lambda d: d.pop("commit")), "judge file: 'commit' missing"),
+    ("judge-no-brief", "judge", json_edit(lambda d: d.update(brief="gone.md")), "brief 'gone.md' not found"),
+    ("judge-misses-unjudged", "ledger", json_edit(lambda d: d["evolve"].update(unjudged=["LL-1"])),
+     "the judge has no PASS row for LL-1"),
+    ("cycle-omits-unjudged", "ledger", json_edit(lambda d: d["evolve"].update(mode="cycle")),
+     "this cycle pass applied LL-1, but evolve.unjudged omits it"),
 ]
+
+# Shapes the lint must accept: each is a legal variant of the good fixtures.
+LINT_GREEN = [
+    ("mixed-case-status", "ledger",
+     json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z").update(status="Applied"))),
+    ("mixed-case-evidence", "ledger",
+     json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z")["evidence"].update(type="Blocked_Resolved"))),
+    ("budget-attribution-event", "ledger",
+     json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z")["evidence"].update(type="budget_attribution"))),
+    ("budget-attribution-row", "register", row_evidence("budget attribution: 6 renders at 116k")),
+    ("gate-failure-row-words", "register", row_evidence("gate failure with root cause: hook blocked /repo")),
+    ("rejected-prune-on-active", "ledger", json_edit(lambda d: d["events"].append(
+        {"ts": "2026-09-01T10:20:00Z", "agent": "lead", "kind": "lesson", "payload": {
+            "claim": "prune LL-1", "evidence": {"type": "recurrence", "refs": ["x"]},
+            "action": "prune", "status": "rejected", "register_id": "LL-1"}}))),
+    ("cycle-with-unjudged", "ledger",
+     json_edit(lambda d: d["evolve"].update(mode="cycle", unjudged=["LL-0", "LL-1", "LL-2"]))),
+    ("grading-names-row-in-text", "grading", json_edit(lambda d: d[1].pop("register_id"))),
+    ("snapshot-already-has-row", "snapshot",
+     lambda t: t.replace("| LL-1 |", "| LL-2 | Worker scratch files live outside the repo root | blocked->resolved | L1:x | `true` | 2026-09-01 |\n| LL-1 |", 1)),
+]
+
+LINT_INPUTS = {"register": FX / "lessons-good.md", "ledger": LINT_LEDGER, "grading": GRADING,
+               "snapshot": FX / "lessons-snapshot.md", "judge": FX / "judge.json",
+               "brief": FX / "judge-brief.md"}
+
+
+def lint_copy(tag):
+    d = WORK / "lint-controls" / tag
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True)
+    paths = {k: d / v.name for k, v in LINT_INPUTS.items()}
+    for k, v in LINT_INPUTS.items():
+        shutil.copy(v, paths[k])
+    return paths
+
+
+def lint_pass(paths, *extra):
+    r = subprocess.run([sys.executable, str(MINER), "--lint-register", str(paths["register"]),
+                        "--ledger", str(paths["ledger"]), "--grading", str(paths["grading"]),
+                        "--snapshot", str(paths["snapshot"]), *extra], capture_output=True, text=True)
+    return r.returncode, r.stdout + r.stderr
 
 
 def check_ledger_and_grading_lint():
-    good = {"register": FX / "lessons-good.md", "ledger": LINT_LEDGER, "grading": GRADING}
-
-    def run(paths, **kw):
-        r = lint(paths["register"], ledger=paths["ledger"], grading=paths["grading"], **kw)
-        return r.returncode, r.stdout + r.stderr
-
-    rc, out = run(good)
-    assert rc == 0, f"the good register, ledger and grading file were rejected together\n{out}"
-    for frag in ("register valid", "lesson events agree with the register",
-                 "passed entries each carry a red run before and a green run after"):
-        assert frag in out, f"lint passed without reporting {frag!r} — a cross-check that " \
-                            f"prints nothing may not have run at all\n{out}"
+    rc, out = lint_pass(LINT_INPUTS)
+    assert rc == 0, f"the good register, ledger, grading, snapshot and judge were rejected\n{out}"
+    assert "this pass's records agree: 1 Active rows added" in out, \
+        f"the pass checks printed nothing, so they may not have run\n{out}"
 
     for tag, role, mutate, fragment in LINT_CONTROLS:
-        d = WORK / "lint-controls" / tag
-        shutil.rmtree(d, ignore_errors=True)
-        d.mkdir(parents=True)
-        paths = {k: d / v.name for k, v in good.items()}
-        for k, v in good.items():
-            shutil.copy(v, paths[k])
+        paths = lint_copy(tag)
         text = paths[role].read_text()
         broken = mutate(text)
-        assert broken != text, f"fixture drift: control {tag!r} changed nothing in {good[role].name}"
+        assert broken != text, f"fixture drift: control {tag!r} changed nothing in {paths[role].name}"
         paths[role].write_text(broken)
-        rc, out = run(paths)
+        rc, out = lint_pass(paths)
         assert rc == 1 and fragment in out, \
             f"control {tag!r}: expected exit 1 naming {fragment!r}, got exit {rc} — this rule " \
             f"cannot fail, so a pass that breaks it would still lint clean\n{out}"
         paths[role].write_text(text)
-        rc, out = run(paths)
+        rc, out = lint_pass(paths)
         assert rc == 0, f"control {tag!r}: the restored copy still fails, so the red above may " \
                         f"not have come from the break\n{out}"
 
-    # A prune that did not land leaves its row in Active, so a rejected prune is not a
-    # disagreement; the same event as an amend is, and so is an applied prune.
-    d = WORK / "lint-controls" / "prune"
-    shutil.rmtree(d, ignore_errors=True)
-    d.mkdir(parents=True)
-    pruned = d / LINT_LEDGER.name
-    for action, status, want in (("prune", "rejected", 0), ("amend", "rejected", 1),
-                                 ("prune", "applied", 1)):
-        pruned.write_text(json_edit(lambda doc: doc["events"].append(
-            {"ts": "2026-09-01T11:00:00Z", "agent": "lead", "kind": "lesson",
-             "payload": {"claim": "prune LL-1", "evidence": {"type": "recurrence", "refs": []},
-                         "action": action, "status": status, "register_id": "LL-1"}}))(
-            LINT_LEDGER.read_text()))
-        rc, out = run(dict(good, ledger=pruned))
-        assert rc == want, f"a {status} {action} naming Active LL-1 exited {rc}, expected {want}\n{out}"
+    for tag, role, mutate in LINT_GREEN:
+        paths = lint_copy(tag)
+        text = paths[role].read_text()
+        assert mutate(text) != text, f"fixture drift: probe {tag!r} changed nothing"
+        paths[role].write_text(mutate(text))
+        rc, out = lint_pass(paths)
+        assert rc == 0, f"legal shape {tag!r} was rejected — a lint that fails real ledgers " \
+                        f"gets switched off\n{out}"
 
-    # --since scopes the ledger rules to one pass: a defect logged before it is out of scope.
-    d = WORK / "lint-controls" / "since"
-    shutil.rmtree(d, ignore_errors=True)
-    d.mkdir(parents=True)
-    early = d / LINT_LEDGER.name
-    early.write_text(json_edit(lambda doc: lesson_at(doc, "2026-09-01T10:00:00Z").update(
-        register_id="LL-9"))(LINT_LEDGER.read_text()))
-    scoped = dict(good, ledger=early)
-    rc, out = run(scoped)
-    assert rc == 1, f"the unscoped run must still see the early defect\n{out}"
-    rc, out = run(scoped, since="2026-09-01T10:01:00Z")
-    assert rc == 0, f"--since did not drop the event logged before it\n{out}"
+    # The judge file is required in close mode, and only --before-judge (the run before the
+    # judge exists) skips it.
+    paths = lint_copy("judge-absent")
+    paths["judge"].unlink()
+    rc, out = lint_pass(paths)
+    assert rc == 1 and "no judge file at" in out, f"close mode passed with no judge file\n{out}"
+    rc, out = lint_pass(paths, "--before-judge")
+    assert rc == 0, f"--before-judge still demanded the judge file\n{out}"
 
-    print(f"✓ ledger + grading lint: {len(LINT_CONTROLS)} negative controls, each red on a broken copy and "
-          f"green once it was restored (anecdote, missing and unknown_kind evidence · anecdote row · "
-          f"applied with no row · unknown status · applied vs Candidates · rejected vs Active · "
-          f"rejected vs Superseded · command not a string · "
-          f"unresolved id · correction removed · no before run · green before run · red after "
-          f"run · different commands · string 'passed') · only a prune that did not land may "
-          f"name an Active row · --since scopes the ledger rules")
+    # The pass checks run all together or not at all, and --since is a mining option.
+    for args in (["--ledger", str(LINT_LEDGER)],
+                 ["--grading", str(GRADING), "--snapshot", str(LINT_INPUTS["snapshot"])],
+                 ["--ledger", str(LINT_LEDGER), "--grading", str(GRADING),
+                  "--snapshot", str(LINT_INPUTS["snapshot"]), "--since", "2026-09-01"]):
+        r = subprocess.run([sys.executable, str(MINER), "--lint-register",
+                            str(LINT_INPUTS["register"]), *args], capture_output=True, text=True)
+        assert r.returncode == 2, f"partial or mining flags {args} were accepted: rc {r.returncode}"
+
+    print(f"✓ pass lint: {len(LINT_CONTROLS)} negative controls, each red on a broken copy and "
+          f"green once it was restored · {len(LINT_GREEN)} legal shapes accepted (mixed case, "
+          f"budget_attribution, signal words, rejected prune, cycle carry-over, mid-run lessons "
+          f"outside the window) · judge required in close mode unless --before-judge · partial "
+          f"flags and --since refused")
+
+
+def assert_evidence_types_agree(texts):
+    """skills/run and skills/evolve print the lesson schema's evidence types; both must be the
+    vocabulary's list, or a lead logs a type the lint then refuses."""
+    sys.path.insert(0, str(REPO / "tools"))
+    from ledger_vocab import EVIDENCE_TYPES
+    want = '"type": "' + "|".join(EVIDENCE_TYPES) + '"'
+    for name, text in texts:
+        assert want in text, f"{name} does not print the evidence types as {want}"
+
+
+def check_evidence_types_agree():
+    texts = [("run/SKILL.md", (SKILLS / "run" / "SKILL.md").read_text()),
+             ("evolve/SKILL.md", (SKILLS / "evolve" / "SKILL.md").read_text())]
+    assert_evidence_types_agree(texts)
+    assert breaks(assert_evidence_types_agree,
+                  [(n, t.replace("budget_attribution|", "budget|")) for n, t in texts]), \
+        "the evidence-type assertion passed on a skill that spells budget the old way"
+    print("✓ evidence types: run/SKILL.md and evolve/SKILL.md print ledger_vocab.EVIDENCE_TYPES")
 
 
 def check_malformed_inputs():
@@ -1075,11 +1200,21 @@ def check_since_window():
     assert junk["source"]["events"] == full["source"]["events"] and "⚠" in r_junk.stdout, \
         f"an unresolvable --since mined {junk['source']['events']} events without warning — " \
         f"silently mining zero is how a cycle loses its lessons to a typo\n{r_junk.stdout}"
+    # Offsets: 2026-09-02T00:00:00+08:00 is 16:00Z, so the 16:00Z event is inside and 15:59Z is
+    # not — a text compare gets both wrong ("2026-09-01T16..." sorts before "2026-09-02").
+    offsets = write_ledger("since-offsets.json", [
+        {"ts": "2026-09-01T15:59:00Z", "agent": "lead", "kind": "replanned", "payload": {}},
+        {"ts": "2026-09-01T16:00:00Z", "agent": "lead", "kind": "replanned", "payload": {}}])
+    tz, _, _ = mine(offsets, "since-offsets", memory=False, since="2026-09-02T00:00:00+08:00")
+    assert tz["source"]["events"] == 1, \
+        f"--since 2026-09-02T00:00:00+08:00 kept {tz['source']['events']} of the 15:59Z and " \
+        f"16:00Z events, expected 1 — the window is compared as text, not as instants"
     assert_since_documented([("skills/evolve/SKILL.md", (SKILLS / "evolve" / "SKILL.md").read_text()),
                              ("skills/run/references/drain.md",
                               (SKILLS / "run" / "references" / "drain.md").read_text())])
-    print("✓ --since: ISO prefix narrows the window, a cycle id resolves to that cycle, a "
-          "typo warns and mines everything · both call sites spell it the way argparse takes it")
+    print("✓ --since: ISO prefix narrows the window, compared as instants across offsets, a "
+          "cycle id resolves to that cycle, a typo warns and mines everything · both call "
+          "sites spell it the way argparse takes it")
 
 
 def assert_pairing_vocabulary(run_text):
@@ -1405,6 +1540,7 @@ def main():
     check_register_dedupe()
     check_register_lint()
     check_ledger_and_grading_lint()
+    check_evidence_types_agree()
     check_malformed_inputs()
     check_nonobject_ledgers()
     check_memory_corroboration()
