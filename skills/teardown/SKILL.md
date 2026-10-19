@@ -68,8 +68,9 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
    `docs/team-forge/<team>/evolve/candidates-*.json` carries a later `mined_at`. Last, for a
    stamp with `schema` 2, an `agent_evals/<team>/*/judge.json` for that `mined_at`, committed as
    it stands, says PASS for every Active row the pass applied and every row a cycle pass applied
-   since the last judged close, from a judge whose name is not the team's (evolve Step 9). A
-   stamp without `schema` predates that rule and needs no judge. Anything but
+   since the last judged close, from a judge whose name is not the team's (evolve Step 9). The
+   stamp's `schema` must equal its candidates file's `pass_schema`; only when both lack it does
+   the pass predate the judge rule and need no judge. Anything but
    `fresh` → say so and run evolve (close mode) NOW, before anything below.
 
    **Run this as a script, not by hand** — the jq one-liner above is the specification, not

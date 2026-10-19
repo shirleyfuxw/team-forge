@@ -145,7 +145,9 @@ the rows after it — the forge shipped exactly that); every id is unique; every
 carries a non-empty Evidence, Applied-to and Check; no Active row duplicates another's
 normalized claim; and every Superseded row records what killed it.
 
-`--ledger` adds this pass's own records, by the rules of the stamp's `schema`. Its events are
+`--ledger` adds this pass's own records, by the rules of the stamp's `schema`, which must equal
+the `pass_schema` of the candidates file it names (`--candidates` overrides the path); a
+missing, invalid or different value is an error unless both lack it. Its events are
 the `lesson` events between the stamp's `mined_at` and `last_run`, both included, so the run's
 mid-run lessons and earlier passes stay out; the last event per `register_id`, or per claim for
 one with no id (a correction must come later in time), counts. Every stamp: an `applied` event
@@ -154,12 +156,14 @@ unless `rejected`, and the status must agree with the row's table.
 
 Schema 2 adds the rest, and needs `--grading` and `--snapshot`. An `applied` event needs an
 admissible evidence type, non-empty `refs`, its row, `pass` and `mode`, and new refs if the row
-was `rejected` before. Every Active row this pass added (the snapshot lacks it) or amended (an
-applied event names it) must open with an admissible signal, and carry an applied event and a
+was `rejected` before. Every Active row this pass added (the snapshot lacks it), edited (its
+text differs from the snapshot's) or amended (an applied event names it) must open with an
+admissible signal, and carry an applied event and a
 `passed: true` grading entry whose `before` run failed and whose `after` run of the same
 command passed. In close mode, a PASS `judge.json` (default: beside the grading file; its
-`mined_at` read as an instant) must cover those rows and every row a cycle pass applied since
-the last judged close; `--before-judge` skips only that, for the run before the judge. Rows
+`mined_at` read as an instant) must cover those rows and every row applied outside a close
+pass since the last close a valid PASS judge file covers, an applied event with no `mode` or
+`pass` included; `--before-judge` skips only that, for the run before the judge. Rows
 this pass did not touch, and the register linted alone, are not held to the evidence
 allow-list. Exit 0 is the register's own gate — run it in SKILL.md Steps 8 and 9.
 

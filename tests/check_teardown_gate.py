@@ -97,7 +97,7 @@ def _v2_hub(team, events=None, stamp_schema=2):
     """A schema-2 close pass that applied LL-1, with its register and candidates file."""
     rel = f"docs/team-forge/{team}/evolve/candidates-2026-01-01.json"
     evolve = {"mode": "close", "last_run": LAST, "candidates": rel, "mined_at": MINED}
-    if stamp_schema:
+    if stamp_schema is not None:
         evolve["schema"] = stamp_schema
     hub = _make_hub(team, {"events": events if events is not None else
                            [_lesson("2026-01-01T23:30:00Z", "LL-1", MINED, "close")],
@@ -285,8 +285,21 @@ def check_fresh():
           "is fresh, its mined_at matched as an instant")
 
 
+def _untrack(path):
+    """Commit the judge file, then drop it from the index, ignore it and rewrite it: its
+    history and a clean status remain, while the file on disk is no longer what git holds."""
+    target = path.parents[3]
+    git = ["git", "-C", str(target), "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run(git + ["rm", "-q", "--cached", str(path.relative_to(target))], check=True)
+    (target / ".gitignore").write_text("agent_evals/\n")
+    subprocess.run(git + ["add", ".gitignore"], check=True)
+    subprocess.run(git + ["commit", "-q", "-m", "untrack"], check=True)
+    path.write_text(path.read_text().replace('"PASS"', '"PASS" '))
+
+
 def check_judge_required():
     def run(team, judge=None, commit="all", events=None, stamp_schema=2, after=None):
+        """stamp_schema None leaves the key out; any other value is written as given."""
         hub = _v2_hub(team, events=events, stamp_schema=stamp_schema)
         if judge is not None:
             path = _add_judge(hub, team, commit=commit, **judge)
@@ -311,7 +324,9 @@ def check_judge_required():
         ("judge-ignored", {"judge": {}, "commit": "ignored"}, "is not committed"),
         ("judge-edited", {"judge": {}, "after": lambda p: p.write_text(p.read_text() + " ")},
          "is not committed"),
-        ("schema-dodged", {"judge": None, "stamp_schema": None}, "mined under schema 2"),
+        ("schema-dodged", {"judge": None, "stamp_schema": None}, "mined under pass_schema 2"),
+        ("schema-string", {"judge": {}, "stamp_schema": "2"}, "evolve.schema is '2', not a positive"),
+        ("judge-untracked", {"judge": {}, "after": _untrack}, "is not committed"),
     ]
     for team, kw, fragment in cases:
         kw = dict(kw)
@@ -322,6 +337,7 @@ def check_judge_required():
             f"{team}: expected STALE naming {fragment!r}, got {r.returncode}\n{r.stdout}{r.stderr}"
     print(f"✓ STALE (judge): {len(cases)} judge defects each stop teardown (missing · FAIL · another "
           f"pass · a team seat, hyphenated or spaced · no brief · no rows · a cycle row unjudged · "
+          f"untracked after its commit · an invalid stamp schema · "
           f"never committed · only staged · gitignored · edited after commit · a stamp that drops "
           f"its schema)")
 

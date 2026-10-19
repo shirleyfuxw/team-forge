@@ -279,8 +279,9 @@ ever settled.
                "rows": {"applied": 0, "queued": 0, "rejected": 0, "candidates": 0}}}
    ```
 
-   A stamp without `schema` predates the grading, coverage and judge rules, so the lint and
-   teardown hold it to the earlier checks only.
+   The lint and teardown read the candidates file too and refuse a stamp whose `schema` is not
+   its `pass_schema`. Only when both lack it is the pass one from before the grading, coverage
+   and judge rules, held to the earlier checks.
 
    This is the marker `team-forge:teardown` Step 1 reads, and it is the whole freshness
    contract: teardown passes when `mode` is `close`, when `mined_at` matches the `mined_at`
@@ -316,9 +317,9 @@ not count, because the producer briefed it. Write its brief to `judge-brief.md` 
 grading file: this skill and its references as the rubric, plus the pass's commit, the Step-3
 HEAD and the snapshot folder — not the producer's verdicts or summary. The judge re-runs every
 row's check on both states, every negative control, and the Step-8 lint itself. It covers
-every Active row this pass added or amended, and every row a cycle pass applied since the last
-close a judge passed (found from their `mode: cycle` lesson events), and writes its verdict
-beside the grading file as `judge.json`:
+every Active row this pass added, edited or amended, and every row applied outside a close
+pass since the last close a valid PASS `judge.json` covers (found from those lesson events,
+labelled or not), and writes its verdict beside the grading file as `judge.json`:
 
 ```json
 {"mined_at": "<the pass's evolve.mined_at>", "commit": "<sha judged>",

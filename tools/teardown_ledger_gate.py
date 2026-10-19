@@ -36,7 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from evolve_mine import (judge_defects, judge_rows, load_json, parse_register,  # noqa: E402
-                         register_sections, resolve_hub, stamp_schema)
+                         pass_schema, register_sections, resolve_hub)
 from ledger_vocab import parse_ts  # noqa: E402,F401  (re-exported for the tests)
 
 
@@ -104,10 +104,9 @@ def check_judge(repo_root, team, ledger, candidates_doc):
     row it had to, in a judge.json committed with the pass (evolve SKILL.md Step 9). A stamp
     from before that rule (schema 1) needs none."""
     evolve = ledger["evolve"]
-    schema, mined_under = stamp_schema(evolve), candidates_doc.get("pass_schema")
-    if type(mined_under) is int and mined_under != schema:
-        return 2, (f"STALE -- the stamp says schema {schema}, but its candidates file was mined "
-                   f"under schema {mined_under}; copy it into the stamp")
+    schema, defects = pass_schema(evolve, candidates_doc)
+    if defects:
+        return 2, f"STALE -- {defects[0]}"
     if schema < 2:
         return 0, "schema 1: the pass predates the judge rule"
     if repo_root is None or not team:
@@ -127,10 +126,12 @@ def check_judge(repo_root, team, ledger, candidates_doc):
     register = repo_root / "docs" / "team-forge" / team / "lessons.md"
     if not register.is_file():
         return 2, f"STALE -- no register at {register.relative_to(repo_root)} to read the judged rows from"
-    missing = judge_rows(ledger, register_sections(parse_register(register)[0]), judges) - judged
+    where = register_sections(parse_register(register)[0])
+    missing = judge_rows(ledger, where, judges, team, schema) - judged
     if missing:
         return 2, f"STALE -- {rel} has no PASS row for {', '.join(sorted(missing))}"
-    if not _git(repo_root, "log", "-n1", "--format=%H", "--", str(rel)).stdout.strip() \
+    # Tracked, and unchanged against HEAD in the index and on disk: HEAD holds it as it stands.
+    if _git(repo_root, "ls-files", "--error-unmatch", "--", str(rel)).returncode \
             or _git(repo_root, "status", "--porcelain", "--", str(rel)).stdout.strip():
         return 2, f"STALE -- {rel} is not committed as it stands; commit it with the pass"
     return 0, f"judged PASS in {rel}"

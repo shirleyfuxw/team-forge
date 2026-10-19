@@ -838,9 +838,29 @@ LINT_CONTROLS = [
      json_edit(lambda d: next(e for e in d["events"] if e["ts"] == "2026-09-01T08:00:00Z").update(ts="yesterday")),
      "lesson event ts 'yesterday' does not parse"),
     ("no-stamp", "ledger", json_edit(lambda d: d.pop("evolve")), "ledger has no `evolve` stamp"),
+    # the stamp's schema must be the candidates file's pass_schema
+    ("schema-missing", "ledger", json_edit(lambda d: d["evolve"].pop("schema")),
+     "evolve.schema is None, but the candidates file was mined under pass_schema 2"),
+    ("schema-string", "ledger", json_edit(lambda d: d["evolve"].update(schema="2")),
+     "evolve.schema is '2', not a positive integer"),
+    ("schema-empty", "ledger", json_edit(lambda d: d["evolve"].update(schema="")),
+     "evolve.schema is '', not a positive integer"),
+    ("schema-zero", "ledger", json_edit(lambda d: d["evolve"].update(schema=0)),
+     "evolve.schema is 0, not a positive integer"),
+    ("schema-true", "ledger", json_edit(lambda d: d["evolve"].update(schema=True)),
+     "evolve.schema is True, not a positive integer"),
+    ("cycle-schema-missing", "ledger",
+     json_edit(lambda d: [d["evolve"].update(mode="cycle"), d["evolve"].pop("schema")]),
+     "evolve.schema is None, but the candidates file was mined under pass_schema 2"),
+    ("candidates-other-schema", "candidates", json_edit(lambda d: d.update(pass_schema=3)),
+     "evolve.schema is 2, but the candidates file was mined under pass_schema 3"),
+    ("candidates-bad-schema", "candidates", json_edit(lambda d: d.update(pass_schema="2")),
+     "the candidates file's pass_schema is '2', not a positive integer"),
+    ("candidates-other-mined-at", "candidates",
+     json_edit(lambda d: d.update(mined_at="2026-08-01T00:00:00Z")), "was mined at '2026-08-01T00:00:00Z'"),
     # a row this pass added must carry its proof
     ("added-row-no-event", "ledger", drop_event("2026-09-01T10:01:00Z"),
-     "Active row LL-2 was added by this pass, but no lesson event of this pass records it applied"),
+     "Active row LL-2 was added or edited by this pass, but no lesson event of this pass records it applied"),
     ("added-row-no-grading", "grading", json_edit(lambda d: d.pop(1)),
      "Active row LL-2 was added or amended by this pass, but no passed grading entry names it"),
     ("amended-row-no-grading", "grading", json_edit(lambda d: d.pop(0)),
@@ -948,7 +968,7 @@ LINT_GREEN = [
 
 LINT_INPUTS = {"register": FX / "lessons-good.md", "ledger": LINT_LEDGER, "grading": GRADING,
                "snapshot": FX / "lessons-snapshot.md", "judge": FX / "judge.json",
-               "brief": FX / "judge-brief.md"}
+               "brief": FX / "judge-brief.md", "candidates": FX / "candidates-v2.json"}
 
 
 def lint_copy(tag):
@@ -966,7 +986,8 @@ def lint_copy(tag):
 def lint_pass(paths, *extra):
     r = subprocess.run([sys.executable, str(MINER), "--lint-register", str(paths["register"]),
                         "--ledger", str(paths["ledger"]), "--grading", str(paths["grading"]),
-                        "--snapshot", str(paths["snapshot"]), *extra], capture_output=True, text=True)
+                        "--snapshot", str(paths["snapshot"]), "--candidates", str(paths["candidates"]),
+                        *extra], capture_output=True, text=True)
     return r.returncode, r.stdout + r.stderr
 
 
@@ -979,21 +1000,29 @@ def cycle_event(ts, rid, made):
 def check_cycle_rows_and_clearing():
     """A close's judge must cover what cycle passes applied since the last judged close, read
     from their own events, and a judged close clears them."""
-    def case(tag, cycle_made, judged_at, mode="cycle"):
+    def case(tag, cycle_made, judged_at, mode="cycle", earlier=None):
         paths = lint_copy(tag)
         led = json.loads(paths["ledger"].read_text())
         led["events"] = [e for e in led["events"] if e.get("ts") != "2026-09-01T10:00:00Z"]
         event = cycle_event("2026-09-01T08:30:00Z", "LL-1", cycle_made)
-        event["payload"]["mode"] = mode
+        for key, value in (("mode", mode), ("pass", cycle_made)):
+            if value is None:
+                event["payload"].pop(key)
+            else:
+                event["payload"][key] = value
         led["events"].insert(0, event)
         paths["ledger"].write_text(json.dumps(led))
         judge = json.loads(paths["judge"].read_text())
         judge["rows"] = [r for r in judge["rows"] if r["register_id"] != "LL-1"]
         paths["judge"].write_text(json.dumps(judge))
         if judged_at:
-            earlier = paths["judge"].parent.parent / "earlier-close"
-            earlier.mkdir()
-            (earlier / "judge.json").write_text(json.dumps(dict(judge, mined_at=judged_at)))
+            folder = paths["judge"].parent.parent / "earlier-close"
+            folder.mkdir()
+            shutil.copy(paths["brief"], folder / paths["brief"].name)
+            earlier_doc = dict(judge, mined_at=judged_at)
+            earlier_doc.update(earlier or {})
+            earlier_doc = {k: v for k, v in earlier_doc.items() if v is not None}
+            (folder / "judge.json").write_text(json.dumps(earlier_doc))
         return lint_pass(paths)
 
     rc, out = case("cycle-unjudged", "2026-09-01T08:20:00Z", None)
@@ -1006,6 +1035,18 @@ def check_cycle_rows_and_clearing():
         f"a cycle pass after the last judged close was cleared anyway\n{out}"
     rc, out = case("close-not-cycle", "2026-09-01T08:20:00Z", None, mode="close")
     assert rc == 0, f"an earlier close pass's row was carried as if a cycle pass applied it\n{out}"
+    for tag, bad in (("cycle-fail-judge", {"verdict": "FAIL"}), ("cycle-bad-judge", {"commit": None})):
+        rc, out = case(tag, "2026-09-01T08:20:00Z", "2026-09-01T08:40:00Z", earlier=bad)
+        assert rc == 1 and "the judge has no PASS row for LL-1" in out, \
+            f"{tag}: a judge file that is not a valid PASS cleared the cycle rows\n{out}"
+    rc, out = case("cycle-no-mode", "2026-09-01T08:20:00Z", None, mode=None)
+    assert rc == 1 and "the judge has no PASS row for LL-1" in out, \
+        f"an applied event with no mode was dropped, so its row escaped the judge\n{out}"
+    rc, out = case("cycle-no-pass", None, None)
+    assert rc == 1 and "the judge has no PASS row for LL-1" in out, \
+        f"an applied cycle event with no pass label was dropped\n{out}"
+    rc, out = case("cycle-no-pass-cleared", None, "2026-09-01T08:40:00Z")
+    assert rc == 0, f"a judged close after an unlabelled cycle event did not clear it\n{out}"
 
 
 def check_schema_one_and_legacy_rows():
@@ -1014,16 +1055,36 @@ def check_schema_one_and_legacy_rows():
     v1 = FX / "lint-ledger-v1.json"
     r = subprocess.run([sys.executable, str(MINER), "--lint-register", str(LINT_INPUTS["register"]),
                         "--ledger", str(v1), "--grading", str(FX / "grading-v1.json"),
-                        "--snapshot", str(LINT_INPUTS["snapshot"])], capture_output=True, text=True)
+                        "--snapshot", str(LINT_INPUTS["snapshot"]),
+                        "--candidates", str(FX / "candidates-v1.json")], capture_output=True, text=True)
     assert r.returncode == 0 and "stamp schema 1" in r.stdout, \
         f"an old-shape pass (no refs, a memory merge with no id, old grading, no judge) failed " \
         f"the new rules it predates\n{r.stdout}"
     paths = lint_copy("v1-anecdote")
+    shutil.copy(FX / "candidates-v1.json", paths["candidates"])
     paths["ledger"].write_text(json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z")["evidence"].update(
         type="anecdote"))(v1.read_text()))
     rc, out = lint_pass(paths)
     assert rc == 1 and "evidence type 'anecdote'" in out, \
         f"a schema-1 pass applied an anecdote and the old rule did not catch it\n{out}"
+    paths = lint_copy("v1-under-v2-miner")
+    shutil.copy(v1, paths["ledger"])
+    rc, out = lint_pass(paths)
+    assert rc == 1 and "mined under pass_schema 2" in out, \
+        f"a stamp with no schema escaped the new rules although its miner wrote pass_schema 2\n{out}"
+
+    # A text-only edit to a row is an amend: it needs its lesson event, grading and judge row.
+    plain = lint_copy("untouched-row")
+    plain["ledger"].write_text(drop_event("2026-09-01T10:00:00Z")(plain["ledger"].read_text()))
+    rc, out = lint_pass(plain)
+    assert rc == 0, f"a row this pass did not touch was asked for proof\n{out}"
+    edited = lint_copy("text-only-amend")
+    edited["ledger"].write_text(drop_event("2026-09-01T10:00:00Z")(edited["ledger"].read_text()))
+    edited["register"].write_text(edited["register"].read_text().replace(
+        "returns >= 1 | 2026-09-01", "returns 2 or more | 2026-09-01", 1))
+    rc, out = lint_pass(edited)
+    assert rc == 1 and "Active row LL-1 was added or edited by this pass, but no lesson event" in out, \
+        f"a row edited with no lesson event passed the lint\n{out}"
 
     legacy = lint_copy("legacy-row")
     legacy["register"].write_text(legacy["register"].read_text().replace(
@@ -1032,6 +1093,8 @@ def check_schema_one_and_legacy_rows():
                        capture_output=True, text=True)
     assert r.returncode == 0, f"the register linted alone held an old row to the allow-list\n{r.stdout}"
     legacy["ledger"].write_text(drop_event("2026-09-01T10:00:00Z")(legacy["ledger"].read_text()))
+    legacy["snapshot"].write_text(legacy["snapshot"].read_text().replace(
+        "recurrence x3 (`verifier_prompt_contamination`", "one sighting (`x`", 1))
     rc, out = lint_pass(legacy)
     assert rc == 0, f"a row this pass neither added nor amended was held to the allow-list\n{out}"
 
