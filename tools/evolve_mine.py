@@ -1089,10 +1089,11 @@ def pass_schema(evolve, candidates):
 
 
 def pass_candidates(evolve, ledger_path, override=None):
-    """The candidates file the stamp names, resolved from the repo root above the ledger."""
+    """The candidates file the stamp names, resolved from the repo root above the ledger.
+    Returns its document, its path, and a defect or None."""
     rel = override or evolve.get("candidates")
     if not rel:
-        return None, "evolve.candidates is missing, so the pass's schema cannot be confirmed"
+        return None, None, "evolve.candidates is missing, so the pass's schema cannot be confirmed"
     path = Path(rel)
     if not path.is_absolute() and not override:
         root = next((d for d in Path(ledger_path).resolve().parents if (d / ".git").exists()),
@@ -1101,14 +1102,14 @@ def pass_candidates(evolve, ledger_path, override=None):
     try:
         doc = json.loads(path.read_text())
     except Exception as e:
-        return None, (f"candidates file {path} unreadable ({e.__class__.__name__}), so the pass's "
-                      f"schema cannot be confirmed — pass --candidates")
+        return None, path, (f"candidates file {path} unreadable ({e.__class__.__name__}), so the "
+                            f"pass's schema cannot be confirmed — pass --candidates")
     if not isinstance(doc, dict):
-        return None, f"candidates file {path} is not an object"
+        return None, path, f"candidates file {path} is not an object"
     if parse_ts(doc.get("mined_at")) != parse_ts(evolve.get("mined_at")):
-        return doc, (f"candidates file {path} was mined at {doc.get('mined_at')!r}, not the stamp's "
-                     f"{evolve.get('mined_at')!r}")
-    return doc, None
+        return doc, path, (f"candidates file {path} was mined at {doc.get('mined_at')!r}, not the "
+                           f"stamp's {evolve.get('mined_at')!r}")
+    return doc, path, None
 
 
 def current_lessons(window):
@@ -1293,10 +1294,29 @@ def last_judged_close(judges_dir, mined_at, team):
     return best
 
 
-def cycle_rows(ledger, where, judges_dir, mined_at, team):
-    """Active rows applied outside a close pass since the last judged close. A cycle pass's
-    events carry `mode: cycle` and `pass`; an applied event with neither counts too, dated by
-    its own ts, so a pass that left them off is not dropped. A judged close clears them."""
+def schema_two_since(candidates_dir):
+    """When the first pass under schema 2 mined: the earliest mined_at among the candidates
+    files (searched below `candidates_dir`) whose pass_schema is 2 or more, or None."""
+    times = []
+    for cp in Path(candidates_dir).rglob("candidates-*.json"):
+        try:
+            doc = json.loads(cp.read_text())
+        except Exception:
+            continue
+        if isinstance(doc, dict) and _schema_ok(doc.get("pass_schema")) and doc["pass_schema"] >= 2:
+            t = parse_ts(doc.get("mined_at"))
+            if t:
+                times.append(t)
+    return min(times) if times else None
+
+
+def cycle_rows(ledger, where, judges_dir, mined_at, team, candidates_dir):
+    """Active rows applied outside a close pass since the last judged close, counting only
+    events from schema-2 passes (dated from the first schema-2 candidates file), labelled or
+    not; earlier events were held to the old checks. A judged close clears them."""
+    era = schema_two_since(candidates_dir)
+    if era is None:
+        return set()
     since = last_judged_close(judges_dir, mined_at, team)
     rows = set()
     for t, e in ledger_lessons(ledger):
@@ -1304,18 +1324,26 @@ def cycle_rows(ledger, where, judges_dir, mined_at, team):
         rid = norm_id(pl.get("register_id"))
         made = parse_ts(pl.get("pass")) or t
         if pl.get("mode") != "close" and str(pl.get("status") or "").lower() == "applied" \
-                and rid and where.get(rid) == "active" and (since is None or made is None or made > since):
+                and rid and where.get(rid) == "active" and made is not None and made >= era \
+                and (since is None or made > since):
             rows.add(rid)
     return rows
 
 
-def judge_rows(ledger, where, judges_dir, team, schema):
+def evolve_dir_of(candidates_path):
+    """The team's evolve folder above a candidates file, where every pass's candidates live."""
+    path = Path(candidates_path)
+    return next((d for d in path.parents if d.name == "evolve"), path.parent)
+
+
+def judge_rows(ledger, where, judges_dir, team, schema, candidates_dir):
     """The rows a close pass's judge must pass: every Active row this pass applied, plus what
-    was applied outside a close since the last judged close. Shared with teardown."""
+    schema-2 passes applied outside a close since the last judged close. Shared with teardown."""
     evolve, window, _ = pass_window(ledger)
     _, applied = lesson_defects(current_lessons(window or []), where, schema)
     mine = {rid for rid in applied if where.get(rid) == "active"}
-    return mine | cycle_rows(ledger, where, judges_dir, (evolve or {}).get("mined_at"), team)
+    return mine | cycle_rows(ledger, where, judges_dir, (evolve or {}).get("mined_at"), team,
+                             candidates_dir)
 
 
 def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before_judge, team,
@@ -1329,7 +1357,7 @@ def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before
     evolve, window, defects = pass_window(ledger)
     if window is None:
         return defects, [], EVOLVE_PASS_SCHEMA
-    candidates, err = pass_candidates(evolve, ledger_path, candidates_path)
+    candidates, cand_path, err = pass_candidates(evolve, ledger_path, candidates_path)
     if err:
         defects.append(err)
     schema, found = pass_schema(evolve, candidates)
@@ -1356,7 +1384,13 @@ def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before
     def text(row):
         return [re.sub(r"\s+", " ", c).strip() for c in row["_raw"].strip().strip("|").split("|")]
 
-    before = {row_id(r): text(r) for r in parse_register(snap_path)[0]["active"]}
+    snap = parse_register(snap_path)[0]
+    before = {row_id(r): text(r) for r in snap["active"]}
+    for rid in sorted(set(before) - set(where), key=str):
+        if rid:
+            defects.append(f"Active row {rid} is in the snapshot but gone from the register — a "
+                           f"row is superseded, never deleted; move it to Superseded / falsified "
+                           f"with what killed it")
     changed = {row_id(r) for r in tables["active"] if row_id(r) and before.get(row_id(r)) != text(r)}
     prove = [r for r in tables["active"] if row_id(r) in changed or row_id(r) in applied]
     try:
@@ -1376,8 +1410,9 @@ def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before
         jpath = Path(judge_path) if judge_path else Path(grading_path).parent / "judge.json"
         found, judged = judge_defects(jpath, evolve.get("mined_at"), team)
         defects += found
-        need = {row_id(r) for r in prove} | cycle_rows(ledger, where, jpath.parent.parent,
-                                                       evolve.get("mined_at"), team)
+        need = {row_id(r) for r in prove} | cycle_rows(
+            ledger, where, jpath.parent.parent, evolve.get("mined_at"), team,
+            evolve_dir_of(cand_path) if cand_path else Path(grading_path).parent)
         for rid in sorted(need - judged):
             defects.append(f"the judge has no PASS row for {rid}, which this pass added or "
                            f"amended, or a cycle pass applied since the last judged close")

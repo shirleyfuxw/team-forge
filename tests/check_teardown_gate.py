@@ -102,36 +102,78 @@ def _v2_hub(team, events=None, stamp_schema=2):
     hub = _make_hub(team, {"events": events if events is not None else
                            [_lesson("2026-01-01T23:30:00Z", "LL-1", MINED, "close")],
                            "evolve": evolve},
-                    candidates_docs={"candidates-2026-01-01.json": {"mined_at": MINED, "pass_schema": 2}})
+                    candidates_docs={"candidates-2026-01-01.json": {"mined_at": MINED, "pass_schema": 2},
+                                     "candidates-cycle.json": {"mined_at": "2026-01-01T19:00:00Z",
+                                                               "pass_schema": 2}})
     (hub.parents[2] / "docs" / "team-forge" / team / "lessons.md").write_text(REGISTER.format(team=team))
     return hub
 
 
-def _add_judge(hub, team, stamp=MINED, commit="all", **overrides):
-    """agent_evals/<team>/evolve-x/judge.json plus its brief, in a git repo at the fixture root:
-    committed ("all"), only staged ("staged"), or neither ("none")."""
+def _add_judge(hub, team, stamp=MINED, git_mode="all", **overrides):
+    """Commit the pass in a fresh git repo at the fixture root, then write
+    agent_evals/<team>/evolve-x/judge.json naming that commit, plus its brief: committed
+    ("all"), only staged ("staged"), left out ("none"), or gitignored ("ignored")."""
     target = hub.parents[2]
+    git = ["git", "-C", str(target), "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run(git + ["init", "-q"], check=True)
     jdir = target / "agent_evals" / team / "evolve-x"
     jdir.mkdir(parents=True, exist_ok=True)
+    (jdir / "grading.json").write_text("[]\n")
+    if git_mode == "ignored":
+        (target / ".gitignore").write_text("agent_evals/*/*/judge*\n")
+    subprocess.run(git + ["add", "-A"], check=True)
+    subprocess.run(git + ["commit", "-q", "-m", "pass"], check=True)
+    sha = subprocess.run(git + ["rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     (jdir / "judge-brief.md").write_text("rubric: skills/evolve\n")
-    doc = {"mined_at": stamp, "commit": "abc1234", "judge": "general-purpose, fresh session",
+    doc = {"mined_at": stamp, "commit": sha, "judge": "general-purpose, fresh session",
            "brief": "judge-brief.md", "rows": [{"register_id": "LL-1", "verdict": "PASS"}],
            "verdict": "PASS"}
     doc.update(overrides)
     (jdir / "judge.json").write_text(json.dumps(doc))
-    git = ["git", "-C", str(target)]
-    subprocess.run(git + ["init", "-q"], check=True)
-    if commit == "ignored":
-        (target / ".gitignore").write_text("agent_evals/\n")
-        subprocess.run(git + ["add", ".gitignore"], check=True)
-        subprocess.run(git + ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "i"],
-                       check=True)
-    if commit in ("all", "staged"):
+    if git_mode in ("all", "staged"):
         subprocess.run(git + ["add", "agent_evals"], check=True)
-    if commit == "all":
-        subprocess.run(git + ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "j"],
-                       check=True)
+    if git_mode == "all":
+        subprocess.run(git + ["commit", "-q", "-m", "judge"], check=True)
     return jdir / "judge.json"
+
+
+def _git_in(path, *args):
+    target = path.parents[3]
+    return subprocess.run(["git", "-C", str(target), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                          capture_output=True, text=True, check=True)
+
+
+def _edit_after(rel):
+    """Change a file the judge saw, in a commit after the judge's."""
+    def after(path):
+        f = path.parents[3] / rel
+        f.write_text(f.read_text() + "\n")
+        _git_in(path, "commit", "-qam", "edit after the judge")
+    return after
+
+
+def _hidden_rewrite(flag):
+    """Rewrite the committed judge file behind an index flag that hides it from git status."""
+    def after(path):
+        _git_in(path, "update-index", flag, str(path.relative_to(path.parents[3])))
+        path.write_text(path.read_text().replace('"general-purpose, fresh session"', '"anyone"'))
+    return after
+
+
+def _not_ancestor(path):
+    """Point the judge at a commit that exists but is not in HEAD's history."""
+    target = path.parents[3]
+    (target / "side.txt").write_text("side\n")
+    _git_in(path, "add", "side.txt")
+    _git_in(path, "commit", "-qm", "side")
+    side = _git_in(path, "rev-parse", "HEAD").stdout.strip()
+    _git_in(path, "reset", "-q", "--hard", "HEAD~1")
+    path.write_text(path.read_text().replace(json.loads(path.read_text())["commit"], side))
+    _git_in(path, "commit", "-qam", "judge names a side commit")
+
+
+def _pending_removal(path):
+    _git_in(path, "rm", "-q", "--cached", str(path.relative_to(path.parents[3])))
 
 
 def _run_check(hub):
@@ -277,6 +319,14 @@ def check_fresh():
     r = _run_check(hub)
     assert r.returncode == 0 and "judged PASS" in r.stdout, \
         f"a schema-2 pass with a committed PASS judge should be fresh\n{r.stdout}{r.stderr}"
+    old = {"ts": "2026-01-01T18:00:00Z", "agent": "lead", "kind": "lesson", "payload": {
+        "claim": "applied under schema 1", "evidence": {"type": "recurrence", "refs": ["r"]},
+        "action": "amend", "status": "applied", "register_id": "LL-2"}}
+    hub = _v2_hub("fresh-grandfathered", events=[old, _lesson("2026-01-01T23:30:00Z", "LL-1", MINED, "close")])
+    _add_judge(hub, "fresh-grandfathered")
+    r = _run_check(hub)
+    assert r.returncode == 0, \
+        f"a row applied before the first schema-2 pass was owed to the judge\n{r.stdout}{r.stderr}"
     hub = _v2_hub("fresh-offset")
     _add_judge(hub, "fresh-offset", stamp="2026-01-02T07:00:00+08:00")
     r = _run_check(hub)
@@ -302,7 +352,7 @@ def check_judge_required():
         """stamp_schema None leaves the key out; any other value is written as given."""
         hub = _v2_hub(team, events=events, stamp_schema=stamp_schema)
         if judge is not None:
-            path = _add_judge(hub, team, commit=commit, **judge)
+            path = _add_judge(hub, team, git_mode=commit, **judge)
             if after:
                 after(path)
         return _run_check(hub)
@@ -325,6 +375,16 @@ def check_judge_required():
         ("judge-edited", {"judge": {}, "after": lambda p: p.write_text(p.read_text() + " ")},
          "is not committed"),
         ("schema-dodged", {"judge": None, "stamp_schema": None}, "mined under pass_schema 2"),
+        ("judge-fake-commit", {"judge": {"commit": "0000000deadbeef"}}, "which this repository does not have"),
+        ("judge-side-commit", {"judge": {}, "after": _not_ancestor}, "is not an ancestor of HEAD"),
+        ("register-edited", {"judge": {}, "after": _edit_after("docs/team-forge/register-edited/lessons.md")},
+         "changed after the judged commit"),
+        ("grading-edited", {"judge": {}, "after": _edit_after("agent_evals/grading-edited/evolve-x/grading.json")},
+         "changed after the judged commit"),
+        ("assume-unchanged", {"judge": {}, "after": _hidden_rewrite("--assume-unchanged")},
+         "is not committed"),
+        ("skip-worktree", {"judge": {}, "after": _hidden_rewrite("--skip-worktree")}, "is not committed"),
+        ("pending-removal", {"judge": {}, "after": _pending_removal}, "is not committed"),
         ("schema-string", {"judge": {}, "stamp_schema": "2"}, "evolve.schema is '2', not a positive"),
         ("judge-untracked", {"judge": {}, "after": _untrack}, "is not committed"),
     ]

@@ -808,6 +808,9 @@ LINT_CONTROLS = [
     ("rejected-but-superseded", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:05:00Z").update(status="rejected")),
      "the register has LL-0 in Superseded"),
+    ("active-row-deleted", "register",
+     lambda t: "\n".join(l for l in t.split("\n") if not l.startswith("| LL-1 |")),
+     "Active row LL-1 is in the snapshot but gone from the register"),
     ("unresolved-id", "ledger",
      json_edit(lambda d: lesson_at(d, "2026-09-01T10:00:00Z").update(register_id="LL-9")),
      "names LL-9, which no register row carries"),
@@ -1000,8 +1003,12 @@ def cycle_event(ts, rid, made):
 def check_cycle_rows_and_clearing():
     """A close's judge must cover what cycle passes applied since the last judged close, read
     from their own events, and a judged close clears them."""
-    def case(tag, cycle_made, judged_at, mode="cycle", earlier=None):
+    def case(tag, cycle_made, judged_at, mode="cycle", earlier=None, era="2026-09-01T08:20:00Z",
+             older=()):
         paths = lint_copy(tag)
+        if era:
+            (paths["candidates"].parent / "candidates-cycle.json").write_text(json.dumps(
+                {"mined_at": era, "pass_schema": 2}))
         led = json.loads(paths["ledger"].read_text())
         led["events"] = [e for e in led["events"] if e.get("ts") != "2026-09-01T10:00:00Z"]
         event = cycle_event("2026-09-01T08:30:00Z", "LL-1", cycle_made)
@@ -1010,7 +1017,7 @@ def check_cycle_rows_and_clearing():
                 event["payload"].pop(key)
             else:
                 event["payload"][key] = value
-        led["events"].insert(0, event)
+        led["events"] = list(older) + ([event] if cycle_made != "skip" else []) + led["events"]
         paths["ledger"].write_text(json.dumps(led))
         judge = json.loads(paths["judge"].read_text())
         judge["rows"] = [r for r in judge["rows"] if r["register_id"] != "LL-1"]
@@ -1047,6 +1054,19 @@ def check_cycle_rows_and_clearing():
         f"an applied cycle event with no pass label was dropped\n{out}"
     rc, out = case("cycle-no-pass-cleared", None, "2026-09-01T08:40:00Z")
     assert rc == 0, f"a judged close after an unlabelled cycle event did not clear it\n{out}"
+
+    # A mixed ledger: rows applied under schema 1 (before the first schema-2 candidates file)
+    # were held to the old checks and are not owed to the judge; schema-2 cycle rows are.
+    old = {"ts": "2026-09-01T07:00:00Z", "agent": "lead", "kind": "lesson", "payload": {
+        "claim": "applied under schema 1", "evidence": {"type": "recurrence", "refs": ["r"]},
+        "action": "amend", "status": "applied", "register_id": "LL-1"}}
+    rc, out = case("mixed-schema-one-only", "skip", None, older=[old])
+    assert rc == 0, f"a row applied under schema 1 was owed to the judge\n{out}"
+    rc, out = case("mixed-schema-two-cycle", "2026-09-01T08:20:00Z", None, older=[old])
+    assert rc == 1 and "the judge has no PASS row for LL-1" in out, \
+        f"a schema-2 cycle row in a mixed ledger was not owed to the judge\n{out}"
+    rc, out = case("no-schema-two-pass", "2026-09-01T08:20:00Z", None, era=None)
+    assert rc == 0, f"with no schema-2 candidates before this pass, an earlier row was owed\n{out}"
 
 
 def check_schema_one_and_legacy_rows():

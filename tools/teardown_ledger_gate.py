@@ -127,14 +127,28 @@ def check_judge(repo_root, team, ledger, candidates_doc):
     if not register.is_file():
         return 2, f"STALE -- no register at {register.relative_to(repo_root)} to read the judged rows from"
     where = register_sections(parse_register(register)[0])
-    missing = judge_rows(ledger, where, judges, team, schema) - judged
+    missing = judge_rows(ledger, where, judges, team, schema,
+                         repo_root / "docs" / "team-forge" / team / "evolve") - judged
     if missing:
         return 2, f"STALE -- {rel} has no PASS row for {', '.join(sorted(missing))}"
-    # Tracked, and unchanged against HEAD in the index and on disk: HEAD holds it as it stands.
-    if _git(repo_root, "ls-files", "--error-unmatch", "--", str(rel)).returncode \
+    # HEAD holds the file byte for byte, so index flags such as --assume-unchanged cannot
+    # hide a rewrite, and nothing about it is staged or pending.
+    head = subprocess.run(["git", "-C", str(repo_root), "show", f"HEAD:{rel}"], capture_output=True)
+    if head.stdout != path.read_bytes() \
             or _git(repo_root, "status", "--porcelain", "--", str(rel)).stdout.strip():
         return 2, f"STALE -- {rel} is not committed as it stands; commit it with the pass"
-    return 0, f"judged PASS in {rel}"
+    named = str(load_json(path, "judge file").get("commit") or "")
+    sha = _git(repo_root, "rev-parse", "--verify", "--quiet", f"{named}^{{commit}}").stdout.strip()
+    if not sha:
+        return 2, f"STALE -- {rel} names commit {named!r}, which this repository does not have"
+    if _git(repo_root, "merge-base", "--is-ancestor", sha, "HEAD").returncode:
+        return 2, f"STALE -- {rel} judged {sha[:12]}, which is not an ancestor of HEAD"
+    seen = [str(register.relative_to(repo_root)), str((path.parent / "grading.json").relative_to(repo_root))]
+    changed = _git(repo_root, "diff", "--name-only", sha, "HEAD", "--", *seen).stdout.split()
+    if changed:
+        return 2, (f"STALE -- {', '.join(changed)} changed after the judged commit {sha[:12]}, so "
+                   f"the judge never saw it; judge the pass again")
+    return 0, f"judged PASS in {rel} (commit {sha[:12]})"
 
 
 def cmd_check(args):

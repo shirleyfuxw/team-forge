@@ -160,10 +160,13 @@ was `rejected` before. Every Active row this pass added (the snapshot lacks it),
 text differs from the snapshot's) or amended (an applied event names it) must open with an
 admissible signal, and carry an applied event and a
 `passed: true` grading entry whose `before` run failed and whose `after` run of the same
-command passed. In close mode, a PASS `judge.json` (default: beside the grading file; its
-`mined_at` read as an instant) must cover those rows and every row applied outside a close
-pass since the last close a valid PASS judge file covers, an applied event with no `mode` or
-`pass` included; `--before-judge` skips only that, for the run before the judge. Rows
+command passed. An Active row the snapshot has and the register lost is an error: a row is
+superseded, never deleted. In close mode, a PASS `judge.json` (default: beside the grading file; its
+`mined_at` read as an instant) must cover those rows and every row a schema-2 pass applied
+outside a close since the last close a valid PASS judge file covers, an applied event with no
+`mode` or `pass` included. Schema-2 passes are dated from the earliest candidates file with
+`pass_schema` 2 or more; rows applied before it were held to the old checks.
+`--before-judge` skips only that, for the run before the judge. Rows
 this pass did not touch, and the register linted alone, are not held to the evidence
 allow-list. Exit 0 is the register's own gate — run it in SKILL.md Steps 8 and 9.
 

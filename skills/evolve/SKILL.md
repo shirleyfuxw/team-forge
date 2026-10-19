@@ -317,12 +317,12 @@ not count, because the producer briefed it. Write its brief to `judge-brief.md` 
 grading file: this skill and its references as the rubric, plus the pass's commit, the Step-3
 HEAD and the snapshot folder — not the producer's verdicts or summary. The judge re-runs every
 row's check on both states, every negative control, and the Step-8 lint itself. It covers
-every Active row this pass added, edited or amended, and every row applied outside a close
-pass since the last close a valid PASS `judge.json` covers (found from those lesson events,
-labelled or not), and writes its verdict beside the grading file as `judge.json`:
+every Active row this pass added, edited or amended, and every row a schema-2 pass applied
+outside a close since the last close a valid PASS `judge.json` covers (found from those lesson
+events, labelled or not), and writes its verdict beside the grading file as `judge.json`:
 
 ```json
-{"mined_at": "<the pass's evolve.mined_at>", "commit": "<sha judged>",
+{"mined_at": "<the pass's evolve.mined_at>", "commit": "<the pass's commit it judged>",
  "judge": "<who judged: agent type and session; never a team seat, never the team's name>",
  "brief": "judge-brief.md",
  "rows": [{"register_id": "LL-n", "verdict": "PASS|FAIL",
@@ -334,8 +334,9 @@ The verdict goes in that file, not the ledger: an event after `evolve.last_run` 
 freshness check. On FAIL, fix what the judge named, re-run Step 8 (which re-stamps the `evolve`
 key), and have it judged again. On PASS, commit `judge.json` and its brief with the pass, then
 run the Step-8 lint without `--before-judge`. `team-forge:teardown` refuses a close pass with no
-committed PASS `judge.json` for its `mined_at` that covers those rows. A judged close clears the
-cycle rows it covered.
+committed PASS `judge.json` for its `mined_at` that covers those rows, and refuses one whose
+`commit` is not an ancestor of HEAD or whose register or grading file changed after it, because
+the judge never saw that change. A judged close clears the cycle rows it covered.
 
 **`cycle` mode** has no judge of its own: the rows it applies wait for the next close's judge,
 and the pass returns to the drain loop, which owns the next cycle.
