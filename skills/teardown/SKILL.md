@@ -69,10 +69,12 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
    stamp with `schema` 2, an `agent_evals/<team>/*/judge.json` for that `mined_at`, held by HEAD
    byte for byte with nothing pending, says PASS for every Active row the pass applied and every
    row a schema-2 cycle pass applied since the last judged close, from a judge whose name is not
-   the team's; its `commit` is an ancestor of HEAD, and the register and grading file are
-   unchanged since it (evolve Step 9). The
+   the team's; its `commit` is an ancestor of HEAD, and the register, the grading file and
+   every file the judged rows name (their Applied-to cells and lesson targets) are unchanged
+   since it, with nothing uncommitted in the register or grading file (evolve Step 9). The
    stamp's `schema` must equal its candidates file's `pass_schema`; only when both lack it does
-   the pass predate the judge rule and need no judge. Anything but
+   the pass predate the judge rule and need no judge, and only on a hub with no schema-2
+   candidates file or `mode`-labelled events — otherwise the plugin is out of date. Anything but
    `fresh` → say so and run evolve (close mode) NOW, before anything below.
 
    **Run this as a script, not by hand** — the jq one-liner above is the specification, not
@@ -267,7 +269,7 @@ and that it was retired — not a phase ID). Show the user the surviving durable
 docs/team-forge/<team>/     ← brainstorms, team-plans, artifacts, run-summary.md, final-ledger.json
   lessons.md                ← the lessons register — what the run taught, each row with the
                               evidence that admitted it and the check that proves it
-  evolve/                   ← each evolve pass: candidates-<date>.json, plugin-feedback-<date>.md
+  evolve/                   ← each evolve pass: candidates-<mined_at>.json, plugin-feedback-<date>.md
 agent_evals/<team>/         ← the per-agent eval scaffolds
 .claude/skills/<name>/      ← each promoted skill this team produced (Step 6), with its
                               acceptance command — the deliverable that outlives the team

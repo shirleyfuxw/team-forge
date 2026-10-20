@@ -66,7 +66,7 @@ REGISTER = """# {team} — lessons register
 
 | # | Lesson | Evidence | Applied to (layer:path) | Check | Since |
 |---|---|---|---|---|---|
-| LL-1 | One | recurrence x2 | L1:x | `true` | 2026-01-02 |
+| LL-1 | One | recurrence x2 | L1:gates/leak.py | `true` | 2026-01-02 |
 | LL-2 | Two | recurrence x2 | L1:y | `true` | 2026-01-01 |
 
 ## Superseded / falsified
@@ -106,6 +106,8 @@ def _v2_hub(team, events=None, stamp_schema=2):
                                      "candidates-cycle.json": {"mined_at": "2026-01-01T19:00:00Z",
                                                                "pass_schema": 2}})
     (hub.parents[2] / "docs" / "team-forge" / team / "lessons.md").write_text(REGISTER.format(team=team))
+    (hub / "gates").mkdir()
+    (hub / "gates" / "leak.py").write_text("print('leak gate')\n")
     return hub
 
 
@@ -149,6 +151,13 @@ def _edit_after(rel):
         f = path.parents[3] / rel
         f.write_text(f.read_text() + "\n")
         _git_in(path, "commit", "-qam", "edit after the judge")
+    return after
+
+
+def _edit_uncommitted(rel):
+    def after(path):
+        f = path.parents[3] / rel
+        f.write_text(f.read_text() + "\n")
     return after
 
 
@@ -347,6 +356,25 @@ def _untrack(path):
     path.write_text(path.read_text().replace('"PASS"', '"PASS" '))
 
 
+def check_downgrade():
+    """A schema-1 stamp on a hub that already ran schema-2 passes came from a stale plugin."""
+    for team, extra_candidates, events in (
+            ("downgrade-candidates", {"candidates-2025-12-31T000000Z.json":
+                                      {"mined_at": "2025-12-31T00:00:00Z", "pass_schema": 2}}, None),
+            ("downgrade-events", {}, [_lesson("2026-01-01T12:00:00Z", "LL-1", "2026-01-01T11:00:00Z", "cycle")])):
+        rel = f"docs/team-forge/{team}/evolve/candidates-2026-01-02.json"
+        docs = {"candidates-2026-01-02.json": {"mined_at": "2026-01-02T00:00:00Z"}, **extra_candidates}
+        hub = _make_hub(team, {"events": events or [{"ts": "2026-01-01T00:00:00Z"}],
+                               "evolve": {"mode": "close", "last_run": "2026-01-02T00:00:00Z",
+                                          "candidates": rel, "mined_at": "2026-01-02T00:00:00Z"}},
+                        candidates_docs=docs)
+        r = _run_check(hub)
+        assert r.returncode == 2 and "update team-forge" in r.stdout, \
+            f"{team}: a schema-1 stamp after schema-2 passes was fresh\n{r.stdout}{r.stderr}"
+    print("✓ STALE (downgrade): a schema-1 stamp after a schema-2 candidates file or `mode`-labelled "
+          "events is refused, and the message says to update the plugin")
+
+
 def check_judge_required():
     def run(team, judge=None, commit="all", events=None, stamp_schema=2, after=None):
         """stamp_schema None leaves the key out; any other value is written as given."""
@@ -381,6 +409,10 @@ def check_judge_required():
          "changed after the judged commit"),
         ("grading-edited", {"judge": {}, "after": _edit_after("agent_evals/grading-edited/evolve-x/grading.json")},
          "changed after the judged commit"),
+        ("gate-edited", {"judge": {}, "after": _edit_after(".claude/team-forge/gate-edited/gates/leak.py")},
+         "changed after the judged commit"),
+        ("register-uncommitted", {"judge": {}, "after": _edit_uncommitted("docs/team-forge/register-uncommitted/lessons.md")},
+         "has an uncommitted change the judge never saw"),
         ("assume-unchanged", {"judge": {}, "after": _hidden_rewrite("--assume-unchanged")},
          "is not committed"),
         ("skip-worktree", {"judge": {}, "after": _hidden_rewrite("--skip-worktree")}, "is not committed"),
@@ -509,6 +541,7 @@ def main():
     check_stale_later_candidates_file()
     check_fresh()
     check_judge_required()
+    check_downgrade()
     check_unreadable()
     check_archive()
     check_meta()

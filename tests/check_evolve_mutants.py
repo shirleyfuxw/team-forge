@@ -6,7 +6,7 @@ working tree) and runs tests/check_evolve.py and tests/check_teardown_gate.py ag
 mutant that leaves both green names a rule no test can fail. An unmutated copy runs first and
 must pass, so a kill means the mutant, not a broken copy.
 
-Usage:  python3 tests/check_evolve_mutants.py      (about nine minutes)
+Usage:  python3 tests/check_evolve_mutants.py      (about ten minutes)
 Exit 0 = every mutant killed; exit 1 = a mutant survived, or a pattern no longer matches.
 """
 
@@ -47,7 +47,7 @@ MUTANTS = [
     ('schema-2 inputs not required', MINE, '    if not grading_path or not snapshot:', '    if False:'),
     ('refs not required', MINE, 'if schema >= 2 and status == "applied" and not refs:', 'if False:'),
     ('applied with no id accepted', MINE, '            if schema >= 2 and status == "applied":\n                defects.append(f"{label}: status applied but names', '            if False:\n                defects.append(f"{label}: status applied but names'),
-    ('rejected-then-applied flip accepted', MINE, 'if set(map(str, refs)) <= set(map(str, old.get("refs") or [])):', 'if False:'),
+    ('rejected-then-applied flip accepted', MINE, '                if not new:\n', '                if False:\n'),
     ('pass labels unchecked', MINE, 'if parse_ts(pl.get("pass")) != parse_ts(evolve.get("mined_at")) or pl.get("mode") != evolve.get("mode"):', 'if False:'),
     ('added row needs no applied event', MINE, 'if rid not in applied:', 'if False:'),
     ('added row needs no grading entry', MINE, 'if rid not in graded:', 'if False:'),
@@ -73,8 +73,7 @@ MUTANTS = [
     ('judge brief unchecked', MINE, 'if not (bp if bp.is_absolute() else path.parent / bp).is_file():', 'if False:'),
     ('judge coverage unchecked', MINE, '        for rid in sorted(need - judged):', '        for rid in []:'),
     ('cycle rows not required', MINE, 'need = {row_id(r) for r in prove} | cycle_rows(', 'need = {row_id(r) for r in prove} or cycle_rows('),
-    ('a judged close does not clear cycle rows', MINE, '                and (since is None or made > since):', '                and True:'),
-    ('cycle rows ignore the mode', MINE, 'if pl.get("mode") != "close" and', 'if'),
+    ('a judged close does not clear cycle rows', MINE, '(since is None or made is None or made > since):', 'True:'),
     ('earlier judge files ignored', MINE, '        if t and now and t < now and (best is None or t > best) \\', '        if False and (best is None or t > best) \\'),
     ('--since compared as text', MINE, 'return [e for e in events if (parse_ts(e.get("ts")) or start) >= start]', 'return [e for e in events if str(e.get("ts") or "") >= since]'),
     ('teardown skips the judge', GATE, 'code, message = check_judge(repo_root, team, ledger, candidates_doc)', 'code, message = 0, "skipped"'),
@@ -82,7 +81,7 @@ MUTANTS = [
     ('teardown ignores judge defects', GATE, '    if defects:\n        return 2, f"STALE -- {rel}: {defects[0]}"', '    if False:\n        return 2, f"STALE -- {rel}: {defects[0]}"'),
     ('teardown ignores row coverage', GATE, '    if missing:\n        return 2, f"STALE -- {rel} has no PASS row', '    if False:\n        return 2, f"STALE -- {rel} has no PASS row'),
     ('teardown ignores a dropped schema', GATE, '    if defects:\n        return 2, f"STALE -- {defects[0]}"', '    if False:\n        return 2, f"STALE -- {defects[0]}"'),
-    ('teardown demands a judge of schema-1 passes', GATE, '    if schema < 2:\n        return 0,', '    if False:\n        return 0,'),
+    ('teardown demands a judge of schema-1 passes', GATE, '        return 0, "schema 1: the pass predates the judge rule"', '        pass'),
     ("teardown takes any pass's judge file", GATE, 'if parse_ts(load_json(path, "judge file").get("mined_at")) == parse_ts(mined_at)]', ']'),
     ('the lint ignores the candidates file', MINE, 'stamp, mined = evolve.get("schema"), candidates.get("pass_schema")', 'stamp, mined = evolve.get("schema"), evolve.get("schema")'),
     ('schema mismatch unchecked', MINE, '    if not defects and stamp != mined:', '    if False:'),
@@ -92,15 +91,24 @@ MUTANTS = [
     ('candidates file not read', MINE, '    candidates, cand_path, err = pass_candidates(evolve, ledger_path, candidates_path)', '    candidates, cand_path, err = {}, None, None'),
     ('a FAIL or invalid judge file clears cycle rows', MINE, '                and not judge_defects(jp, doc.get("mined_at"), team)[0]:', '                and True:'),
     ('an event with no pass label has no date', MINE, '        made = parse_ts(pl.get("pass")) or t', '        made = parse_ts(pl.get("pass"))'),
-    ('an event with no mode is dropped', MINE, 'if pl.get("mode") != "close" and', 'if pl.get("mode") == "cycle" and'),
+    ('an event with no mode is dropped', MINE, '"mode" not in pl and era is not None and made is not None', 'False and era is not None and made is not None'),
     ('text-only edits not detected', MINE, 'changed = {row_id(r) for r in tables["active"] if row_id(r) and before.get(row_id(r)) != text(r)}', 'changed = {row_id(r) for r in tables["active"] if row_id(r) and row_id(r) not in before}'),
     ('deleted Active rows accepted', MINE, '    for rid in sorted(set(before) - set(where), key=str):', '    for rid in []:'),
-    ('the schema-2 era ignored', MINE, 'and made is not None and made >= era \\', 'and made is not None \\'),
+    ('the schema-2 era ignored', MINE, '"mode" not in pl and era is not None and made is not None and made >= era)', '"mode" not in pl)'),
     ('teardown trusts the disk copy of the judge file', GATE, '    if head.stdout != path.read_bytes() \\', '    if False \\'),
     ('teardown accepts a made-up commit', GATE, '    if not sha:\n        return 2,', '    if False:\n        return 2,'),
     ('teardown skips the ancestry check', GATE, '    if _git(repo_root, "merge-base", "--is-ancestor", sha, "HEAD").returncode:', '    if False:'),
     ('teardown ignores changes after the judged commit', GATE, '    if changed:\n        return 2, (f"STALE -- {\', \'.join(changed)} changed after', '    if False:\n        return 2, (f"STALE -- {\', \'.join(changed)} changed after'),
-    ('teardown does not compare the grading file', GATE, '    seen = [str(register.relative_to(repo_root)), str((path.parent / "grading.json").relative_to(repo_root))]', '    seen = [str(register.relative_to(repo_root))]'),
+    ('teardown does not compare the grading file', GATE, '    record = [str(register.relative_to(repo_root)), str((path.parent / "grading.json").relative_to(repo_root))]', '    record = [str(register.relative_to(repo_root))]'),
+    ('a mode: cycle event needs the era too', MINE, 'schema_two = pl.get("mode") == "cycle" or (', 'schema_two = False or ('),
+    ('candidates files named by the day', MINE, 'stem = "candidates-" + mined_at.replace(":", "")', 'stem = "candidates-" + mined_at[:10]'),
+    ('the lint skips the downgrade check', MINE, '        down = downgrade_defect(ledger, evolve_dir)\n        if down:\n            defects.append(down)', '        down = downgrade_defect(ledger, evolve_dir)\n        if False:\n            defects.append(down)'),
+    ('teardown skips the downgrade check', GATE, '        if down:\n            return 2, f"STALE -- {down}"', '        if False:\n            return 2, f"STALE -- {down}"'),
+    ('downgrade ignores labelled events', MINE, 'labelled = any("mode" in _payload(e) for _t, e in ledger_lessons(ledger))', 'labelled = False'),
+    ('downgrade ignores schema-2 candidates', MINE, 'if schema_two_since(candidates_dir) is None and not labelled:', 'if not labelled:'),
+    ('made-up new refs accepted', MINE, 'for ref in sorted(r for r in new if resolves and not resolves(r)):', 'for ref in []:'),
+    ('teardown ignores files the judged rows name', GATE, '    seen = record + named_files(repo_root,', '    seen = record or named_files(repo_root,'),
+    ('teardown ignores an uncommitted register', GATE, '    if _git(repo_root, "status", "--porcelain", "--", *record).stdout.strip():', '    if False:'),
 ]
 
 

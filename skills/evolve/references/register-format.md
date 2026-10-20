@@ -156,16 +156,18 @@ unless `rejected`, and the status must agree with the row's table.
 
 Schema 2 adds the rest, and needs `--grading` and `--snapshot`. An `applied` event needs an
 admissible evidence type, non-empty `refs`, its row, `pass` and `mode`, and new refs if the row
-was `rejected` before. Every Active row this pass added (the snapshot lacks it), edited (its
+was `rejected` before, each naming an event (its `ts` or `id`), a declared gate, or a path that
+exists. A schema-1 stamp on a hub that already has a schema-2 candidates file or `mode`-labelled
+events is an error: the plugin that ran it is out of date. Every Active row this pass added (the snapshot lacks it), edited (its
 text differs from the snapshot's) or amended (an applied event names it) must open with an
 admissible signal, and carry an applied event and a
 `passed: true` grading entry whose `before` run failed and whose `after` run of the same
 command passed. An Active row the snapshot has and the register lost is an error: a row is
 superseded, never deleted. In close mode, a PASS `judge.json` (default: beside the grading file; its
-`mined_at` read as an instant) must cover those rows and every row a schema-2 pass applied
-outside a close since the last close a valid PASS judge file covers, an applied event with no
-`mode` or `pass` included. Schema-2 passes are dated from the earliest candidates file with
-`pass_schema` 2 or more; rows applied before it were held to the old checks.
+`mined_at` read as an instant) must cover those rows and every row applied outside a close
+since the last close a valid PASS judge file covers: every `mode: cycle` event, which only a
+schema-2 pass writes, and every unlabelled one from the earliest candidates file with
+`pass_schema` 2 or more on; unlabelled rows before it were held to the old checks.
 `--before-judge` skips only that, for the run before the judge. Rows
 this pass did not touch, and the register linted alone, are not held to the evidence
 allow-list. Exit 0 is the register's own gate — run it in SKILL.md Steps 8 and 9.

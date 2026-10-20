@@ -2,7 +2,7 @@
 """The evolve phase's deterministic miner — it mines, the model classifies.
 
 Reads a finished cycle's run artifacts (the ledger, design.yaml, manifest.json, the
-agents' MEMORY.md files) and emits `candidates-<date>.json` + `candidates-<date>.md`:
+agents' MEMORY.md files) and emits `candidates-<mined_at>.json` + `.md` (colons dropped):
 every signal the run left behind, each tagged ADMISSIBLE or ANECDOTE against the
 evidence bar. No LLM, no network — the `team-forge:evolve` skill reads the .md and
 makes the judgment calls the miner deliberately refuses to make.
@@ -1129,7 +1129,7 @@ def current_lessons(window):
     return list(by_id.values()) + standing
 
 
-def lesson_defects(current, where, schema, history=()):
+def lesson_defects(current, where, schema, history=(), resolves=None):
     """Schema 1 (a stamp from before the judge rules) keeps the rules evolve always stated: an
     anecdote is never applied, the status is one of the four, and the row agrees. Schema 2 adds
     the allow-list, refs, a row for every applied event, and new refs for a rejected row."""
@@ -1163,9 +1163,13 @@ def lesson_defects(current, where, schema, history=()):
                         and str(_payload(h).get("status") or "").lower() == "rejected"]
             if rejected:
                 old = rejected[-1].get("evidence") if isinstance(rejected[-1].get("evidence"), dict) else {}
-                if set(map(str, refs)) <= set(map(str, old.get("refs") or [])):
+                new = set(map(str, refs)) - set(map(str, old.get("refs") or []))
+                if not new:
                     defects.append(f"{label}: {rid} was rejected earlier and is applied again with "
                                    f"no new evidence refs")
+                for ref in sorted(r for r in new if resolves and not resolves(r)):
+                    defects.append(f"{label}: new ref {ref!r} names no event, gate or path, so it "
+                                   f"is not new evidence")
         if status == "applied" and section in ("active", "superseded"):
             applied.add(rid)
         if section is None:
@@ -1311,23 +1315,33 @@ def schema_two_since(candidates_dir):
 
 
 def cycle_rows(ledger, where, judges_dir, mined_at, team, candidates_dir):
-    """Active rows applied outside a close pass since the last judged close, counting only
-    events from schema-2 passes (dated from the first schema-2 candidates file), labelled or
-    not; earlier events were held to the old checks. A judged close clears them."""
+    """Active rows applied outside a close pass since the last judged close. An event marked
+    `mode: cycle` always counts, since only schema-2 passes write that field; an unlabelled one
+    counts from the first schema-2 candidates file on, and earlier ones were held to the old
+    checks. A judged close clears them."""
     era = schema_two_since(candidates_dir)
-    if era is None:
-        return set()
     since = last_judged_close(judges_dir, mined_at, team)
     rows = set()
     for t, e in ledger_lessons(ledger):
         pl = _payload(e)
         rid = norm_id(pl.get("register_id"))
         made = parse_ts(pl.get("pass")) or t
-        if pl.get("mode") != "close" and str(pl.get("status") or "").lower() == "applied" \
-                and rid and where.get(rid) == "active" and made is not None and made >= era \
-                and (since is None or made > since):
+        schema_two = pl.get("mode") == "cycle" or (
+            "mode" not in pl and era is not None and made is not None and made >= era)
+        if schema_two and str(pl.get("status") or "").lower() == "applied" \
+                and rid and where.get(rid) == "active" and (since is None or made is None or made > since):
             rows.add(rid)
     return rows
+
+
+def downgrade_defect(ledger, candidates_dir):
+    """A schema-1 stamp on a hub that already ran schema-2 passes came from an older plugin."""
+    labelled = any("mode" in _payload(e) for _t, e in ledger_lessons(ledger))
+    if schema_two_since(candidates_dir) is None and not labelled:
+        return None
+    return ("this pass is stamped schema 1, but the hub already has schema-2 passes (a "
+            "candidates file with pass_schema, or lesson events with `mode`) — the plugin that "
+            "ran it is out of date: update team-forge and run the pass again")
 
 
 def evolve_dir_of(candidates_path):
@@ -1346,6 +1360,28 @@ def judge_rows(ledger, where, judges_dir, team, schema, candidates_dir):
                              candidates_dir)
 
 
+def ref_resolver(ledger, ledger_path):
+    """A ref counts as evidence when it names an event (its ts or id), a gate the design or
+    the baked plan declares, or a path that exists from the repo root or the hub."""
+    hub = Path(ledger_path).resolve().parent.parent
+    root = next((d for d in hub.parents if (d / ".git").exists()), Path.cwd())
+    events = {str(e.get(k)) for e in ledger.get("events") or [] if isinstance(e, dict)
+              for k in ("ts", "id") if e.get(k)}
+    plan = ledger.get("plan") if isinstance(ledger.get("plan"), dict) else {}
+    gates = set(plan.get("gates") or {})
+    if (hub / "design.yaml").is_file():
+        gates |= set(load_yaml(hub / "design.yaml", "design.yaml").get("gates") or {})
+
+    def resolves(ref):
+        if ref in events or ref in gates:
+            return True
+        path = Path(ref.split("#", 1)[0])
+        if not path.parts:
+            return False
+        return path.exists() if path.is_absolute() else any((b / path).exists() for b in (root, hub))
+    return resolves
+
+
 def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before_judge, team,
                  candidates_path=None):
     """The checks on this pass's own records. Returns the defects, the rows this pass must
@@ -1362,8 +1398,14 @@ def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before
         defects.append(err)
     schema, found = pass_schema(evolve, candidates)
     defects += found
+    evolve_dir = evolve_dir_of(cand_path) if cand_path else Path(ledger_path).parent
+    if schema < 2:
+        down = downgrade_defect(ledger, evolve_dir)
+        if down:
+            defects.append(down)
     where = register_sections(tables)
-    found, applied = lesson_defects(current_lessons(window), where, schema, ledger_lessons(ledger))
+    found, applied = lesson_defects(current_lessons(window), where, schema, ledger_lessons(ledger),
+                                    ref_resolver(ledger, ledger_path))
     defects += found
     if schema < 2:
         return defects, [], schema
@@ -1411,8 +1453,7 @@ def pass_defects(ledger_path, tables, snapshot, grading_path, judge_path, before
         found, judged = judge_defects(jpath, evolve.get("mined_at"), team)
         defects += found
         need = {row_id(r) for r in prove} | cycle_rows(
-            ledger, where, jpath.parent.parent, evolve.get("mined_at"), team,
-            evolve_dir_of(cand_path) if cand_path else Path(grading_path).parent)
+            ledger, where, jpath.parent.parent, evolve.get("mined_at"), team, evolve_dir)
         for rid in sorted(need - judged):
             defects.append(f"the judge has no PASS row for {rid}, which this pass added or "
                            f"amended, or a cycle pass applied since the last judged close")
@@ -1666,7 +1707,6 @@ def main(argv):
     manifest = load_json(hub / "manifest.json", "manifest.json") if (hub / "manifest.json").exists() else {}
 
     mined_at = args.now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    date = mined_at[:10]
     out_dir = Path(args.out) if args.out else (kb / "evolve")
 
     events = ledger.get("events")
@@ -1800,8 +1840,9 @@ def main(argv):
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    jpath = out_dir / f"candidates-{date}.json"
-    mpath = out_dir / f"candidates-{date}.md"
+    # Named by the instant, not the day: a cycle pass and a close on one day each keep their own.
+    stem = "candidates-" + mined_at.replace(":", "")
+    jpath, mpath = out_dir / f"{stem}.json", out_dir / f"{stem}.md"
     jpath.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n")
     mpath.write_text(render_md(doc, ledger_path))
     say(f"✓ mined {len(events)} events from {ledger_path}")

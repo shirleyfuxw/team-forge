@@ -29,14 +29,16 @@ Exit codes (archive):
 """
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from evolve_mine import (judge_defects, judge_rows, load_json, parse_register,  # noqa: E402
-                         pass_schema, register_sections, resolve_hub)
+from evolve_mine import (cell, downgrade_defect, judge_defects, judge_rows,  # noqa: E402
+                         ledger_lessons, load_json, norm_id, parse_register, pass_schema,
+                         register_sections, resolve_hub, row_id)
 from ledger_vocab import parse_ts  # noqa: E402,F401  (re-exported for the tests)
 
 
@@ -46,7 +48,7 @@ def check_freshness(ledger, repo_root, team=None):
     an un-verifiable ledger is a reason to run evolve again, never a green light.
 
     `repo_root` resolves `evolve.candidates`: evolve's own Step 8 stamps it repo-relative
-    (e.g. "docs/team-forge/<team>/evolve/candidates-<date>.json"), so resolving it against
+    (e.g. "docs/team-forge/<team>/evolve/candidates-<mined_at>.json"), so resolving it against
     the process's cwd instead of the repo root finds nothing whenever this runs from
     anywhere else -- which is every real invocation, since Step 1's own command passes the
     hub path, not the repo root, as cwd. Callers with no repo_root to resolve against (the
@@ -99,6 +101,28 @@ def _git(repo_root, *args):
     return subprocess.run(["git", "-C", str(repo_root), *args], capture_output=True, text=True)
 
 
+def named_files(repo_root, hub, sha, judged, tables, ledger):
+    """Repo-relative files the judged rows name, in their Applied-to cells or their lesson
+    events' targets (`L2:design.yaml#gates.x` names the hub's design.yaml), as they stand now
+    or stood at the judged commit."""
+    texts = [cell(r, "applied to") for r in tables["active"] if row_id(r) in judged]
+    texts += [str((e.get("payload") or {}).get("target") or "") for _t, e in ledger_lessons(ledger)
+              if norm_id((e.get("payload") or {}).get("register_id")) in judged]
+    found = []
+    for text in texts:
+        for token in re.split(r"[\s;,+]+", text):
+            token = re.sub(r"^L\d:", "", token.strip("`*()[]")).split("#", 1)[0]
+            if not token or token.startswith("/"):
+                continue
+            for rel in (Path(token), (hub / token).relative_to(repo_root)):
+                exists = (repo_root / rel).is_file() or not _git(
+                    repo_root, "cat-file", "-e", f"{sha}:{rel}").returncode
+                if exists and str(rel) not in found:
+                    found.append(str(rel))
+                    break
+    return found
+
+
 def check_judge(repo_root, team, ledger, candidates_doc):
     """A schema-2 close pass is finished only once a judge that did not produce it passed every
     row it had to, in a judge.json committed with the pass (evolve SKILL.md Step 9). A stamp
@@ -107,7 +131,11 @@ def check_judge(repo_root, team, ledger, candidates_doc):
     schema, defects = pass_schema(evolve, candidates_doc)
     if defects:
         return 2, f"STALE -- {defects[0]}"
+    evolve_dir = repo_root / "docs" / "team-forge" / team / "evolve" if repo_root and team else None
     if schema < 2:
+        down = downgrade_defect(ledger, evolve_dir) if evolve_dir else None
+        if down:
+            return 2, f"STALE -- {down}"
         return 0, "schema 1: the pass predates the judge rule"
     if repo_root is None or not team:
         return 2, "STALE -- no repo root and team to find agent_evals/<team>/*/judge.json in"
@@ -126,9 +154,9 @@ def check_judge(repo_root, team, ledger, candidates_doc):
     register = repo_root / "docs" / "team-forge" / team / "lessons.md"
     if not register.is_file():
         return 2, f"STALE -- no register at {register.relative_to(repo_root)} to read the judged rows from"
-    where = register_sections(parse_register(register)[0])
-    missing = judge_rows(ledger, where, judges, team, schema,
-                         repo_root / "docs" / "team-forge" / team / "evolve") - judged
+    tables = parse_register(register)[0]
+    where = register_sections(tables)
+    missing = judge_rows(ledger, where, judges, team, schema, evolve_dir) - judged
     if missing:
         return 2, f"STALE -- {rel} has no PASS row for {', '.join(sorted(missing))}"
     # HEAD holds the file byte for byte, so index flags such as --assume-unchanged cannot
@@ -143,7 +171,11 @@ def check_judge(repo_root, team, ledger, candidates_doc):
         return 2, f"STALE -- {rel} names commit {named!r}, which this repository does not have"
     if _git(repo_root, "merge-base", "--is-ancestor", sha, "HEAD").returncode:
         return 2, f"STALE -- {rel} judged {sha[:12]}, which is not an ancestor of HEAD"
-    seen = [str(register.relative_to(repo_root)), str((path.parent / "grading.json").relative_to(repo_root))]
+    record = [str(register.relative_to(repo_root)), str((path.parent / "grading.json").relative_to(repo_root))]
+    if _git(repo_root, "status", "--porcelain", "--", *record).stdout.strip():
+        return 2, f"STALE -- {' or '.join(record)} has an uncommitted change the judge never saw"
+    seen = record + named_files(repo_root, repo_root / ".claude" / "team-forge" / team, sha, judged,
+                                tables, ledger)
     changed = _git(repo_root, "diff", "--name-only", sha, "HEAD", "--", *seen).stdout.split()
     if changed:
         return 2, (f"STALE -- {', '.join(changed)} changed after the judged commit {sha[:12]}, so "

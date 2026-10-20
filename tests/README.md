@@ -142,7 +142,7 @@ lessons, corrections, a withdrawn id) stay green · a stamp with no `schema`
 (`lint-ledger-v1.json`, `grading-v1.json`, made before these rules) keeps the older checks ·
 unreadable and truncated ledgers warn and still produce a valid document.
 
-`check_evolve_mutants.py` (about nine minutes, run it after changing the lint or the teardown
+`check_evolve_mutants.py` (about ten minutes, run it after changing the lint or the teardown
 gate) removes or weakens each rule in a copy of `tools/` and confirms that `check_evolve.py` or
 `check_teardown_gate.py` goes red; it prints how many of its mutants were killed.
 

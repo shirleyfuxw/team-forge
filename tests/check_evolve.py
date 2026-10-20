@@ -80,6 +80,7 @@ SKILLS = REPO / "skills"
 WORK = Path("/tmp/test-team-forge-evolve-check")
 NOW = "2026-09-08T00:00:00Z"     # pinned: mined_at is stamped from it, so output is reproducible
 DATE = NOW[:10]
+STEM = "candidates-" + NOW.replace(":", "")   # the miner names its outputs by the mined_at instant
 
 # What ledger-signals.json + the agent-memory fixture were built to yield: one of each of the
 # six admissible signals, plus the recurrence admitted by a hand-maintained payload counter
@@ -126,9 +127,9 @@ def mine(ledger, tag, *, memory=True, register=None, expect_rc=0, hub=FX, since=
     assert r.returncode == expect_rc, \
         f"miner exited {r.returncode} on {Path(ledger).name} — the evolve phase cannot run " \
         f"unattended if mining a cycle can abort it\n{r.stdout}\n{r.stderr}"
-    jpath = out / f"candidates-{DATE}.json"
+    jpath = out / f"{STEM}.json"
     assert jpath.exists(), \
-        f"no candidates-{DATE}.json under {out} — the skill reads the mined document, so a " \
+        f"no {STEM}.json under {out} — the skill reads the mined document, so a " \
         f"missing file is a silently skipped evolve, not a warning"
     return json.loads(jpath.read_text()), r, out
 
@@ -618,7 +619,7 @@ def check_positive_signals():
         assert c["admission_reason"].strip(), f"{c['id']} carries no admission reason"
         assert c["evidence"]["refs"], f"{c['id']} cites no event — an unciteable row is a claim"
 
-    md = (out / f"candidates-{DATE}.md").read_text()
+    md = (out / f"{STEM}.md").read_text()
     assert all(c["id"] in md for c in doc["candidates"] if c["admissible"]), \
         "the .md the skill actually reads is missing an admissible candidate the .json carries"
     print(f"✓ ledger-signals.json: {doc['summary']['admissible']} admissible, by type "
@@ -689,7 +690,7 @@ def check_negative_control():
 def check_determinism():
     a, _, aout = mine(SIGNALS, "det-a")
     b, _, bout = mine(SIGNALS, "det-b")
-    for name in (f"candidates-{DATE}.json", f"candidates-{DATE}.md"):
+    for name in (f"{STEM}.json", f"{STEM}.md"):
         ha = hashlib.sha256((aout / name).read_bytes()).hexdigest()
         hb = hashlib.sha256((bout / name).read_bytes()).hexdigest()
         assert ha == hb, \
@@ -697,6 +698,22 @@ def check_determinism():
             f"churns cannot be diffed cycle over cycle, and every evolve would look like change"
     assert a["mined_at"] == NOW, "--now must be stamped verbatim or nothing is reproducible"
     print(f"✓ determinism: two runs at --now {NOW} are byte-identical (json + md)")
+
+
+def check_same_day_passes_keep_their_files():
+    """A cycle pass and a close on one day each keep their candidates file: the name carries
+    the mined_at instant, so the second pass cannot overwrite the first."""
+    out = WORK / "same-day"
+    shutil.rmtree(out, ignore_errors=True)
+    for now in ("2026-09-08T09:00:00Z", "2026-09-08T18:00:00Z"):
+        subprocess.run([sys.executable, str(MINER), str(FX), "--team", "drain", "--ledger", str(SIGNALS),
+                        "--out", str(out), "--now", now], capture_output=True, text=True, check=True)
+    files = sorted(out.glob("candidates-*.json"))
+    stamps = sorted(json.loads(f.read_text())["mined_at"] for f in files)
+    assert stamps == ["2026-09-08T09:00:00Z", "2026-09-08T18:00:00Z"], \
+        f"two passes on one day left {[f.name for f in files]} — the second overwrote the first, " \
+        f"so the first pass's rows lose the file that dates them"
+    print("✓ same-day passes: each keeps its own candidates file, named by its mined_at")
 
 
 def check_register_dedupe():
@@ -882,6 +899,15 @@ LINT_CONTROLS = [
             "claim": "x", "evidence": {"type": "recurrence", "refs": ["r1"]}, "action": "amend",
             "status": "applied", "register_id": "LL-1", "pass": "2026-09-01T09:45:00Z", "mode": "close"}}])),
      "LL-1 was rejected earlier and is applied again with no new evidence refs"),
+    ("rejected-then-applied-made-up-ref", "ledger", json_edit(lambda d: d["events"].extend([
+        {"ts": "2026-09-01T10:08:00Z", "agent": "lead", "kind": "lesson", "payload": {
+            "claim": "x", "evidence": {"type": "recurrence", "refs": ["r1"]}, "action": "amend",
+            "status": "rejected", "register_id": "LL-1", "pass": "2026-09-01T09:45:00Z", "mode": "close"}},
+        {"ts": "2026-09-01T10:09:00Z", "agent": "lead", "kind": "lesson", "payload": {
+            "claim": "x", "evidence": {"type": "recurrence", "refs": ["r1", "a ref nobody logged"]},
+            "action": "amend", "status": "applied", "register_id": "LL-1",
+            "pass": "2026-09-01T09:45:00Z", "mode": "close"}}])),
+     "new ref 'a ref nobody logged' names no event, gate or path"),
     ("event-at-window-start", "ledger", json_edit(lambda d: d["events"].append(
         {"ts": "2026-09-01T09:45:00Z", "agent": "lead", "kind": "lesson", "payload": {
             "claim": "edge", "evidence": {"type": "recurrence", "refs": ["r"]}, "action": "amend",
@@ -962,8 +988,9 @@ LINT_GREEN = [
             "claim": "x", "evidence": {"type": "recurrence", "refs": ["r1"]}, "action": "amend",
             "status": "rejected", "register_id": "LL-1", "pass": "2026-09-01T09:45:00Z", "mode": "close"}},
         {"ts": "2026-09-01T10:09:00Z", "agent": "lead", "kind": "lesson", "payload": {
-            "claim": "x", "evidence": {"type": "recurrence", "refs": ["r1", "r2 new"]}, "action": "amend",
-            "status": "applied", "register_id": "LL-1", "pass": "2026-09-01T09:45:00Z", "mode": "close"}}]))),
+            "claim": "x", "evidence": {"type": "recurrence", "refs": ["r1", "2026-09-01T10:01:00Z"]},
+            "action": "amend", "status": "applied", "register_id": "LL-1", "pass": "2026-09-01T09:45:00Z",
+            "mode": "close"}}]))),
     ("grading-names-row-in-text", "grading", json_edit(lambda d: d[1].pop("register_id"))),
     ("snapshot-already-has-row", "snapshot",
      lambda t: t.replace("| LL-1 |", "| LL-2 | Worker scratch files live outside the repo root | blocked->resolved | L1:x | `true` | 2026-09-01 |\n| LL-1 |", 1)),
@@ -1065,21 +1092,43 @@ def check_cycle_rows_and_clearing():
     rc, out = case("mixed-schema-two-cycle", "2026-09-01T08:20:00Z", None, older=[old])
     assert rc == 1 and "the judge has no PASS row for LL-1" in out, \
         f"a schema-2 cycle row in a mixed ledger was not owed to the judge\n{out}"
-    rc, out = case("no-schema-two-pass", "2026-09-01T08:20:00Z", None, era=None)
-    assert rc == 0, f"with no schema-2 candidates before this pass, an earlier row was owed\n{out}"
+    rc, out = case("cycle-without-its-candidates", "2026-09-01T08:20:00Z", None, era=None)
+    assert rc == 1 and "the judge has no PASS row for LL-1" in out, \
+        f"a `mode: cycle` row was hidden because its pass's candidates file is missing\n{out}"
+    rc, out = case("unlabelled-before-any-schema-two", "2026-09-01T08:20:00Z", None, era=None, mode=None)
+    assert rc == 0, f"an unlabelled event with no schema-2 candidates before it was owed\n{out}"
 
 
 def check_schema_one_and_legacy_rows():
     """A stamp from before the grading and judge rules keeps the old checks, and the register
     linted alone, or a row this pass did not touch, is not held to the evidence allow-list."""
     v1 = FX / "lint-ledger-v1.json"
-    r = subprocess.run([sys.executable, str(MINER), "--lint-register", str(LINT_INPUTS["register"]),
-                        "--ledger", str(v1), "--grading", str(FX / "grading-v1.json"),
-                        "--snapshot", str(LINT_INPUTS["snapshot"]),
-                        "--candidates", str(FX / "candidates-v1.json")], capture_output=True, text=True)
-    assert r.returncode == 0 and "stamp schema 1" in r.stdout, \
+
+    def v1_copy(tag):
+        paths = lint_copy(tag)
+        shutil.copy(v1, paths["ledger"])
+        shutil.copy(FX / "grading-v1.json", paths["grading"])
+        shutil.copy(FX / "candidates-v1.json", paths["candidates"])
+        paths["judge"].unlink()
+        return paths
+
+    rc, out = lint_pass(v1_copy("v1-old-shape"))
+    assert rc == 0 and "stamp schema 1" in out, \
         f"an old-shape pass (no refs, a memory merge with no id, old grading, no judge) failed " \
-        f"the new rules it predates\n{r.stdout}"
+        f"the new rules it predates\n{out}"
+    # A schema-1 stamp once the hub has schema-2 passes is a stale plugin, not an old pass.
+    down = v1_copy("v1-after-schema-two-miner")
+    (down["candidates"].parent / "candidates-2026-08-31T120000Z.json").write_text(json.dumps(
+        {"mined_at": "2026-08-31T12:00:00Z", "pass_schema": 2}))
+    rc, out = lint_pass(down)
+    assert rc == 1 and "update team-forge" in out, \
+        f"a schema-1 stamp after a schema-2 candidates file was let through\n{out}"
+    down = v1_copy("v1-after-labelled-events")
+    down["ledger"].write_text(json_edit(lambda d: d["events"].insert(0, cycle_event(
+        "2026-09-01T07:00:00Z", "LL-1", "2026-09-01T06:50:00Z")))(down["ledger"].read_text()))
+    rc, out = lint_pass(down)
+    assert rc == 1 and "update team-forge" in out, \
+        f"a schema-1 stamp after `mode`-labelled events was let through\n{out}"
     paths = lint_copy("v1-anecdote")
     shutil.copy(FX / "candidates-v1.json", paths["candidates"])
     paths["ledger"].write_text(json_edit(lambda d: lesson_at(d, "2026-09-01T10:01:00Z")["evidence"].update(
@@ -1743,6 +1792,7 @@ def main():
     check_determinism()
     check_register_dedupe()
     check_register_lint()
+    check_same_day_passes_keep_their_files()
     check_ledger_and_grading_lint()
     check_evidence_types_agree()
     check_malformed_inputs()
