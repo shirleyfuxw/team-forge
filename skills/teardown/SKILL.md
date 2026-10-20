@@ -70,8 +70,10 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
    byte for byte with nothing pending, says PASS for every Active row the pass applied and every
    row a schema-2 cycle pass applied since the last judged close, from a judge whose name is not
    the team's; its `commit` is an ancestor of HEAD, and the register, the grading file and
-   every file the judged rows name (their Applied-to cells and lesson targets) are unchanged
-   since it, with nothing uncommitted in the register or grading file (evolve Step 9). The
+   every repo file the judged rows name are unchanged since it, with nothing uncommitted in the
+   register or grading file (evolve Step 9). A row names a file through a markdown link or a
+   path in its Applied-to cell, or its lesson events' targets. A file outside the repo, a bare
+   name that resolves to no path, or a file git does not track cannot be compared this way. The
    stamp's `schema` must equal its candidates file's `pass_schema`; only when both lack it does
    the pass predate the judge rule and need no judge, and only on a hub with no schema-2
    candidates file or `mode`-labelled events — otherwise the plugin is out of date. Anything but

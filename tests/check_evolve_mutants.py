@@ -6,7 +6,7 @@ working tree) and runs tests/check_evolve.py and tests/check_teardown_gate.py ag
 mutant that leaves both green names a rule no test can fail. An unmutated copy runs first and
 must pass, so a kill means the mutant, not a broken copy.
 
-Usage:  python3 tests/check_evolve_mutants.py      (about ten minutes)
+Usage:  python3 tests/check_evolve_mutants.py      (about eleven minutes)
 Exit 0 = every mutant killed; exit 1 = a mutant survived, or a pattern no longer matches.
 """
 
@@ -109,6 +109,12 @@ MUTANTS = [
     ('made-up new refs accepted', MINE, 'for ref in sorted(r for r in new if resolves and not resolves(r)):', 'for ref in []:'),
     ('teardown ignores files the judged rows name', GATE, '    seen = record + named_files(repo_root,', '    seen = record or named_files(repo_root,'),
     ('teardown ignores an uncommitted register', GATE, '    if _git(repo_root, "status", "--porcelain", "--", *record).stdout.strip():', '    if False:'),
+    ('teardown ignores event targets', GATE, '    texts += [(str((e.get("payload") or {}).get("target") or ""), None)', '    texts += [] and [(str((e.get("payload") or {}).get("target") or ""), None)'),
+    ('teardown ignores markdown links', GATE, '        for target in _LINK.findall(text):', '        for target in []:'),
+    ("teardown keeps a link's #anchor", GATE, '            target = target.split("#", 1)[0]', '            target = target'),
+    ('teardown ignores a named file deleted after the judge', GATE, '_git(repo_root, "cat-file", "-t", f"{sha}:{rel}").stdout.strip())', '"")'),
+    ('teardown drops absolute in-repo targets', GATE, '            if Path(token).is_absolute():\n                add(Path(token))\n                continue', '            if Path(token).is_absolute():\n                continue'),
+    ('teardown pulls in folders mentioned in prose', GATE, 'if kind == "blob" or kind == "tree" and folders:', 'if kind in ("blob", "tree"):'),
 ]
 
 

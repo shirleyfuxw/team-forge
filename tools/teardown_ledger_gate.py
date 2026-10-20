@@ -101,24 +101,50 @@ def _git(repo_root, *args):
     return subprocess.run(["git", "-C", str(repo_root), *args], capture_output=True, text=True)
 
 
-def named_files(repo_root, hub, sha, judged, tables, ledger):
-    """Repo-relative files the judged rows name, in their Applied-to cells or their lesson
-    events' targets (`L2:design.yaml#gates.x` names the hub's design.yaml), as they stand now
-    or stood at the judged commit."""
-    texts = [cell(r, "applied to") for r in tables["active"] if row_id(r) in judged]
-    texts += [str((e.get("payload") or {}).get("target") or "") for _t, e in ledger_lessons(ledger)
+_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+
+
+def named_files(repo_root, hub, register, sha, judged, tables, ledger):
+    """Repo-relative paths the judged rows name, in their Applied-to cells (markdown links read
+    from the register's folder) or their lesson events' targets, as they stand now or stood at
+    the judged commit. `L2:design.yaml#gates.x` names the hub's design.yaml; an absolute path
+    counts when it lies inside the repo; a bare word in a cell counts only as a file, so prose
+    that mentions a folder does not pull the folder in."""
+    root = repo_root.resolve()
+    texts = [(cell(r, "applied to"), register.parent) for r in tables["active"] if row_id(r) in judged]
+    texts += [(str((e.get("payload") or {}).get("target") or ""), None) for _t, e in ledger_lessons(ledger)
               if norm_id((e.get("payload") or {}).get("register_id")) in judged]
     found = []
-    for text in texts:
-        for token in re.split(r"[\s;,+]+", text):
+
+    def add(path, folders=True):
+        try:
+            rel = path.resolve().relative_to(root)
+        except ValueError:
+            return False
+        if str(rel) in (".", "") or str(rel) in found:
+            return str(rel) in found
+        here = root / rel
+        kind = ("blob" if here.is_file() else "tree" if here.is_dir() else
+                _git(repo_root, "cat-file", "-t", f"{sha}:{rel}").stdout.strip())
+        if kind == "blob" or kind == "tree" and folders:
+            found.append(str(rel))
+            return True
+        return False
+
+    for text, link_base in texts:
+        for target in _LINK.findall(text):
+            target = target.split("#", 1)[0]
+            if target and not re.match(r"^[a-z]+:", target):
+                add((link_base or root) / target)
+        for token in re.split(r"[\s;,+·]+", _LINK.sub(" ", text)):
             token = re.sub(r"^L\d:", "", token.strip("`*()[]")).split("#", 1)[0]
-            if not token or token.startswith("/"):
+            if not token or "/" not in token and not re.search(r"\.[A-Za-z0-9]+$", token):
                 continue
-            for rel in (Path(token), (hub / token).relative_to(repo_root)):
-                exists = (repo_root / rel).is_file() or not _git(
-                    repo_root, "cat-file", "-e", f"{sha}:{rel}").returncode
-                if exists and str(rel) not in found:
-                    found.append(str(rel))
+            if Path(token).is_absolute():
+                add(Path(token))
+                continue
+            for base in (root, hub, register.parent):
+                if add(base / token, folders=link_base is None):
                     break
     return found
 
@@ -174,8 +200,8 @@ def check_judge(repo_root, team, ledger, candidates_doc):
     record = [str(register.relative_to(repo_root)), str((path.parent / "grading.json").relative_to(repo_root))]
     if _git(repo_root, "status", "--porcelain", "--", *record).stdout.strip():
         return 2, f"STALE -- {' or '.join(record)} has an uncommitted change the judge never saw"
-    seen = record + named_files(repo_root, repo_root / ".claude" / "team-forge" / team, sha, judged,
-                                tables, ledger)
+    seen = record + named_files(repo_root, repo_root / ".claude" / "team-forge" / team, register, sha,
+                                judged, tables, ledger)
     changed = _git(repo_root, "diff", "--name-only", sha, "HEAD", "--", *seen).stdout.split()
     if changed:
         return 2, (f"STALE -- {', '.join(changed)} changed after the judged commit {sha[:12]}, so "

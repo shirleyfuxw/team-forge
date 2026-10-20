@@ -76,7 +76,7 @@ SKILLS = REPO / "skills"
 
 # Every output lands here and the tree is cleared per run. The forge once "passed" a check
 # because it re-emitted into a dirty /tmp path and a stale file kept satisfying the
-# assertion; a miner that stopped writing candidates-<date>.json would pass the same way.
+# assertion; a miner that stopped writing its candidates file would pass the same way.
 WORK = Path("/tmp/test-team-forge-evolve-check")
 NOW = "2026-09-08T00:00:00Z"     # pinned: mined_at is stamped from it, so output is reproducible
 DATE = NOW[:10]

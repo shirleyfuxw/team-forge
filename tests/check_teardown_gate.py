@@ -356,6 +356,53 @@ def _untrack(path):
     path.write_text(path.read_text().replace('"PASS"', '"PASS" '))
 
 
+def check_named_files():
+    """Every file a judged row names is compared between the judged commit and HEAD: through an
+    event's absolute in-repo target, through a markdown link in the Applied-to cell, and when
+    the file is deleted rather than edited."""
+    def run(team, register_cell=None, target=None, change="edit", rel=None):
+        events = [_lesson("2026-01-01T23:30:00Z", "LL-1", MINED, "close")]
+        hub = _v2_hub(team, events=events)
+        (hub / "gates" / "other.py").write_text("print('other gate')\n")
+        if target:
+            led_path = hub / "tracker" / "status.json"
+            led = json.loads(led_path.read_text())
+            led["events"][0]["payload"]["target"] = str(target(hub))
+            led_path.write_text(json.dumps(led))
+        if register_cell:
+            reg = hub.parents[2] / "docs" / "team-forge" / team / "lessons.md"
+            reg.write_text(reg.read_text().replace("L1:gates/leak.py", register_cell(team)))
+        path = _add_judge(hub, team)
+        changed = hub.parents[2] / rel(team)
+        if change == "edit":
+            changed.write_text(changed.read_text() + "# after the judge\n")
+            _git_in(path, "commit", "-qam", "edit after the judge")
+        else:
+            _git_in(path, "rm", "-q", str(changed.relative_to(hub.parents[2])))
+            _git_in(path, "commit", "-qm", "delete after the judge")
+        return _run_check(hub)
+
+    other = lambda team: f".claude/team-forge/{team}/gates/other.py"  # noqa: E731
+    leak = lambda team: f".claude/team-forge/{team}/gates/leak.py"  # noqa: E731
+    cases = [
+        ("named-by-target", dict(target=lambda hub: (hub / "gates" / "other.py").resolve(), rel=other)),
+        ("named-by-link", dict(register_cell=lambda team: f"[the gate](../../../.claude/team-forge/{team}/gates/other.py#L1)",
+                               rel=other)),
+        ("named-file-deleted", dict(change="delete", rel=leak)),
+    ]
+    for team, kw in cases:
+        r = run(team, **kw)
+        assert r.returncode == 2 and "changed after the judged commit" in r.stdout, \
+            f"{team}: a named file changed after the judge and teardown passed\n{r.stdout}{r.stderr}"
+    r = run("named-other-untouched", rel=other,
+            register_cell=lambda team: "L1:gates/leak.py (the rest of `gates/` is untouched)")
+    assert r.returncode == 0, \
+        f"a file no judged row names, in a folder a cell mentions in prose, was held to the judge\n{r.stdout}{r.stderr}"
+    print("✓ STALE (named files): an edit after the judge to a file named by an event's absolute "
+          "target or a markdown link, and a named file deleted after the judge, each stop teardown; "
+          "a file no judged row names does not, even in a folder a cell mentions in prose")
+
+
 def check_downgrade():
     """A schema-1 stamp on a hub that already ran schema-2 passes came from a stale plugin."""
     for team, extra_candidates, events in (
@@ -541,6 +588,7 @@ def main():
     check_stale_later_candidates_file()
     check_fresh()
     check_judge_required()
+    check_named_files()
     check_downgrade()
     check_unreadable()
     check_archive()
