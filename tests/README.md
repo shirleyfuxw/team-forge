@@ -131,8 +131,20 @@ the negative control) admits nothing while still recording its anecdotes · two 
 fixed `--now` are byte-identical · candidate ids continue an existing register instead of
 restarting · `lessons-good.md` lints clean while `lessons-bad.md` (four row-level defects)
 and `lessons-structural-bad.md` (four structural defects) are each rejected with every
-seeded defect named individually · unreadable and truncated ledgers warn and still produce
-a valid document.
+seeded defect named individually · the pass lint (`--lint-register` with `--ledger`,
+`--grading` and `--snapshot`) reads only the events between the evolve stamp's `mined_at` and
+`last_run`, and rejects an applied event or added row resting on an anecdote, a status that
+disagrees with its row, an added row with no applied event or passed grading entry, a grading
+entry with no red run before the edit, and, in close mode, a missing or failing `judge.json` —
+each shown red on a broken copy of `lint-ledger.json`, `grading-good.json`,
+`lessons-snapshot.md` or `judge.json` and green once restored, while legal shapes (mid-run
+lessons, corrections, a withdrawn id) stay green · a stamp with no `schema`
+(`lint-ledger-v1.json`, `grading-v1.json`, made before these rules) keeps the older checks ·
+unreadable and truncated ledgers warn and still produce a valid document.
+
+`check_evolve_mutants.py` (about eleven minutes, run it after changing the lint or the teardown
+gate) removes or weakens each rule in a copy of `tools/` and confirms that `check_evolve.py` or
+`check_teardown_gate.py` goes red; it prints how many of its mutants were killed.
 
 It ends with a meta-check, because this repo has twice shipped a check that stayed green
 while its fix was reverted: every critical assertion above is re-run against a deliberately

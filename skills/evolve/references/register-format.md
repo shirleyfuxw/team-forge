@@ -20,7 +20,7 @@ below exists to keep those two apart.
 
 | # | Lesson | Evidence | Applied to (layer:path) | Check | Since |
 |---|---|---|---|---|---|
-| LL-1 | Dashboard renders inside the drain wave cost more than the wave | budget: 6 renders @ ~116k, 1010% of soft target | L2:design.yaml#ledger.dashboard_owner | `forge.py --check` clean + wave spend under target next cycle | 2026-09-08 |
+| LL-1 | A wave runs the leak check before it merges | gate_failure: wave 3 merged a leak; root cause: no gate ran `leak_guard` | L2:design.yaml#gates.leak_guard | `jq -e '.plan.gates.leak_guard' tracker/status.json` (exit 1 on the snapshot, 0 after the resync) | 2026-09-08 |
 
 ## Superseded / falsified
 
@@ -52,11 +52,15 @@ tells "this run had nothing to teach" apart from "nobody ran evolve."
 ### Columns that carry weight
 
 - **Evidence** — the admissible signal *and* its refs, in the form `recurrence: 4 ×
-  gate_flaked` or `blocked→resolved: <agent>/<issue-key>`. Not "observed during the run".
+  gate_flaked` or `blocked→resolved: <agent>/<issue-key>`, or SKILL.md's `hurt once in a way
+  with a name: <the name>`. Not "observed during the run", and never `anecdote`: an anecdote is
+  a Candidates row.
 - **Applied to** — `L1|L2|L3:<path>#<key>`. A row with no path is not applied; it belongs in
   Candidates.
-- **Check** — the command or predicate that proves the lesson took effect, quoted well enough
-  to re-run. A row whose check is "reviewed" is an anecdote wearing a check's clothes.
+- **Check** — the command that proves the lesson took effect, quoted well enough to re-run,
+  and seen failing on the pass's snapshot before it passed (SKILL.md Step 6). A check that was
+  already green before the edit, or that cannot go red, is an anecdote wearing a check's
+  clothes.
 - **Since** — the date it was applied, which is what makes the ablation queue's "runs without
   a trace" countable.
 
@@ -74,6 +78,13 @@ A row enters **Active** only with an admissible signal (the six in SKILL.md: rec
 `lesson_event`). Everything else enters **Candidates** with what was seen and when — and stays
 there, at no cost, possibly forever. A candidate that recurs on a later pass is promoted by
 adding an Active row; its C-id is retired in place, not deleted.
+
+A `lesson` event's `status` must match where its `register_id` sits: `applied` in Active (or
+in Superseded once it dies), and `queued`, `rejected` or `candidate` in Candidates, with the
+reason; only a `prune` that did not land may name a row still in Active, and only a
+`rejected` event may name an id no row carries — an id drafted and never used. A `queued` row —
+waiting for approval, or for a safe route into the copy the runtime runs — is a Candidates row,
+so Active lists only what is in force.
 
 `policy_adopted` deserves its own note: a rule the lead already applied mid-run is *already in
 force* and lives in no file. It is admissible by definition because the run itself is the
@@ -121,7 +132,10 @@ decay this phase exists to reverse.
 ## The mechanical check
 
 ```bash
-python3 <team-forge>/tools/evolve_mine.py --lint-register docs/team-forge/<team>/lessons.md
+python3 <team-forge>/tools/evolve_mine.py --lint-register docs/team-forge/<team>/lessons.md \
+  [--ledger <hub>/tracker/status.json --grading <pass dir>/grading.json \
+   --snapshot docs/team-forge/<team>/evolve/snapshot-<date>/lessons.md \
+   [--judge <pass dir>/judge.json | --before-judge]]
 ```
 
 It checks the format, not the judgment: the banner is present and parses; the four sections
@@ -129,12 +143,36 @@ exist with their expected columns; no prose line wrapped onto a `## <section>` l
 parser switches sections on any line starting `##`, so a wrapped sentence silently reassigns
 the rows after it — the forge shipped exactly that); every id is unique; every Active row
 carries a non-empty Evidence, Applied-to and Check; no Active row duplicates another's
-normalized claim; and every Superseded row records what killed it. Exit 0 is the register's
-own gate — run it in SKILL.md Step 8, before the commit.
+normalized claim; and every Superseded row records what killed it.
 
-Two checks it deliberately does **not** make, because it is handed one file path and nothing
-else: that no id was *renumbered* since the previous commit (needs git) and that every
-`register_id` cited by a `lesson` event resolves to a row (needs the ledger). Both are yours
-at Step 8, where both inputs are already open. Do not read a green lint as covering them —
+`--ledger` adds this pass's own records, by the rules of the stamp's `schema`, which must equal
+the `pass_schema` of the candidates file it names (`--candidates` overrides the path); a
+missing, invalid or different value is an error unless both lack it. Its events are
+the `lesson` events between the stamp's `mined_at` and `last_run`, both included, so the run's
+mid-run lessons and earlier passes stay out; the last event per `register_id`, or per claim for
+one with no id (a correction must come later in time), counts. Every stamp: an `applied` event
+never rests on an anecdote, the status is one of the four, an id no row carries is an error
+unless `rejected`, and the status must agree with the row's table.
+
+Schema 2 adds the rest, and needs `--grading` and `--snapshot`. An `applied` event needs an
+admissible evidence type, non-empty `refs`, its row, `pass` and `mode`, and new refs if the row
+was `rejected` before, each naming an event (its `ts` or `id`), a declared gate, or a path that
+exists. A schema-1 stamp on a hub that already has a schema-2 candidates file or `mode`-labelled
+events is an error: the plugin that ran it is out of date. Every Active row this pass added (the snapshot lacks it), edited (its
+text differs from the snapshot's) or amended (an applied event names it) must open with an
+admissible signal, and carry an applied event and a
+`passed: true` grading entry whose `before` run failed and whose `after` run of the same
+command passed. An Active row the snapshot has and the register lost is an error: a row is
+superseded, never deleted. In close mode, a PASS `judge.json` (default: beside the grading file; its
+`mined_at` read as an instant) must cover those rows and every row applied outside a close
+since the last close a valid PASS judge file covers: every `mode: cycle` event, which only a
+schema-2 pass writes, and every unlabelled one from the earliest candidates file with
+`pass_schema` 2 or more on; unlabelled rows before it were held to the old checks.
+`--before-judge` skips only that, for the run before the judge. Rows
+this pass did not touch, and the register linted alone, are not held to the evidence
+allow-list. Exit 0 is the register's own gate — run it in SKILL.md Steps 8 and 9.
+
+One check it deliberately does **not** make: that no id was *renumbered* since the previous
+commit, which needs git. That is yours at Step 8. Do not read a green lint as covering it —
 a documented check that does not exist is indistinguishable from one that passed, which is
 the failure this whole register is shaped against.

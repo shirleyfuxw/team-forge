@@ -143,6 +143,8 @@ git clone https://github.com/shirleyfuxw/team-forge && cd team-forge
 /plugin marketplace add .                # local marketplace for development
 python3 tests/check_dashboard.py         # emission + elicitation checks
 python3 tests/check_evolve.py            # evidence admission + lessons register
+python3 tests/check_teardown_gate.py     # teardown's freshness + judge gate
+python3 tests/check_evolve_mutants.py    # every lint rule has a test that fails without it
 ```
 
 `check_dashboard.py` forges three fixtures and asserts both halves of the

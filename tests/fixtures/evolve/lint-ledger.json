@@ -1,0 +1,251 @@
+{
+  "evolve": {
+    "last_run": "2026-09-01T10:30:00Z",
+    "mode": "close",
+    "cycle": null,
+    "candidates": "docs/team-forge/drain/evolve/candidates-2026-09-01.json",
+    "mined_at": "2026-09-01T09:45:00Z",
+    "schema": 2,
+    "rows": {
+      "applied": 3,
+      "queued": 0,
+      "rejected": 2,
+      "candidates": 1
+    }
+  },
+  "events": [
+    {
+      "ts": "2026-09-01T08:00:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "An earlier pass's event naming a row this register no longer has",
+        "evidence": {
+          "type": "anecdote",
+          "refs": []
+        },
+        "layer": "L1",
+        "target": "x",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "LL-9"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:00:00Z",
+      "agent": "worker",
+      "kind": "task_completed",
+      "payload": {
+        "task": "T-1"
+      }
+    },
+    {
+      "ts": "2026-09-01T09:30:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Dispatch waves of three while the box is shared",
+        "evidence": {
+          "type": "policy_adopted",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L1",
+        "target": "lead brief",
+        "action": "amend",
+        "status": "applied",
+        "register_id": null
+      }
+    },
+    {
+      "ts": "2026-09-01T09:50:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Worker scratch files live outside the repo root",
+        "evidence": {
+          "type": "blocked_resolved",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L1",
+        "target": ".claude/agent-memory/drain-lead/MEMORY.md",
+        "action": "amend",
+        "status": "applied",
+        "register_id": null,
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:00:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Build the verify brief from the diff, never from the lead's summary",
+        "evidence": {
+          "type": "recurrence",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#worker.procedure",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "LL-1",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:01:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Worker scratch files live outside the repo root",
+        "evidence": {
+          "type": "blocked_resolved",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L1",
+        "target": ".claude/agent-memory/drain-lead/MEMORY.md",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "LL-2",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:02:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Waves of three drain faster than waves of four on this repo",
+        "evidence": {
+          "type": "anecdote",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue.wave_size",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "C-1",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:03:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Waves of three drain faster than waves of four on this repo",
+        "evidence": {
+          "type": "anecdote",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue.wave_size",
+        "action": "amend",
+        "status": "candidate",
+        "register_id": "C-001",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:04:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "The dashboard should be blue",
+        "evidence": {
+          "type": "anecdote",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L1",
+        "target": "none",
+        "action": "amend",
+        "status": "rejected",
+        "register_id": null,
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:05:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "The review gate can dispatch the code-review agent",
+        "evidence": {
+          "type": "gate_failure",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#gates.review",
+        "action": "amend",
+        "status": "applied",
+        "register_id": "LL-0",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:06:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Cap the wave at four",
+        "evidence": {
+          "type": "recurrence",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue",
+        "action": "amend",
+        "status": "queued",
+        "register_id": "LL-4",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    },
+    {
+      "ts": "2026-09-01T10:07:00Z",
+      "agent": "lead",
+      "kind": "lesson",
+      "payload": {
+        "claim": "Cap the wave at four",
+        "evidence": {
+          "type": "recurrence",
+          "refs": [
+            "cycle-2026-09-01-001"
+          ]
+        },
+        "layer": "L2",
+        "target": "design.yaml#queue",
+        "action": "amend",
+        "status": "rejected",
+        "register_id": "LL-4",
+        "pass": "2026-09-01T09:45:00Z",
+        "mode": "close"
+      }
+    }
+  ]
+}

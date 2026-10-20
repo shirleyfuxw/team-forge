@@ -65,7 +65,18 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
 
    Then confirm the marker points at a real mining run rather than at a filename someone typed:
    `jq -r .mined_at` on the file `$e.candidates` names equals `$e.mined_at`, and no other
-   `docs/team-forge/<team>/evolve/candidates-*.json` carries a later `mined_at`. Anything but
+   `docs/team-forge/<team>/evolve/candidates-*.json` carries a later `mined_at`. Last, for a
+   stamp with `schema` 2, an `agent_evals/<team>/*/judge.json` for that `mined_at`, held by HEAD
+   byte for byte with nothing pending, says PASS for every Active row the pass applied and every
+   row a schema-2 cycle pass applied since the last judged close, from a judge whose name is not
+   the team's; its `commit` is an ancestor of HEAD, and the register, the grading file and
+   every repo file the judged rows name are unchanged since it, with nothing uncommitted in the
+   register or grading file (evolve Step 9). A row names a file through a markdown link or a
+   path in its Applied-to cell, or its lesson events' targets. A file outside the repo, a bare
+   name that resolves to no path, or a file git does not track cannot be compared this way. The
+   stamp's `schema` must equal its candidates file's `pass_schema`; only when both lack it does
+   the pass predate the judge rule and need no judge, and only on a hub with no schema-2
+   candidates file or `mode`-labelled events — otherwise the plugin is out of date. Anything but
    `fresh` → say so and run evolve (close mode) NOW, before anything below.
 
    **Run this as a script, not by hand** — the jq one-liner above is the specification, not
@@ -78,7 +89,7 @@ Before deleting runtime state, snapshot it into the durable KB so the run is rec
    ```
 
    Exit 0 = fresh, continue to Step 1.2. Exit 1 (`MISSING`) or exit 2 (`STALE`, naming which
-   of the four conditions failed) = **STOP**, run evolve (close mode) now, before anything
+   of the five conditions failed) = **STOP**, run evolve (close mode) now, before anything
    below. Exit 3 = the ledger could not be read — ask before proceeding; do not treat an
    unreadable ledger as permission to continue.
 
@@ -260,7 +271,7 @@ and that it was retired — not a phase ID). Show the user the surviving durable
 docs/team-forge/<team>/     ← brainstorms, team-plans, artifacts, run-summary.md, final-ledger.json
   lessons.md                ← the lessons register — what the run taught, each row with the
                               evidence that admitted it and the check that proves it
-  evolve/                   ← each evolve pass: candidates-<date>.json, plugin-feedback-<date>.md
+  evolve/                   ← each evolve pass: candidates-<mined_at>.json, plugin-feedback-<date>.md
 agent_evals/<team>/         ← the per-agent eval scaffolds
 .claude/skills/<name>/      ← each promoted skill this team produced (Step 6), with its
                               acceptance command — the deliverable that outlives the team
